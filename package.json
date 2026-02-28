@@ -1,0 +1,21 @@
+{
+  "name": "discord-botc",
+  "version": "0.0.1",
+  "description": "Discord bot for Blood on the Clocktower: Trouble Brewing",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "deploy": "ts-node src/deploy-commands.ts"
+  },
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^16.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.13",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
