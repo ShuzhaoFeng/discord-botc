@@ -6,7 +6,7 @@ A Discord bot for running **Blood on the Clocktower: Trouble Brewing** games, se
 
 > This is a fan-made project. I'm not affiliated with or endorsed by The Pandemonium Institute.
 
-# Mode
+## Mode
 
 The bot supports two modes:
 
@@ -55,9 +55,9 @@ This is an early PoC. I'm aware that some rule details may differ from the offic
 
 ## Licensed under AGPL-3.0
 
-Because I support open source software, I'm licensing this source code under the **GNU Affero General Public License v3.0**. For those who don't know what that means, TL;DR:
+Because I support open source software, I'm licensing this source code under the [GNU Affero General Public License v3.0](LICENSE). For those who don't know what that means, **TL;DR**:
 
-**If you deploy this bot (publicly or privately), you must:**
+**If you deploy this bot (publicly or privately, with or without modification), you must:**
 
 - Make the source code of your version publicly available
 - License your changes under AGPL-3.0 as well
@@ -66,5 +66,3 @@ Because I support open source software, I'm licensing this source code under the
 
 - Pay me anything
 - Ask my permission
-
-Full license text: [LICENSE](LICENSE)
