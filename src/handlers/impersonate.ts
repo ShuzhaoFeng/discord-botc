@@ -6,25 +6,72 @@
  * the test owner — !as is invisible to normal players.
  *
  * Supported sub-commands:
- *   !as <player> iam     — fake player claims the Storyteller role (Manual Mode)
- *   !as <player> youare  — fake player triggers Automated Mode
- *
- * Future sub-commands (not yet handled):
- *   !as <player> <anything else>  — bot replies that it's not supported yet
+ *   !as <player> iam                 — fake player claims the Storyteller role (Manual Mode)
+ *   !as <player> youare              — fake player triggers Automated Mode
+ *   !as <player> nominate <target>   — nominate a player for execution (day phase)
+ *   !as <player> ye                  — vote for the current nominee (day phase)
+ *   !as <player> slay <target>       — use Slayer ability (day phase)
+ *   !as <player> endday              — vote to end the day (day phase)
  */
 
-import { Client, Message, TextChannel } from 'discord.js';
+import { ChatInputCommandInteraction, Client, Message, TextChannel } from 'discord.js';
 import { getGame, updateGame, setStoryteller } from '../game/state';
 import { getLang, t } from '../i18n';
 import { generateDraft } from '../game/assignment';
 import { renderDraft } from '../game/draft_render';
 import { distributeRoles } from './role_sender';
 import { Player } from '../game/types';
+import { handleNominate, handleYe, handleSlay, handleEndDay } from '../game/day';
 
 const COMMAND_PREFIX = '!as ';
 
 export function isImpersonateCommand(content: string): boolean {
   return content.trim().toLowerCase().startsWith(COMMAND_PREFIX);
+}
+
+/**
+ * A minimal fake interaction adapter for the day-phase slash commands.
+ *
+ * Public replies (non-ephemeral) go to the game channel so they are visible to
+ * all players.  Ephemeral "private" replies are sent back to the test owner as
+ * a message reply so they don't pollute the game channel.
+ */
+class FakeDayInteraction {
+  user: { id: string };
+  channelId: string;
+  private _msg: Message;
+  private _arg: string | null;
+
+  constructor(
+    userId: string,
+    channelId: string,
+    msg: Message,
+    arg: string | null,
+  ) {
+    this.user = { id: userId };
+    this.channelId = channelId;
+    this._msg = msg;
+    this._arg = arg;
+  }
+
+  options = {
+    getString: (_name: string, _required?: boolean): string =>
+      this._arg ?? '',
+  };
+
+  async reply(
+    content: string | { content: string; ephemeral?: boolean },
+  ): Promise<void> {
+    const channel = this._msg.channel as TextChannel;
+    if (typeof content === 'string') {
+      await channel.send(content);
+    } else if (content.ephemeral) {
+      // Keep private feedback visible only to the test owner
+      await this._msg.reply(content.content);
+    } else {
+      await channel.send(content.content);
+    }
+  }
 }
 
 export async function handleImpersonate(message: Message, client: Client): Promise<void> {
@@ -124,9 +171,53 @@ export async function handleImpersonate(message: Message, client: Client): Promi
       break;
     }
 
+    // ── Day-phase commands ────────────────────────────────────────────────────
+
+    case 'nominate': {
+      const nomineeInput = rest.slice(1).join(' ');
+      if (!nomineeInput) {
+        await message.reply('❌ Usage: `!as <player> nominate <target>`');
+        return;
+      }
+      const fakeI = new FakeDayInteraction(
+        fakePlayer.userId, channelId, message, nomineeInput,
+      );
+      await handleNominate(fakeI as unknown as ChatInputCommandInteraction, client);
+      break;
+    }
+
+    case 'ye': {
+      const fakeI = new FakeDayInteraction(
+        fakePlayer.userId, channelId, message, null,
+      );
+      await handleYe(fakeI as unknown as ChatInputCommandInteraction, client);
+      break;
+    }
+
+    case 'slay': {
+      const targetInput = rest.slice(1).join(' ');
+      if (!targetInput) {
+        await message.reply('❌ Usage: `!as <player> slay <target>`');
+        return;
+      }
+      const fakeI = new FakeDayInteraction(
+        fakePlayer.userId, channelId, message, targetInput,
+      );
+      await handleSlay(fakeI as unknown as ChatInputCommandInteraction, client);
+      break;
+    }
+
+    case 'endday': {
+      const fakeI = new FakeDayInteraction(
+        fakePlayer.userId, channelId, message, null,
+      );
+      await handleEndDay(fakeI as unknown as ChatInputCommandInteraction, client);
+      break;
+    }
+
     default: {
       await message.reply(
-        `❌ \`!as\` does not support \`${subCmd}\` yet. Supported: \`iam\`, \`youare\`.`,
+        `❌ \`!as\` does not support \`${subCmd}\`. Supported: \`iam\`, \`youare\`, \`nominate\`, \`ye\`, \`slay\`, \`endday\`.`,
       );
     }
   }

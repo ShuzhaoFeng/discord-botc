@@ -1,7 +1,8 @@
 import { ChatInputCommandInteraction } from "discord.js";
 import { getGame } from "../game/state";
 import { getLang } from "../i18n";
-import { getNightPendingPlayerNames } from "../game/night";
+import { getNightPendingPlayerNames, ensureRuntime } from "../game/night";
+import { getActiveNominationInfo } from "../game/day";
 
 export async function handleWhosleft(
   interaction: ChatInputCommandInteraction,
@@ -20,17 +21,38 @@ export async function handleWhosleft(
     return;
   }
 
-  if (state.mode !== "manual") {
+  const runtime = ensureRuntime(state);
+
+  // Day phase: show active nomination voting status
+  if (runtime.daySession) {
+    const info = getActiveNominationInfo(state);
+    if (!info) {
+      await interaction.reply({
+        content:
+          lang === "zh"
+            ? "📋 当前没有进行中的提名投票。"
+            : "📋 No nomination vote is currently in progress.",
+        ephemeral: true,
+      });
+      return;
+    }
+    const voterList =
+      info.voterNames.length > 0
+        ? info.voterNames.join(lang === "zh" ? "、" : ", ")
+        : lang === "zh"
+          ? "（无）"
+          : "(none yet)";
     await interaction.reply({
       content:
         lang === "zh"
-          ? "❌ /whosleft 仅在手动模式中可用。"
-          : "❌ /whosleft is only available in Manual Mode.",
+          ? `🗳️ **${info.nominatorName}** 提名了 **${info.nomineeName}**\n已投票（${info.voteCount}）：${voterList}`
+          : `🗳️ **${info.nominatorName}** nominated **${info.nomineeName}**\nVoted (${info.voteCount}): ${voterList}`,
       ephemeral: true,
     });
     return;
   }
 
+  // Night phase: show who hasn't responded to their night action
   const pending = getNightPendingPlayerNames(state);
   if (pending.length === 0) {
     await interaction.reply({

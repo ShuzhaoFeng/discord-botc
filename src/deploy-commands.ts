@@ -59,6 +59,43 @@ const commands = [
       "Manual mode only: show which players still owe a night reply.",
     )
     .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("nominate")
+    .setDescription("Nominate a living player for execution (day phase).")
+    .addStringOption((opt) =>
+      opt
+        .setName("player")
+        .setDescription("Name of the player to nominate")
+        .setRequired(true),
+    )
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("ye")
+    .setDescription("Vote for the currently nominated player (day phase).")
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("slay")
+    .setDescription("Claim to be the Slayer and attempt to slay a player (day phase).")
+    .addStringOption((opt) =>
+      opt
+        .setName("player")
+        .setDescription("Name of the player to slay")
+        .setRequired(true),
+    )
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("endday")
+    .setDescription("Vote to end the day, or (Storyteller) end it immediately.")
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("info")
+    .setDescription("Show game info: phase, role distribution, win conditions, and player status.")
+    .toJSON(),
 ];
 
 const rest = new REST({ version: "10" }).setToken(token);

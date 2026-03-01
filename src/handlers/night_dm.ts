@@ -6,6 +6,7 @@ import {
   updateGame,
 } from "../game/state";
 import { handleNightPlayerDm, handleNightStorytellerDm } from "../game/night";
+import { handleDayStorytellerDm } from "../game/day";
 import { FAKE_PLAYER_ID_PREFIX, GameState, Player } from "../game/types";
 
 function resolveFakePlayer(
@@ -75,9 +76,17 @@ export async function handleNightDm(
   message: Message,
   client: Client,
 ): Promise<boolean> {
-  // Manual storyteller night controls.
+  // Manual storyteller DM controls (night and day).
   const stState = getGameByStoryteller(message.author.id);
   if (stState && stState.mode === "manual" && stState.phase === "in_progress") {
+    // Day-phase storyteller commands (e.g. SLAY KILL / SLAY NOTHING)
+    const dayHandled = await handleDayStorytellerDm(message, client, stState);
+    if (dayHandled) {
+      updateGame(stState);
+      return true;
+    }
+
+    // Night-phase storyteller commands (SEND, SET, OVERRIDE)
     const storyteller = await client.users.fetch(message.author.id);
     const handled = await handleNightStorytellerDm(
       message,

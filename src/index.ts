@@ -22,6 +22,11 @@ import { handleNightDm } from "./handlers/night_dm";
 import { handleLang } from "./handlers/lang";
 import { handleRulebook } from "./handlers/rulebook";
 import { handleWhosleft } from "./handlers/whosleft";
+import { handleNominateCommand } from "./handlers/nominate";
+import { handleYeCommand } from "./handlers/ye";
+import { handleSlayCommand } from "./handlers/slay";
+import { handleEnddayCommand } from "./handlers/endday";
+import { handleInfo } from "./handlers/info";
 
 const client = new Client({
   intents: [
@@ -65,6 +70,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
         break;
       case "whosleft":
         await handleWhosleft(i);
+        break;
+      case "nominate":
+        await handleNominateCommand(i, client);
+        break;
+      case "ye":
+        await handleYeCommand(i, client);
+        break;
+      case "slay":
+        await handleSlayCommand(i, client);
+        break;
+      case "endday":
+        await handleEnddayCommand(i, client);
+        break;
+      case "info":
+        await handleInfo(i);
         break;
     }
   } catch (err) {

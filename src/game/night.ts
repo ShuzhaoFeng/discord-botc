@@ -50,13 +50,17 @@ export function ensureRuntime(state: GameState): RuntimeState {
         poisoned: false,
         butlerMasterId: null,
         protectedTonight: false,
+        ghostVoteUsed: false,
       });
     }
     state.runtime = {
       nightNumber: 0,
       playerStates,
       nightSession: null,
+      daySession: null,
       lastExecutedPlayerId: null,
+      nightKillIds: [],
+      slayerHasUsed: false,
     };
   }
   return state.runtime;
@@ -320,6 +324,7 @@ export async function startNightPhase(
 ): Promise<void> {
   const runtime = ensureRuntime(state);
   runtime.nightNumber += 1;
+  runtime.nightKillIds = []; // clear previous night's kills
 
   for (const ps of runtime.playerStates.values()) {
     ps.protectedTonight = false;
@@ -884,12 +889,16 @@ function resolveNightOutcomes(state: GameState): void {
       const redirected = pick(candidates, 1)[0];
       if (redirected) {
         const redirectedState = runtime.playerStates.get(redirected.userId);
-        if (redirectedState) redirectedState.alive = false;
+        if (redirectedState) {
+          redirectedState.alive = false;
+          runtime.nightKillIds.push(redirected.userId);
+        }
       }
       continue;
     }
 
     targetState.alive = false;
+    runtime.nightKillIds.push(targetId);
   }
 
   // Compute third-message content.
@@ -1349,15 +1358,11 @@ async function sendStep3Messages(
   session.status = "completed";
   updateGame(state);
 
-  const channel = (await client.channels.fetch(state.channelId)) as TextChannel;
-  const channelLang = getLang(state.players[0]?.userId ?? "");
-  await channel.send(
-    tr(
-      channelLang,
-      `🌅 **Night ${session.nightNumber}** is complete. Day phase begins (daytime actions not implemented yet).`,
-      `🌅 **第 ${session.nightNumber} 夜** 已结束。白天阶段开始（白天行动尚未实现）。`,
-    ),
-  );
+  // Hand off to the day phase (dynamic import avoids circular dependency)
+  const { startDayPhase } = (await import("./day")) as {
+    startDayPhase: (client: Client, state: GameState) => Promise<void>;
+  };
+  await startDayPhase(client, state);
 }
 
 export async function handleNightPlayerDm(
