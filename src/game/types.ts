@@ -70,6 +70,12 @@ export interface PendingSlayRecluse {
   proposedKill: boolean; // bot's random proposal: true = kill Recluse
 }
 
+export interface PendingSlayFixed {
+  slayerId: string;
+  targetId: string;
+  outcome: "nothing" | "kill"; // fixed outcome, storyteller must confirm via SLAY CONFIRM
+}
+
 export interface DaySession {
   dayNumber: number;
   nominatorIds: Set<string>;       // players who have nominated today
@@ -81,7 +87,8 @@ export interface DaySession {
   dayEndsAfterNomination: boolean; // any end condition triggered; wait for active window to close
   status: "open" | "ended";
   nightKillIds: string[];          // players who died last night (announced at day start)
-  pendingSlayRecluse: PendingSlayRecluse | null; // manual mode pending Recluse slay
+  pendingSlayRecluse: PendingSlayRecluse | null; // manual mode pending Recluse slay (Scenario 4)
+  pendingSlayFixed: PendingSlayFixed | null;     // manual mode pending confirmation for Scenarios 1-3
 }
 
 export interface NightPrompt {

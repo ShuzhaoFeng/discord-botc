@@ -27,9 +27,7 @@ function tr(lang: Lang, en: string, zh: string): string {
 
 function getAlivePlayers(state: GameState): Player[] {
   const runtime = ensureRuntime(state);
-  return state.players.filter(
-    (p) => runtime.playerStates.get(p.userId)?.alive,
-  );
+  return state.players.filter((p) => runtime.playerStates.get(p.userId)?.alive);
 }
 
 function getRole(state: GameState, playerId: string) {
@@ -50,9 +48,7 @@ function channelLang(state: GameState): Lang {
 }
 
 function playerDisplayName(state: GameState, userId: string): string {
-  return (
-    state.players.find((p) => p.userId === userId)?.displayName ?? userId
-  );
+  return state.players.find((p) => p.userId === userId)?.displayName ?? userId;
 }
 
 function resolvePlayer(input: string, state: GameState): Player | undefined {
@@ -199,7 +195,9 @@ export async function killPlayerDuringDay(
 
   const lang = channelLang(state);
   const name = playerDisplayName(state, playerId);
-  await channel.send(tr(lang, `⚰️ **${name}** has died.`, `⚰️ **${name}** 死亡。`));
+  await channel.send(
+    tr(lang, `⚰️ **${name}** has died.`, `⚰️ **${name}** 死亡。`),
+  );
 
   // Scarlet Woman check: if the dead player is the Imp and SW is alive with 5+ alive
   const deadRole = getRole(state, playerId);
@@ -457,7 +455,12 @@ async function processEndOfDay(
     return;
   }
 
-  const gameEnded = await killPlayerDuringDay(client, state, channel, executeId);
+  const gameEnded = await killPlayerDuringDay(
+    client,
+    state,
+    channel,
+    executeId,
+  );
   if (gameEnded) return;
 
   await startNextNight(client, state, channel);
@@ -511,6 +514,7 @@ export async function startDayPhase(
     status: "open",
     nightKillIds: [],
     pendingSlayRecluse: null,
+    pendingSlayFixed: null,
   };
 
   updateGame(state);
@@ -545,9 +549,9 @@ export async function startDayPhase(
 
   // Announce alive players and open discussion
   const alive = getAlivePlayers(state);
-  const aliveNames = alive.map((p) => p.displayName).join(
-    lang === "zh" ? "、" : ", ",
-  );
+  const aliveNames = alive
+    .map((p) => p.displayName)
+    .join(lang === "zh" ? "、" : ", ");
   await channel.send(
     tr(
       lang,
@@ -568,7 +572,11 @@ export async function handleNominate(
 
   if (!state || state.phase !== "in_progress") {
     await i.reply({
-      content: tr(lang, "❌ No active game in this channel.", "❌ 此频道没有进行中的游戏。"),
+      content: tr(
+        lang,
+        "❌ No active game in this channel.",
+        "❌ 此频道没有进行中的游戏。",
+      ),
       ephemeral: true,
     });
     return;
@@ -577,7 +585,11 @@ export async function handleNominate(
   // Storyteller cannot nominate
   if (state.storytellerId === i.user.id) {
     await i.reply({
-      content: tr(lang, "❌ The Storyteller cannot use `/nominate`.", "❌ 说书人不能使用 `/nominate`。"),
+      content: tr(
+        lang,
+        "❌ The Storyteller cannot use `/nominate`.",
+        "❌ 说书人不能使用 `/nominate`。",
+      ),
       ephemeral: true,
     });
     return;
@@ -588,7 +600,11 @@ export async function handleNominate(
 
   if (!daySession || daySession.status !== "open") {
     await i.reply({
-      content: tr(lang, "❌ Nominations are not open right now.", "❌ 当前不在提名阶段。"),
+      content: tr(
+        lang,
+        "❌ Nominations are not open right now.",
+        "❌ 当前不在提名阶段。",
+      ),
       ephemeral: true,
     });
     return;
@@ -598,7 +614,11 @@ export async function handleNominate(
   const nominator = state.players.find((p) => p.userId === i.user.id);
   if (!nominator) {
     await i.reply({
-      content: tr(lang, "❌ You are not a player in this game.", "❌ 你不是此局游戏的玩家。"),
+      content: tr(
+        lang,
+        "❌ You are not a player in this game.",
+        "❌ 你不是此局游戏的玩家。",
+      ),
       ephemeral: true,
     });
     return;
@@ -608,7 +628,11 @@ export async function handleNominate(
   const nominatorRtState = runtime.playerStates.get(i.user.id);
   if (!nominatorRtState?.alive) {
     await i.reply({
-      content: tr(lang, "❌ Dead players cannot nominate.", "❌ 死亡玩家不能提名。"),
+      content: tr(
+        lang,
+        "❌ Dead players cannot nominate.",
+        "❌ 死亡玩家不能提名。",
+      ),
       ephemeral: true,
     });
     return;
@@ -617,7 +641,11 @@ export async function handleNominate(
   // Each player may nominate at most once per day
   if (daySession.nominatorIds.has(i.user.id)) {
     await i.reply({
-      content: tr(lang, "❌ You have already nominated someone today.", "❌ 你今天已经提名过了。"),
+      content: tr(
+        lang,
+        "❌ You have already nominated someone today.",
+        "❌ 你今天已经提名过了。",
+      ),
       ephemeral: true,
     });
     return;
@@ -654,7 +682,11 @@ export async function handleNominate(
   const nominee = resolvePlayer(nomineeInput, state);
   if (!nominee) {
     await i.reply({
-      content: tr(lang, `❌ Unknown player: "${nomineeInput}".`, `❌ 未知玩家："${nomineeInput}"。`),
+      content: tr(
+        lang,
+        `❌ Unknown player: "${nomineeInput}".`,
+        `❌ 未知玩家："${nomineeInput}"。`,
+      ),
       ephemeral: true,
     });
     return;
@@ -808,7 +840,11 @@ export async function handleYe(
 
   if (!state || state.phase !== "in_progress") {
     await i.reply({
-      content: tr(lang, "❌ No active game in this channel.", "❌ 此频道没有进行中的游戏。"),
+      content: tr(
+        lang,
+        "❌ No active game in this channel.",
+        "❌ 此频道没有进行中的游戏。",
+      ),
       ephemeral: true,
     });
     return;
@@ -817,7 +853,11 @@ export async function handleYe(
   // Storyteller cannot vote
   if (state.storytellerId === i.user.id) {
     await i.reply({
-      content: tr(lang, "❌ The Storyteller cannot vote.", "❌ 说书人不能投票。"),
+      content: tr(
+        lang,
+        "❌ The Storyteller cannot vote.",
+        "❌ 说书人不能投票。",
+      ),
       ephemeral: true,
     });
     return;
@@ -826,7 +866,11 @@ export async function handleYe(
   const player = state.players.find((p) => p.userId === i.user.id);
   if (!player) {
     await i.reply({
-      content: tr(lang, "❌ You are not in this game.", "❌ 你不在此局游戏中。"),
+      content: tr(
+        lang,
+        "❌ You are not in this game.",
+        "❌ 你不在此局游戏中。",
+      ),
       ephemeral: true,
     });
     return;
@@ -837,7 +881,11 @@ export async function handleYe(
 
   if (!daySession || daySession.status !== "open") {
     await i.reply({
-      content: tr(lang, "❌ Voting is not open right now.", "❌ 当前不在投票阶段。"),
+      content: tr(
+        lang,
+        "❌ Voting is not open right now.",
+        "❌ 当前不在投票阶段。",
+      ),
       ephemeral: true,
     });
     return;
@@ -846,7 +894,11 @@ export async function handleYe(
   const nomination = daySession.activeNomination;
   if (!nomination || nomination.status !== "active") {
     await i.reply({
-      content: tr(lang, "❌ No active nomination to vote on.", "❌ 当前没有进行中的提名。"),
+      content: tr(
+        lang,
+        "❌ No active nomination to vote on.",
+        "❌ 当前没有进行中的提名。",
+      ),
       ephemeral: true,
     });
     return;
@@ -912,7 +964,11 @@ export async function handleSlay(
 
   if (!state || state.phase !== "in_progress") {
     await i.reply({
-      content: tr(lang, "❌ No active game in this channel.", "❌ 此频道没有进行中的游戏。"),
+      content: tr(
+        lang,
+        "❌ No active game in this channel.",
+        "❌ 此频道没有进行中的游戏。",
+      ),
       ephemeral: true,
     });
     return;
@@ -921,7 +977,11 @@ export async function handleSlay(
   // Storyteller cannot use /slay
   if (state.storytellerId === i.user.id) {
     await i.reply({
-      content: tr(lang, "❌ The Storyteller cannot use `/slay`.", "❌ 说书人不能使用 `/slay`。"),
+      content: tr(
+        lang,
+        "❌ The Storyteller cannot use `/slay`.",
+        "❌ 说书人不能使用 `/slay`。",
+      ),
       ephemeral: true,
     });
     return;
@@ -930,7 +990,11 @@ export async function handleSlay(
   const player = state.players.find((p) => p.userId === i.user.id);
   if (!player) {
     await i.reply({
-      content: tr(lang, "❌ You are not a player in this game.", "❌ 你不是此局游戏的玩家。"),
+      content: tr(
+        lang,
+        "❌ You are not a player in this game.",
+        "❌ 你不是此局游戏的玩家。",
+      ),
       ephemeral: true,
     });
     return;
@@ -941,7 +1005,11 @@ export async function handleSlay(
 
   if (!daySession || daySession.status !== "open") {
     await i.reply({
-      content: tr(lang, "❌ It is not daytime right now.", "❌ 当前不是白天阶段。"),
+      content: tr(
+        lang,
+        "❌ It is not daytime right now.",
+        "❌ 当前不是白天阶段。",
+      ),
       ephemeral: true,
     });
     return;
@@ -951,7 +1019,11 @@ export async function handleSlay(
   const playerState = runtime.playerStates.get(i.user.id);
   if (!playerState?.alive) {
     await i.reply({
-      content: tr(lang, "❌ Dead players cannot use `/slay`.", "❌ 死亡玩家不能使用 `/slay`。"),
+      content: tr(
+        lang,
+        "❌ Dead players cannot use `/slay`.",
+        "❌ 死亡玩家不能使用 `/slay`。",
+      ),
       ephemeral: true,
     });
     return;
@@ -961,7 +1033,11 @@ export async function handleSlay(
   const target = resolvePlayer(targetInput, state);
   if (!target) {
     await i.reply({
-      content: tr(lang, `❌ Unknown player: "${targetInput}".`, `❌ 未知玩家："${targetInput}"。`),
+      content: tr(
+        lang,
+        `❌ Unknown player: "${targetInput}".`,
+        `❌ 未知玩家："${targetInput}"。`,
+      ),
       ephemeral: true,
     });
     return;
@@ -970,7 +1046,11 @@ export async function handleSlay(
   const targetState = runtime.playerStates.get(target.userId);
   if (!targetState?.alive) {
     await i.reply({
-      content: tr(lang, `❌ **${target.displayName}** is already dead.`, `❌ **${target.displayName}** 已经死亡了。`),
+      content: tr(
+        lang,
+        `❌ **${target.displayName}** is already dead.`,
+        `❌ **${target.displayName}** 已经死亡了。`,
+      ),
       ephemeral: true,
     });
     return;
@@ -992,48 +1072,133 @@ export async function handleSlay(
     ),
   );
 
-  // Scenario 1: Not the real Slayer (bluffing) → nothing happens
+  // Scenario 1: Not the real Slayer (bluffing) or Drunk → nothing happens
   // Scenario 2: Real Slayer but poisoned → nothing happens (doesn't consume ability)
   // Scenario 3: Real Slayer, not poisoned, not used yet, target not Recluse
   // Scenario 4: Real Slayer, not poisoned, not used yet, target is Recluse
 
   if (!isRealSlayer) {
     // Scenario 1: bluffing
-    await channel.send(
-      tr(
+    if (state.mode === "manual") {
+      daySession.pendingSlayFixed = {
+        slayerId: i.user.id,
+        targetId: target.userId,
+        outcome: "nothing",
+      };
+      updateGame(state);
+      await channel.send(
+        tr(
+          lang,
+          "⏳ The outcome of the slay is pending Storyteller confirmation.",
+          "⏳ 屠杀结果等待说书人确认。",
+        ),
+      );
+      const stLang = state.storytellerId ? getLang(state.storytellerId) : lang;
+      notifyStoryteller(
+        client,
+        state,
+        stLang,
+        tr(
+          stLang,
+          `SLAY: ${player.displayName} targeted ${target.displayName}. But ${player.displayName} is not the slayer - that's just bluffing. Nothing happens.\nReply \`SLAY CONFIRM\` to confirm their fate.`,
+          `屠杀：${player.displayName} 指向 ${target.displayName}。但 ${player.displayName} 不是屠魔者——虚张声势而已。无事发生。\n回复 \`SLAY CONFIRM\` 以确认他们的命运。`,
+        ),
+      );
+    } else {
+      await channel.send(
+        tr(lang, "🌫️ Nothing happens.", "🌫️ 什么都没有发生。"),
+      );
+      notifyStoryteller(
+        client,
+        state,
         lang,
-        "🌫️ Nothing happens.",
-        "🌫️ 什么都没有发生。",
-      ),
-    );
-    notifyStoryteller(client, state, lang,
-      tr(lang,
-        `SLAY: ${player.displayName} (not the Slayer) targeted ${target.displayName}. Scenario 1 — bluffing. Nothing happens.`,
-        `屠杀：${player.displayName}（非屠魔者）指向 ${target.displayName}。情形1——虚张声势，无事发生。`
-      )
-    );
+        tr(
+          lang,
+          `SLAY: ${player.displayName} targeted ${target.displayName}. But ${player.displayName} is not the slayer - that's just bluffing. Nothing happens.`,
+          `屠杀：${player.displayName} 指向 ${target.displayName}。但 ${player.displayName} 不是屠魔者——虚张声势而已。无事发生。`,
+        ),
+      );
+    }
     return;
   }
 
   if (slayerPoisoned) {
     // Scenario 2: poisoned Slayer — doesn't consume ability
-    await channel.send(
-      tr(lang, "🌫️ Nothing happens.", "🌫️ 什么都没有发生。"),
-    );
-    notifyStoryteller(client, state, lang,
-      tr(lang,
-        `SLAY: ${player.displayName} (real Slayer, poisoned) targeted ${target.displayName}. Scenario 2 — poisoned. Ability NOT consumed.`,
-        `屠杀：${player.displayName}（真实屠魔者，中毒状态）指向 ${target.displayName}。情形2——中毒，能力未耗尽。`
-      )
-    );
+    if (state.mode === "manual") {
+      daySession.pendingSlayFixed = {
+        slayerId: i.user.id,
+        targetId: target.userId,
+        outcome: "nothing",
+      };
+      updateGame(state);
+      await channel.send(
+        tr(
+          lang,
+          "⏳ The outcome of the slay is pending Storyteller confirmation.",
+          "⏳ 屠杀结果等待说书人确认。",
+        ),
+      );
+      const stLang = state.storytellerId ? getLang(state.storytellerId) : lang;
+      notifyStoryteller(
+        client,
+        state,
+        stLang,
+        tr(
+          stLang,
+          `SLAY: ${player.displayName} targeted ${target.displayName}. ${player.displayName} is the Slayer, but is poisoned. Nothing happens, and the ability is not consumed.\nReply \`SLAY CONFIRM\` to confirm their fate.`,
+          `屠杀：${player.displayName} 指向 ${target.displayName}。${player.displayName} 是屠魔者，但中毒了。无事发生，能力未耗尽。\n回复 \`SLAY CONFIRM\` 以确认他们的命运。`,
+        ),
+      );
+    } else {
+      await channel.send(
+        tr(lang, "🌫️ Nothing happens.", "🌫️ 什么都没有发生。"),
+      );
+      notifyStoryteller(
+        client,
+        state,
+        lang,
+        tr(
+          lang,
+          `SLAY: ${player.displayName} targeted ${target.displayName}. ${player.displayName} is the Slayer, but is poisoned. Nothing happens, and the ability is not consumed.`,
+          `屠杀：${player.displayName} 指向 ${target.displayName}。${player.displayName} 是屠魔者，但中毒了。无事发生，能力未耗尽。`,
+        ),
+      );
+    }
     return;
   }
 
   if (runtime.slayerHasUsed) {
-    // Already used their ability
-    await channel.send(
-      tr(lang, "🌫️ Nothing happens.", "🌫️ 什么都没有发生。"),
-    );
+    // Already used their ability — treated as Scenario 1 (nothing happens)
+    if (state.mode === "manual") {
+      daySession.pendingSlayFixed = {
+        slayerId: i.user.id,
+        targetId: target.userId,
+        outcome: "nothing",
+      };
+      updateGame(state);
+      await channel.send(
+        tr(
+          lang,
+          "⏳ The outcome of the slay is pending Storyteller confirmation.",
+          "⏳ 屠杀结果等待说书人确认。",
+        ),
+      );
+      const stLang = state.storytellerId ? getLang(state.storytellerId) : lang;
+      notifyStoryteller(
+        client,
+        state,
+        stLang,
+        tr(
+          stLang,
+          `SLAY: ${player.displayName} targeted ${target.displayName}. ${player.displayName} is the Slayer, but the slay ability is already consumed. Nothing happens.\nReply \`SLAY CONFIRM\` to confirm their fate.`,
+          `屠杀：${player.displayName} 指向 ${target.displayName}。${player.displayName} 是屠魔者，但能力已使用。无事发生。\n回复 \`SLAY CONFIRM\` 以确认他们的命运。`,
+        ),
+      );
+    } else {
+      await channel.send(
+        tr(lang, "🌫️ Nothing happens.", "🌫️ 什么都没有发生。"),
+      );
+    }
     return;
   }
 
@@ -1054,7 +1219,12 @@ export async function handleSlay(
             `💀 **${target.displayName}**（被识别为恶魔）被屠杀！`,
           ),
         );
-        const gameEnded = await killPlayerDuringDay(client, state, channel, target.userId);
+        const gameEnded = await killPlayerDuringDay(
+          client,
+          state,
+          channel,
+          target.userId,
+        );
         if (!gameEnded && daySession.activeNomination) {
           // If target was current nominee, cancel the nomination
           if (daySession.activeNomination.nomineeId === target.userId) {
@@ -1089,13 +1259,25 @@ export async function handleSlay(
 
       const stLang = state.storytellerId ? getLang(state.storytellerId) : lang;
       const proposal = proposedKill
-        ? tr(stLang, "KILL the Recluse (registers as Demon)", "击杀隐士（被识别为恶魔）")
-        : tr(stLang, "NOTHING (Recluse does not register as Demon)", "无事发生（隐士未被识别为恶魔）");
-      notifyStoryteller(client, state, stLang,
-        tr(stLang,
-          `SLAY (Scenario 4): ${player.displayName} (Slayer) targeted ${target.displayName} (Recluse).\nProposed: ${proposal}\nReply \`SLAY KILL\` to kill the Recluse, or \`SLAY NOTHING\` for no effect.`,
-          `屠杀（情形4）：${player.displayName}（屠魔者）指向 ${target.displayName}（隐士）。\n建议：${proposal}\n回复 \`SLAY KILL\` 击杀隐士，或 \`SLAY NOTHING\` 无事发生。`
-        )
+        ? tr(
+            stLang,
+            "KILL the Recluse (registers as Demon)",
+            "击杀隐士（被识别为恶魔）",
+          )
+        : tr(
+            stLang,
+            "NOTHING (Recluse does not register as Demon)",
+            "无事发生（隐士未被识别为恶魔）",
+          );
+      notifyStoryteller(
+        client,
+        state,
+        stLang,
+        tr(
+          stLang,
+          `SLAY: ${player.displayName} (Slayer) targeted ${target.displayName} (Recluse).\nProposed: ${proposal}\nReply \`SLAY KILL\` to kill the Recluse, or \`SLAY NOTHING\` for no effect.`,
+          `屠杀：${player.displayName}（屠魔者）指向 ${target.displayName}（隐士）。\n建议：${proposal}\n回复 \`SLAY KILL\` 击杀隐士，或 \`SLAY NOTHING\` 无事发生。`,
+        ),
       );
     }
     return;
@@ -1104,37 +1286,103 @@ export async function handleSlay(
   // Scenario 3: Real Slayer, not Recluse target
   if (targetRole.id === "imp") {
     // Demon dies
-    await channel.send(
-      tr(
+    if (state.mode === "manual") {
+      daySession.pendingSlayFixed = {
+        slayerId: i.user.id,
+        targetId: target.userId,
+        outcome: "kill",
+      };
+      updateGame(state);
+      await channel.send(
+        tr(
+          lang,
+          "⏳ The outcome of the slay is pending Storyteller confirmation.",
+          "⏳ 屠杀结果等待说书人确认。",
+        ),
+      );
+      const stLang = state.storytellerId ? getLang(state.storytellerId) : lang;
+      notifyStoryteller(
+        client,
+        state,
+        stLang,
+        tr(
+          stLang,
+          `SLAY: ${player.displayName} (Slayer) targeted ${target.displayName} (Demon). Demon dies.\nReply \`SLAY CONFIRM\` to confirm their fate.`,
+          `屠杀：${player.displayName}（屠魔者）指向 ${target.displayName}（恶魔）。恶魔死亡。\n回复 \`SLAY CONFIRM\` 以确认他们的命运。`,
+        ),
+      );
+    } else {
+      await channel.send(
+        tr(
+          lang,
+          `💀 **${target.displayName}** is the **Demon** — slain by the Slayer!`,
+          `💀 **${target.displayName}** 是**恶魔**——被屠魔者击杀！`,
+        ),
+      );
+      notifyStoryteller(
+        client,
+        state,
         lang,
-        `💀 **${target.displayName}** is the **Demon** — slain by the Slayer!`,
-        `💀 **${target.displayName}** 是**恶魔**——被屠魔者击杀！`,
-      ),
-    );
-    notifyStoryteller(client, state, lang,
-      tr(lang,
-        `SLAY: ${player.displayName} (Slayer) killed ${target.displayName} (Demon). Scenario 3.`,
-        `屠杀：${player.displayName}（屠魔者）击杀 ${target.displayName}（恶魔）。情形3。`
-      )
-    );
-    const gameEnded = await killPlayerDuringDay(client, state, channel, target.userId);
-    if (!gameEnded) {
-      // If target was the current nominee, cancel the nomination
-      if (daySession.activeNomination?.nomineeId === target.userId) {
-        await cancelActiveNomination(client, state, channel, target.userId);
+        tr(
+          lang,
+          `SLAY: ${player.displayName} (Slayer) killed ${target.displayName} (Demon).`,
+          `屠杀：${player.displayName}（屠魔者）击杀 ${target.displayName}（恶魔）。`,
+        ),
+      );
+      const gameEnded = await killPlayerDuringDay(
+        client,
+        state,
+        channel,
+        target.userId,
+      );
+      if (!gameEnded) {
+        if (daySession.activeNomination?.nomineeId === target.userId) {
+          await cancelActiveNomination(client, state, channel, target.userId);
+        }
       }
     }
   } else {
     // Not the Demon → nothing happens
-    await channel.send(
-      tr(lang, "🌫️ Nothing happens.", "🌫️ 什么都没有发生。"),
-    );
-    notifyStoryteller(client, state, lang,
-      tr(lang,
-        `SLAY: ${player.displayName} (Slayer) targeted ${target.displayName} (not the Demon). Scenario 3 — nothing.`,
-        `屠杀：${player.displayName}（屠魔者）指向 ${target.displayName}（非恶魔）。情形3——无事发生。`
-      )
-    );
+    if (state.mode === "manual") {
+      daySession.pendingSlayFixed = {
+        slayerId: i.user.id,
+        targetId: target.userId,
+        outcome: "nothing",
+      };
+      updateGame(state);
+      await channel.send(
+        tr(
+          lang,
+          "⏳ The outcome of the slay is pending Storyteller confirmation.",
+          "⏳ 屠杀结果等待说书人确认。",
+        ),
+      );
+      const stLang = state.storytellerId ? getLang(state.storytellerId) : lang;
+      notifyStoryteller(
+        client,
+        state,
+        stLang,
+        tr(
+          stLang,
+          `SLAY: ${player.displayName} (Slayer) targeted ${target.displayName} (not the Demon). Nothing happens.\nReply \`SLAY CONFIRM\` to confirm their fate.`,
+          `屠杀：${player.displayName}（屠魔者）指向 ${target.displayName}（非恶魔）。无事发生。\n回复 \`SLAY CONFIRM\` 以确认他们的命运。`,
+        ),
+      );
+    } else {
+      await channel.send(
+        tr(lang, "🌫️ Nothing happens.", "🌫️ 什么都没有发生。"),
+      );
+      notifyStoryteller(
+        client,
+        state,
+        lang,
+        tr(
+          lang,
+          `SLAY: ${player.displayName} (Slayer) targeted ${target.displayName} (not the Demon). Nothing happens.`,
+          `屠杀：${player.displayName}（屠魔者）指向 ${target.displayName}（非恶魔）。无事发生。`,
+        ),
+      );
+    }
   }
 }
 
@@ -1196,7 +1444,11 @@ export async function handleEndDay(
 
   if (!state || state.phase !== "in_progress") {
     await i.reply({
-      content: tr(lang, "❌ No active game in this channel.", "❌ 此频道没有进行中的游戏。"),
+      content: tr(
+        lang,
+        "❌ No active game in this channel.",
+        "❌ 此频道没有进行中的游戏。",
+      ),
       ephemeral: true,
     });
     return;
@@ -1207,7 +1459,11 @@ export async function handleEndDay(
 
   if (!daySession || daySession.status !== "open") {
     await i.reply({
-      content: tr(lang, "❌ It is not daytime right now.", "❌ 当前不是白天阶段。"),
+      content: tr(
+        lang,
+        "❌ It is not daytime right now.",
+        "❌ 当前不是白天阶段。",
+      ),
       ephemeral: true,
     });
     return;
@@ -1218,7 +1474,11 @@ export async function handleEndDay(
   // Storyteller /endday ends the day immediately
   if (state.storytellerId === i.user.id) {
     await i.reply({
-      content: tr(lang, "✅ Day ended by Storyteller.", "✅ 说书人结束了今天。"),
+      content: tr(
+        lang,
+        "✅ Day ended by Storyteller.",
+        "✅ 说书人结束了今天。",
+      ),
       ephemeral: true,
     });
     daySession.dayEndsAfterNomination = true;
@@ -1242,7 +1502,11 @@ export async function handleEndDay(
   const player = state.players.find((p) => p.userId === i.user.id);
   if (!player) {
     await i.reply({
-      content: tr(lang, "❌ You are not in this game.", "❌ 你不在此局游戏中。"),
+      content: tr(
+        lang,
+        "❌ You are not in this game.",
+        "❌ 你不在此局游戏中。",
+      ),
       ephemeral: true,
     });
     return;
@@ -1261,7 +1525,11 @@ export async function handleEndDay(
   // Already voted
   if (daySession.endDayVotes.has(i.user.id)) {
     await i.reply({
-      content: tr(lang, "❌ You have already used `/endday` today.", "❌ 你今天已经使用过 `/endday` 了。"),
+      content: tr(
+        lang,
+        "❌ You have already used `/endday` today.",
+        "❌ 你今天已经使用过 `/endday` 了。",
+      ),
       ephemeral: true,
     });
     return;
@@ -1320,12 +1588,68 @@ export async function handleDayStorytellerDm(
   const channel = (await client.channels.fetch(state.channelId)) as TextChannel;
   const lang = channelLang(state);
 
+  // SLAY CONFIRM — broadcast the fixed outcome for Scenarios 1-3 in manual mode
+  if (content === "SLAY CONFIRM") {
+    const pending = daySession.pendingSlayFixed;
+    if (!pending) {
+      await message.reply(
+        tr(stLang, "No pending slay to confirm.", "当前没有待确认的屠杀。"),
+      );
+      return true;
+    }
+
+    const slayerName = playerDisplayName(state, pending.slayerId);
+    const targetName = playerDisplayName(state, pending.targetId);
+
+    daySession.pendingSlayFixed = null;
+    updateGame(state);
+
+    await message.reply(
+      tr(
+        stLang,
+        `✅ Slay outcome confirmed: ${pending.outcome === "kill" ? "KILL" : "NOTHING"}.`,
+        `✅ 屠杀结果已确认：${pending.outcome === "kill" ? "击杀" : "无事发生"}。`,
+      ),
+    );
+
+    if (pending.outcome === "kill") {
+      await channel.send(
+        tr(
+          lang,
+          `💀 **${targetName}** is the **Demon** — slain by **${slayerName}**!`,
+          `💀 **${targetName}** 是**恶魔**——被 **${slayerName}** 击杀！`,
+        ),
+      );
+      const gameEnded = await killPlayerDuringDay(
+        client,
+        state,
+        channel,
+        pending.targetId,
+      );
+      if (
+        !gameEnded &&
+        daySession.activeNomination?.nomineeId === pending.targetId
+      ) {
+        await cancelActiveNomination(client, state, channel, pending.targetId);
+      }
+    } else {
+      await channel.send(
+        tr(lang, "🌫️ Nothing happens.", "🌫️ 什么都没有发生。"),
+      );
+    }
+    return true;
+  }
+
   // SLAY KILL / SLAY NOTHING — resolve pending Recluse slay in manual mode
   if (content === "SLAY KILL" || content === "SLAY NOTHING") {
     const pending = daySession.pendingSlayRecluse;
     if (!pending) {
       await message.reply(
-        tr(stLang, "No pending Recluse slay to resolve.", "当前没有待确认的隐士屠杀。"),
+        tr(
+          stLang,
+          "No pending Recluse slay to resolve.",
+          "当前没有待确认的隐士屠杀。",
+        ),
       );
       return true;
     }
@@ -1338,7 +1662,11 @@ export async function handleDayStorytellerDm(
     const targetName = playerDisplayName(state, pending.targetId);
 
     await message.reply(
-      tr(stLang, `✅ Slay outcome confirmed: ${kill ? "KILL" : "NOTHING"}.`, `✅ 屠杀结果已确认：${kill ? "击杀" : "无事发生"}。`),
+      tr(
+        stLang,
+        `✅ Slay outcome confirmed: ${kill ? "KILL" : "NOTHING"}.`,
+        `✅ 屠杀结果已确认：${kill ? "击杀" : "无事发生"}。`,
+      ),
     );
 
     if (kill) {
@@ -1349,8 +1677,16 @@ export async function handleDayStorytellerDm(
           `💀 **${targetName}**（被识别为恶魔）被 **${slayerName}** 击杀！`,
         ),
       );
-      const gameEnded = await killPlayerDuringDay(client, state, channel, pending.targetId);
-      if (!gameEnded && daySession.activeNomination?.nomineeId === pending.targetId) {
+      const gameEnded = await killPlayerDuringDay(
+        client,
+        state,
+        channel,
+        pending.targetId,
+      );
+      if (
+        !gameEnded &&
+        daySession.activeNomination?.nomineeId === pending.targetId
+      ) {
         await cancelActiveNomination(client, state, channel, pending.targetId);
       }
     } else {
@@ -1397,9 +1733,7 @@ export function getActiveNominationInfo(
   return {
     nomineeName: playerDisplayName(state, nomination.nomineeId),
     nominatorName: playerDisplayName(state, nomination.nominatorId),
-    voterNames: [...nomination.votes].map((id) =>
-      playerDisplayName(state, id),
-    ),
+    voterNames: [...nomination.votes].map((id) => playerDisplayName(state, id)),
     voteCount: nomination.votes.size,
   };
 }
