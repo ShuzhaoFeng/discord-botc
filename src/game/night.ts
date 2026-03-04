@@ -301,11 +301,11 @@ export async function startNightPhase(
 
   const alivePlayers = getAlivePlayers(state);
   const prompts = new Map<string, NightPrompt>();
-  const step1Messages = new Map<string, string>();
+  const actionMessages = new Map<string, string>();
   const responses = new Map<string, string[]>();
-  const step3Messages = new Map<string, string>();
-  const step3OutcomeMeta = new Map<string, NightOutcomeMeta>();
-  const step3OutcomeDrafts = new Map<string, NightOutcomeDraft>();
+  const infoMessages = new Map<string, string>();
+  const infoOutcomeMeta = new Map<string, NightOutcomeMeta>();
+  const infoOutcomeDrafts = new Map<string, NightOutcomeDraft>();
 
   const promptPreviewLines: string[] = [];
 
@@ -326,14 +326,14 @@ export async function startNightPhase(
     jokePlayerIds.map((id, i) => [id, fetchedJokes[i]]),
   );
 
-  // Second pass: assemble step1Messages with pre-fetched jokes.
+  // Second pass: assemble actionMessages with pre-fetched jokes.
   for (const { player, prompt, message } of promptResults) {
     if (prompt.expected === "free_text") {
       const lang = getLang(player.userId);
       const joke = jokeByPlayerId.get(player.userId)!;
-      step1Messages.set(player.userId, t(lang, "nightJokePrompt", { joke }));
+      actionMessages.set(player.userId, t(lang, "nightJokePrompt", { joke }));
     } else {
-      step1Messages.set(player.userId, message);
+      actionMessages.set(player.userId, message);
     }
   }
 
@@ -341,16 +341,16 @@ export async function startNightPhase(
     nightNumber: runtime.nightNumber,
     status:
       state.mode === "manual"
-        ? "awaiting_storyteller_step1"
+        ? "awaiting_storyteller_action"
         : "awaiting_players",
     prompts,
-    step1Messages,
+    actionMessages,
     responses,
     pendingPlayerIds: alivePlayers.map((p) => p.userId),
-    step1Preview: promptPreviewLines.join("\n"),
-    step3Messages,
-    step3OutcomeMeta,
-    step3OutcomeDrafts,
+    actionPreview: promptPreviewLines.join("\n"),
+    infoMessages,
+    infoOutcomeMeta,
+    infoOutcomeDrafts,
   };
 
   runtime.nightSession = session;
@@ -359,16 +359,16 @@ export async function startNightPhase(
     const storyteller = await client.users.fetch(state.storytellerId);
     const lang = getLang(storyteller.id);
     await storyteller.send(
-      t(lang, "nightStep1Preview", {
+      t(lang, "nightActionPreview", {
         n: session.nightNumber,
-        preview: session.step1Preview ?? "",
+        preview: session.actionPreview ?? "",
       }),
     );
   }
 
   if (state.mode === "automated") {
     for (const p of alivePlayers) {
-      const message = step1Messages.get(p.userId);
+      const message = actionMessages.get(p.userId);
       if (!message) continue;
       await sendPlayerDm(client, p, state, message);
     }
@@ -609,17 +609,17 @@ function outcomeReasonTag(
   return t(lang, "nightOutcomeReason", { reason });
 }
 
-function buildStep3Preview(state: GameState, storytellerLang: Lang): string {
+function buildInfoPreview(state: GameState, storytellerLang: Lang): string {
   const runtime = ensureRuntime(state);
   const session = runtime.nightSession;
   if (!session) return "";
 
   const previewLines: string[] = [];
   for (const p of state.players) {
-    const msg = session.step3Messages.get(p.userId);
+    const msg = session.infoMessages.get(p.userId);
     if (!msg) continue;
-    const meta = session.step3OutcomeMeta.get(p.userId);
-    const draft = session.step3OutcomeDrafts.get(p.userId);
+    const meta = session.infoOutcomeMeta.get(p.userId);
+    const draft = session.infoOutcomeDrafts.get(p.userId);
     const editable = draft ? editableFields(draft).join(",") : "";
     const editHint = draft
       ? t(storytellerLang, "nightEditableFields", { fields: editable })
@@ -638,7 +638,7 @@ function humanizeRoleId(roleId: string): string {
     .join(" ");
 }
 
-function buildStep2Summary(state: GameState, storytellerLang: Lang): string {
+function buildActionSummary(state: GameState, storytellerLang: Lang): string {
   const runtime = ensureRuntime(state);
   const session = runtime.nightSession;
   if (!session) return "";
@@ -764,13 +764,13 @@ function resolveNightOutcomes(state: GameState): void {
 
   for (const p of state.players) {
     const lang = getLang(p.userId);
-    session.step3Messages.set(p.userId, t(lang, "nightInteractionRecorded"));
-    session.step3OutcomeMeta.set(p.userId, {
+    session.infoMessages.set(p.userId, t(lang, "nightInteractionRecorded"));
+    session.infoOutcomeMeta.set(p.userId, {
       kind: "fixed",
       reasonEn: "deterministic role resolution",
       reasonZh: "确定性角色结算",
     });
-    session.step3OutcomeDrafts.delete(p.userId);
+    session.infoOutcomeDrafts.delete(p.userId);
   }
 
   // Process action intents first.
@@ -848,9 +848,9 @@ function resolveNightOutcomes(state: GameState): void {
     if (!prompt) continue;
 
     if (prompt.expected === "free_text") {
-      session.step3Messages.set(player.userId, t(lang, "nightJudgeJoke"));
-      session.step3OutcomeDrafts.delete(player.userId);
-      session.step3OutcomeMeta.set(player.userId, {
+      session.infoMessages.set(player.userId, t(lang, "nightJudgeJoke"));
+      session.infoOutcomeDrafts.delete(player.userId);
+      session.infoOutcomeMeta.set(player.userId, {
         kind: "fixed",
         reasonEn: "no night ability (joke interaction)",
         reasonZh: "该夜无能力（笑话互动）",
@@ -907,12 +907,12 @@ function resolveNightOutcomes(state: GameState): void {
         },
         allowArbitraryOverride: randomInfo,
       };
-      session.step3OutcomeDrafts.set(player.userId, draft);
-      session.step3Messages.set(
+      session.infoOutcomeDrafts.set(player.userId, draft);
+      session.infoMessages.set(
         player.userId,
         renderOutcomeDraft(state, lang, draft),
       );
-      session.step3OutcomeMeta.set(player.userId, {
+      session.infoOutcomeMeta.set(player.userId, {
         kind: "randomized",
         reasonEn: randomInfo
           ? "poisoned/drunk false information"
@@ -930,12 +930,12 @@ function resolveNightOutcomes(state: GameState): void {
         (p) => getRole(state, p.userId).category === "Outsider",
       );
       if (!randomInfo && outsiders.length === 0) {
-        session.step3Messages.set(
+        session.infoMessages.set(
           player.userId,
           t(lang, "nightLibrarianNoOutsiders"),
         );
-        session.step3OutcomeDrafts.delete(player.userId);
-        session.step3OutcomeMeta.set(player.userId, {
+        session.infoOutcomeDrafts.delete(player.userId);
+        session.infoOutcomeMeta.set(player.userId, {
           kind: "fixed",
           reasonEn: "no Outsiders in play",
           reasonZh: "本局无外来者",
@@ -985,12 +985,12 @@ function resolveNightOutcomes(state: GameState): void {
         },
         allowArbitraryOverride: randomInfo,
       };
-      session.step3OutcomeDrafts.set(player.userId, draft);
-      session.step3Messages.set(
+      session.infoOutcomeDrafts.set(player.userId, draft);
+      session.infoMessages.set(
         player.userId,
         renderOutcomeDraft(state, lang, draft),
       );
-      session.step3OutcomeMeta.set(player.userId, {
+      session.infoOutcomeMeta.set(player.userId, {
         kind: "randomized",
         reasonEn: randomInfo
           ? "poisoned/drunk false information"
@@ -1051,12 +1051,12 @@ function resolveNightOutcomes(state: GameState): void {
         },
         allowArbitraryOverride: randomInfo,
       };
-      session.step3OutcomeDrafts.set(player.userId, draft);
-      session.step3Messages.set(
+      session.infoOutcomeDrafts.set(player.userId, draft);
+      session.infoMessages.set(
         player.userId,
         renderOutcomeDraft(state, lang, draft),
       );
-      session.step3OutcomeMeta.set(player.userId, {
+      session.infoOutcomeMeta.set(player.userId, {
         kind: "randomized",
         reasonEn: randomInfo
           ? "poisoned/drunk false information"
@@ -1084,12 +1084,12 @@ function resolveNightOutcomes(state: GameState): void {
         fieldTypes: randomInfo ? { count: "number" } : {},
         allowArbitraryOverride: randomInfo,
       };
-      session.step3OutcomeDrafts.set(player.userId, draft);
-      session.step3Messages.set(
+      session.infoOutcomeDrafts.set(player.userId, draft);
+      session.infoMessages.set(
         player.userId,
         renderOutcomeDraft(state, lang, draft),
       );
-      session.step3OutcomeMeta.set(player.userId, {
+      session.infoOutcomeMeta.set(player.userId, {
         kind: randomInfo ? "randomized" : "fixed",
         reasonEn: randomInfo
           ? "poisoned/drunk false information"
@@ -1130,12 +1130,12 @@ function resolveNightOutcomes(state: GameState): void {
           : {},
         allowArbitraryOverride: randomInfo,
       };
-      session.step3OutcomeDrafts.set(player.userId, draft);
-      session.step3Messages.set(
+      session.infoOutcomeDrafts.set(player.userId, draft);
+      session.infoMessages.set(
         player.userId,
         renderOutcomeDraft(state, lang, draft),
       );
-      session.step3OutcomeMeta.set(player.userId, {
+      session.infoOutcomeMeta.set(player.userId, {
         kind: randomInfo ? "randomized" : "fixed",
         reasonEn: randomInfo
           ? "poisoned/drunk false information"
@@ -1161,12 +1161,12 @@ function resolveNightOutcomes(state: GameState): void {
         fieldTypes: randomInfo ? { yes: "boolean" } : {},
         allowArbitraryOverride: randomInfo,
       };
-      session.step3OutcomeDrafts.set(player.userId, draft);
-      session.step3Messages.set(
+      session.infoOutcomeDrafts.set(player.userId, draft);
+      session.infoMessages.set(
         player.userId,
         renderOutcomeDraft(state, lang, draft),
       );
-      session.step3OutcomeMeta.set(player.userId, {
+      session.infoOutcomeMeta.set(player.userId, {
         kind: randomInfo ? "randomized" : "fixed",
         reasonEn: randomInfo
           ? "poisoned/drunk false information"
@@ -1180,9 +1180,9 @@ function resolveNightOutcomes(state: GameState): void {
 
     if (effectiveRole.id === "undertaker") {
       if (!runtime.lastExecutedPlayerId) {
-        session.step3Messages.set(player.userId, t(lang, "nightNoExecution"));
-        session.step3OutcomeDrafts.delete(player.userId);
-        session.step3OutcomeMeta.set(player.userId, {
+        session.infoMessages.set(player.userId, t(lang, "nightNoExecution"));
+        session.infoOutcomeDrafts.delete(player.userId);
+        session.infoOutcomeMeta.set(player.userId, {
           kind: "fixed",
           reasonEn: "no execution recorded today",
           reasonZh: "今日无处决记录",
@@ -1195,12 +1195,12 @@ function resolveNightOutcomes(state: GameState): void {
           fieldTypes: {},
           allowArbitraryOverride: false,
         };
-        session.step3OutcomeDrafts.set(player.userId, draft);
-        session.step3Messages.set(
+        session.infoOutcomeDrafts.set(player.userId, draft);
+        session.infoMessages.set(
           player.userId,
           renderOutcomeDraft(state, lang, draft),
         );
-        session.step3OutcomeMeta.set(player.userId, {
+        session.infoOutcomeMeta.set(player.userId, {
           kind: "fixed",
           reasonEn: "resolved from execution record",
           reasonZh: "按处决记录结算",
@@ -1214,12 +1214,12 @@ function resolveNightOutcomes(state: GameState): void {
       const grimoire = randomInfo
         ? buildFalseSpyGrimoire(state, lang)
         : buildSpyGrimoire(state, lang);
-      session.step3Messages.set(
+      session.infoMessages.set(
         player.userId,
         t(lang, "nightGrimoire", { grimoire }),
       );
-      session.step3OutcomeDrafts.delete(player.userId);
-      session.step3OutcomeMeta.set(player.userId, {
+      session.infoOutcomeDrafts.delete(player.userId);
+      session.infoOutcomeMeta.set(player.userId, {
         kind: randomInfo ? "randomized" : "fixed",
         reasonEn: randomInfo
           ? "poisoned/drunk false grimoire"
@@ -1233,9 +1233,9 @@ function resolveNightOutcomes(state: GameState): void {
       prompt.expected === "single_player" ||
       prompt.expected === "double_player"
     ) {
-      session.step3Messages.set(player.userId, t(lang, "nightChoiceRecorded"));
-      session.step3OutcomeDrafts.delete(player.userId);
-      session.step3OutcomeMeta.set(player.userId, {
+      session.infoMessages.set(player.userId, t(lang, "nightChoiceRecorded"));
+      session.infoOutcomeDrafts.delete(player.userId);
+      session.infoOutcomeMeta.set(player.userId, {
         kind: "fixed",
         reasonEn: "action acknowledgment",
         reasonZh: "行动回执",
@@ -1251,11 +1251,11 @@ function resolveNightOutcomes(state: GameState): void {
     if (role.id !== "ravenkeeper") continue;
     // Placeholder for Ravenkeeper immediate wake on night death.
     const lang = getLang(dead.userId);
-    session.step3Messages.set(
+    session.infoMessages.set(
       dead.userId,
       t(lang, "nightRavenkeeperPlaceholder"),
     );
-    session.step3OutcomeMeta.set(dead.userId, {
+    session.infoOutcomeMeta.set(dead.userId, {
       kind: "fixed",
       reasonEn: "placeholder for Ravenkeeper follow-up",
       reasonZh: "守鸦人后续占位结算",
@@ -1263,7 +1263,7 @@ function resolveNightOutcomes(state: GameState): void {
   }
 }
 
-async function sendStep3Messages(
+async function sendInfoMessages(
   client: Client,
   state: GameState,
 ): Promise<void> {
@@ -1272,7 +1272,7 @@ async function sendStep3Messages(
   if (!session) return;
 
   for (const player of state.players) {
-    const content = session.step3Messages.get(player.userId);
+    const content = session.infoMessages.get(player.userId);
     if (!content) continue;
     await sendPlayerDm(client, player, state, content);
   }
@@ -1332,21 +1332,21 @@ export async function handleNightPlayerDm(
     resolveNightOutcomes(state);
 
     if (state.mode === "manual" && state.storytellerId) {
-      session.status = "awaiting_storyteller_step3";
+      session.status = "awaiting_storyteller_info";
       const storyteller = await client.users.fetch(state.storytellerId);
       const stLang = getLang(storyteller.id);
-      const step2Summary = buildStep2Summary(state, stLang);
-      session.step3Preview = buildStep3Preview(state, stLang);
+      const actionSummary = buildActionSummary(state, stLang);
+      session.infoPreview = buildInfoPreview(state, stLang);
       updateGame(state);
       await storyteller.send(
-        t(stLang, "nightStep3Preview", {
+        t(stLang, "nightInfoPreview", {
           n: session.nightNumber,
-          summary: step2Summary,
-          preview: session.step3Preview ?? "",
+          summary: actionSummary,
+          preview: session.infoPreview ?? "",
         }),
       );
     } else {
-      await sendStep3Messages(client, state);
+      await sendInfoMessages(client, state);
     }
   }
 
@@ -1366,9 +1366,9 @@ export async function handleNightStorytellerDm(
   const stLang = getLang(storyteller.id);
   const cmd = message.content.trim().toUpperCase();
 
-  if (session.status === "awaiting_storyteller_step1") {
+  if (session.status === "awaiting_storyteller_action") {
     if (cmd !== "SEND") {
-      await message.reply(t(stLang, "nightStep1SendPrompt"));
+      await message.reply(t(stLang, "nightActionSendPrompt"));
       return true;
     }
 
@@ -1376,16 +1376,16 @@ export async function handleNightStorytellerDm(
     updateGame(state);
 
     for (const p of getAlivePlayers(state)) {
-      const step1 = session.step1Messages.get(p.userId);
-      if (!step1) continue;
-      await sendPlayerDm(_client, p, state, step1);
+      const action = session.actionMessages.get(p.userId);
+      if (!action) continue;
+      await sendPlayerDm(_client, p, state, action);
     }
 
-    await message.reply(t(stLang, "nightStep1Dispatched"));
+    await message.reply(t(stLang, "nightActionDispatched"));
     return true;
   }
 
-  if (session.status === "awaiting_storyteller_step3") {
+  if (session.status === "awaiting_storyteller_info") {
     const lines = message.content
       .split("\n")
       .map((l) => l.trim())
@@ -1420,7 +1420,7 @@ export async function handleNightStorytellerDm(
           return true;
         }
 
-        const draft = session.step3OutcomeDrafts.get(target.userId);
+        const draft = session.infoOutcomeDrafts.get(target.userId);
         if (!draft) {
           await message.reply(
             t(stLang, "nightSetNoTemplate", { player: target.displayName }),
@@ -1442,14 +1442,14 @@ export async function handleNightStorytellerDm(
           return true;
         }
 
-        session.step3OutcomeDrafts.set(target.userId, draft);
+        session.infoOutcomeDrafts.set(target.userId, draft);
         const targetLang = getLang(target.userId);
-        session.step3Messages.set(
+        session.infoMessages.set(
           target.userId,
           renderOutcomeDraft(state, targetLang, draft),
         );
-        const prevMeta = session.step3OutcomeMeta.get(target.userId);
-        session.step3OutcomeMeta.set(target.userId, {
+        const prevMeta = session.infoOutcomeMeta.get(target.userId);
+        session.infoOutcomeMeta.set(target.userId, {
           kind: prevMeta?.kind ?? "fixed",
           reasonEn: `storyteller set ${field}`,
           reasonZh: `说书人字段覆盖 ${field}`,
@@ -1480,7 +1480,7 @@ export async function handleNightStorytellerDm(
           return true;
         }
 
-        const targetDraft = session.step3OutcomeDrafts.get(target.userId);
+        const targetDraft = session.infoOutcomeDrafts.get(target.userId);
         const targetCanArbitrary = targetDraft?.allowArbitraryOverride ?? false;
         if (!targetCanArbitrary) {
           await message.reply(
@@ -1491,9 +1491,9 @@ export async function handleNightStorytellerDm(
           return true;
         }
 
-        session.step3Messages.set(target.userId, content);
-        session.step3OutcomeDrafts.delete(target.userId);
-        session.step3OutcomeMeta.set(target.userId, {
+        session.infoMessages.set(target.userId, content);
+        session.infoOutcomeDrafts.delete(target.userId);
+        session.infoOutcomeMeta.set(target.userId, {
           kind: "fixed",
           reasonEn: "storyteller override",
           reasonZh: "说书人覆盖",
@@ -1506,18 +1506,18 @@ export async function handleNightStorytellerDm(
     }
 
     if (!shouldSend) {
-      session.step3Preview = buildStep3Preview(state, stLang);
+      session.infoPreview = buildInfoPreview(state, stLang);
       updateGame(state);
       await message.reply(
         t(stLang, "nightEditsApplied", {
-          preview: session.step3Preview ?? "",
+          preview: session.infoPreview ?? "",
         }),
       );
       return true;
     }
 
-    await message.reply(t(stLang, "nightStep3Sending"));
-    await sendStep3Messages(_client, state);
+    await message.reply(t(stLang, "nightInfoSending"));
+    await sendInfoMessages(_client, state);
     return true;
   }
 

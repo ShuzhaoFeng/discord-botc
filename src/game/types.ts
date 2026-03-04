@@ -11,9 +11,9 @@ export type GamePhase =
   | "in_progress"
   | "ended";
 export type NightSessionStatus =
-  | "awaiting_storyteller_step1"
+  | "awaiting_storyteller_action"
   | "awaiting_players"
-  | "awaiting_storyteller_step3"
+  | "awaiting_storyteller_info"
   | "completed";
 
 export type NightPromptExpected =
@@ -128,14 +128,14 @@ export interface NightSession {
   nightNumber: number;
   status: NightSessionStatus;
   prompts: Map<string, NightPrompt>;
-  step1Messages: Map<string, string>;
+  actionMessages: Map<string, string>;
   responses: Map<string, string[]>;
   pendingPlayerIds: string[];
-  step1Preview?: string;
-  step3Preview?: string;
-  step3Messages: Map<string, string>;
-  step3OutcomeMeta: Map<string, NightOutcomeMeta>;
-  step3OutcomeDrafts: Map<string, NightOutcomeDraft>;
+  actionPreview?: string;
+  infoPreview?: string;
+  infoMessages: Map<string, string>;
+  infoOutcomeMeta: Map<string, NightOutcomeMeta>;
+  infoOutcomeDrafts: Map<string, NightOutcomeDraft>;
 }
 
 export interface RuntimeState {
