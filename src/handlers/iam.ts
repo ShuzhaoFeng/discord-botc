@@ -50,7 +50,7 @@ export async function handleIam(
 
   // Announce in game channel.
   await interaction.reply(
-    t(lang, 'iamAccepted', interaction.user.username),
+    t(lang, 'iamAccepted', { username: interaction.user.username }),
   );
 
   // Send draft DM to storyteller.
@@ -60,7 +60,7 @@ export async function handleIam(
     await stUser.send(renderDraft(state, stLang));
   } catch {
     await interaction.followUp({
-      content: '⚠️ The whisper could not reach you. Please enable DMs from server members.',
+      content: t(lang, 'iamDmFailed'),
       ephemeral: true,
     });
   }

@@ -1,29 +1,19 @@
-import { Draft, GameState, Lang, Player } from "./types";
-import { t } from "../i18n";
+import { Draft, GameState, Lang, Player, Role } from "./types";
+import { t, getRoleDescription, getRoleGuide, getRoleName } from "../i18n";
 
 function pad(s: string, len: number): string {
   return s.length >= len ? s : s + " ".repeat(len - s.length);
 }
 
 function categoryDisplay(cat: string, lang: Lang): string {
-  if (lang === "zh") {
-    switch (cat) {
-      case "Townsfolk":
-        return "镇民";
-      case "Outsider":
-        return "外来者";
-      case "Minion":
-        return "爪牙";
-      case "Demon":
-        return "恶魔";
-    }
-  }
-  return cat;
+  const key = `category${cat}`;
+  return t(lang, key);
 }
 
 /**
  * Render the full draft message (sent to the storyteller in DM).
  * `lang` is the storyteller's language preference.
+ * `adjustmentNote` is an already-formatted string (pre-translated by caller).
  */
 export function renderDraft(
   state: GameState,
@@ -33,7 +23,7 @@ export function renderDraft(
   const draft = state.draft!;
   const lines: string[] = [];
 
-  lines.push(t(lang, "draftHeader", state.gameId));
+  lines.push(t(lang, "draftHeader", { gameId: state.gameId }));
   lines.push("");
 
   // Table
@@ -41,19 +31,19 @@ export function renderDraft(
     COL2 = 21,
     COL3 = 12;
   const header =
-    pad(lang === "zh" ? "玩家" : "Player", COL1) +
-    pad(lang === "zh" ? "角色" : "Role", COL2) +
-    (lang === "zh" ? "类型" : "Type");
+    pad(t(lang, "draftColPlayer"), COL1) +
+    pad(t(lang, "draftColRole"), COL2) +
+    t(lang, "draftColType");
   lines.push("```");
   lines.push(header);
   lines.push("─".repeat(COL1 + COL2 + COL3));
 
   for (const player of state.players) {
     const role = draft.assignments.get(player.userId)!;
-    const roleName = lang === "zh" ? role.nameZh : role.name;
+    const roleName = getRoleName(lang, role.id);
     const roleDisplay =
       role.id === "drunk" && draft.drunkFakeRole
-        ? `${roleName}  (fake: ${lang === "zh" ? draft.drunkFakeRole.nameZh : draft.drunkFakeRole.name})`
+        ? `${roleName}  (${t(lang, "draftDrunkFake", { role: getRoleName(lang, draft.drunkFakeRole.id) })})`
         : roleName;
     const catDisplay = categoryDisplay(role.category, lang);
 
@@ -70,25 +60,25 @@ export function renderDraft(
   if (draft.redHerring) {
     const rhPlayer = state.players.find((p) => p.userId === draft.redHerring);
     if (rhPlayer) {
-      lines.push(t(lang, "draftRedHerring", rhPlayer.displayName));
+      lines.push(
+        t(lang, "draftRedHerring", { playerName: rhPlayer.displayName }),
+      );
     }
   }
   if (draft.impBluffs) {
     const [b1, b2, b3] = draft.impBluffs;
     lines.push(
-      t(
-        lang,
-        "draftImpBluffs",
-        lang === "zh" ? b1.nameZh : b1.name,
-        lang === "zh" ? b2.nameZh : b2.name,
-        lang === "zh" ? b3.nameZh : b3.name,
-      ),
+      t(lang, "draftImpBluffs", {
+        r1: getRoleName(lang, b1.id),
+        r2: getRoleName(lang, b2.id),
+        r3: getRoleName(lang, b3.id),
+      }),
     );
   }
 
   if (adjustmentNote) {
     lines.push("");
-    lines.push(t(lang, "draftAdjusted", adjustmentNote));
+    lines.push(t(lang, "draftAdjusted", { note: adjustmentNote }));
   }
 
   lines.push("");
@@ -103,67 +93,56 @@ export function renderDraft(
  */
 export function renderRoleDm(
   gameId: string,
-  displayRole: {
-    id: string;
-    name: string;
-    nameZh: string;
-    category: string;
-    description: string;
-    descriptionZh: string;
-  },
+  displayRole: Role,
   lang: Lang,
-  impBluffs?: [
-    { name: string; nameZh: string },
-    { name: string; nameZh: string },
-    { name: string; nameZh: string },
-  ],
+  impBluffs?: [Role, Role, Role],
   impMinions?: string[],
   minionDemon?: string,
   minionPeers?: string[],
 ): string {
   const lines: string[] = [];
-  lines.push(t(lang, "roleDmHeader", gameId));
+  lines.push(t(lang, "roleDmHeader", { gameId }));
   lines.push("");
 
-  const roleName = lang === "zh" ? displayRole.nameZh : displayRole.name;
+  const roleName = getRoleName(lang, displayRole.id);
   const cat = categoryDisplay(displayRole.category, lang);
-  lines.push(t(lang, "roleDmRole", roleName, cat));
+  lines.push(t(lang, "roleDmRole", { roleName, category: cat }));
 
-  const desc =
-    lang === "zh" ? displayRole.descriptionZh : displayRole.description;
-  lines.push(t(lang, "roleDmAbility", desc));
+  const desc = getRoleDescription(lang, displayRole.id);
+  lines.push(t(lang, "roleDmAbility", { description: desc }));
 
   lines.push("");
-  lines.push(t(lang, "roleDmBeginnerGuide", displayRole.id));
+  // Use the role guide if available, otherwise fall back to the generic beginner guide string
+  lines.push(
+    getRoleGuide(lang, displayRole.id) ?? t(lang, "roleDmBeginnerGuide"),
+  );
 
   if (impBluffs) {
     lines.push("");
     lines.push(
-      t(
-        lang,
-        "roleDmImpBluffs",
-        lang === "zh" ? impBluffs[0].nameZh : impBluffs[0].name,
-        lang === "zh" ? impBluffs[1].nameZh : impBluffs[1].name,
-        lang === "zh" ? impBluffs[2].nameZh : impBluffs[2].name,
-      ),
+      t(lang, "roleDmImpBluffs", {
+        b1: getRoleName(lang, impBluffs[0].id),
+        b2: getRoleName(lang, impBluffs[1].id),
+        b3: getRoleName(lang, impBluffs[2].id),
+      }),
     );
   }
 
   if (impMinions && impMinions.length > 0) {
     const list = impMinions.join(lang === "zh" ? "、" : ", ");
     lines.push("");
-    lines.push(t(lang, "roleDmImpMinions", list));
+    lines.push(t(lang, "roleDmImpMinions", { minions: list }));
   }
 
   if (minionDemon) {
     lines.push("");
-    lines.push(t(lang, "roleDmMinionDemon", minionDemon));
+    lines.push(t(lang, "roleDmMinionDemon", { demon: minionDemon }));
   }
 
   if (minionPeers && minionPeers.length > 0) {
     const list = minionPeers.join(lang === "zh" ? "、" : ", ");
     lines.push("");
-    lines.push(t(lang, "roleDmMinionPeers", list));
+    lines.push(t(lang, "roleDmMinionPeers", { peers: list }));
   }
 
   return lines.join("\n");

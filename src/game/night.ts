@@ -11,14 +11,10 @@ import {
   Role,
   RuntimeState,
 } from "./types";
-import { getLang } from "../i18n";
+import { getLang, getRoleName, t } from "../i18n";
 import { findRole, ROLE_BY_ID } from "./roles";
 import { sendPlayerDm } from "../utils/sendPlayerDm";
 import { updateGame } from "./state";
-
-function tr(lang: Lang, en: string, zh: string): string {
-  return lang === "zh" ? zh : en;
-}
 
 function shuffle<T>(arr: T[]): T[] {
   const next = [...arr];
@@ -169,11 +165,7 @@ function buildNightPrompt(
     )
   ) {
     if (effectiveRole.id === "fortune_teller") {
-      const msg = tr(
-        lang,
-        "🌙 Night falls. Choose **two players** to read tonight. Reply as: `name1, name2`.",
-        "🌙 夜幕降临。请选择**两名玩家**进行占卜。请按 `名字1, 名字2` 回复。",
-      );
+      const msg = t(lang, "nightFortuneTellerPrompt");
       return {
         prompt: {
           playerId: player.userId,
@@ -188,11 +180,7 @@ function buildNightPrompt(
     }
 
     if (effectiveRole.id === "butler") {
-      const msg = tr(
-        lang,
-        "🌙 Night falls. Choose your **master** (cannot be yourself). Reply with one player name.",
-        "🌙 夜幕降临。请选择你的**主人**（不能是你自己）。请回复一名玩家名字。",
-      );
+      const msg = t(lang, "nightButlerPrompt");
       return {
         prompt: {
           playerId: player.userId,
@@ -207,11 +195,7 @@ function buildNightPrompt(
     }
 
     if (effectiveRole.id === "monk") {
-      const msg = tr(
-        lang,
-        "🌙 Night falls. Choose one player to protect tonight (cannot be yourself). Reply with one name.",
-        "🌙 夜幕降临。请选择一名今晚要保护的玩家（不能是你自己）。请回复一个名字。",
-      );
+      const msg = t(lang, "nightMonkPrompt");
       return {
         prompt: {
           playerId: player.userId,
@@ -226,11 +210,7 @@ function buildNightPrompt(
     }
 
     if (effectiveRole.id === "imp") {
-      const msg = tr(
-        lang,
-        "🌙 Night falls. Choose one player to kill tonight. Reply with one name.",
-        "🌙 夜幕降临。请选择一名今晚要击杀的玩家。请回复一个名字。",
-      );
+      const msg = t(lang, "nightImpPrompt");
       return {
         prompt: {
           playerId: player.userId,
@@ -245,11 +225,7 @@ function buildNightPrompt(
     }
 
     if (effectiveRole.id === "poisoner") {
-      const msg = tr(
-        lang,
-        "🌙 Night falls. Choose one player to poison tonight and tomorrow day. Reply with one name.",
-        "🌙 夜幕降临。请选择一名玩家进行投毒（今晚与明天白天）。请回复一个名字。",
-      );
+      const msg = t(lang, "nightPoisonerPrompt");
       return {
         prompt: {
           playerId: player.userId,
@@ -270,11 +246,7 @@ function buildNightPrompt(
     )
   ) {
     const token = makeAckToken();
-    const msg = tr(
-      lang,
-      `🌙 Night falls. Your information is being prepared. Reply with \`${token}\` when you are ready.`,
-      `🌙 夜幕降临。你的夜间信息正在准备。准备好后请回复 \`${token}\`。`,
-    );
+    const msg = t(lang, "nightAckPrompt", { token });
     return {
       prompt: {
         playerId: player.userId,
@@ -295,11 +267,7 @@ function buildNightPrompt(
       maxChoices: 1,
       allowSelf: true,
     },
-    message: tr(
-      lang,
-      "🌙 Night falls. Here is a random midnight joke:\n\n(loading...)",
-      "🌙 夜幕降临。送你一个午夜笑话：\n\n（加载中...）",
-    ),
+    message: t(lang, "nightJokePrompt", { joke: "..." }),
   };
 }
 
@@ -363,14 +331,7 @@ export async function startNightPhase(
     if (prompt.expected === "free_text") {
       const lang = getLang(player.userId);
       const joke = jokeByPlayerId.get(player.userId)!;
-      step1Messages.set(
-        player.userId,
-        tr(
-          lang,
-          `🌙 ${joke}\n\nWhat do you think about this joke? Reply with one word.`,
-          `🌙 ${joke}\n\n你觉得这个笑话怎么样？请用一个词回复。`,
-        ),
-      );
+      step1Messages.set(player.userId, t(lang, "nightJokePrompt", { joke }));
     } else {
       step1Messages.set(player.userId, message);
     }
@@ -398,11 +359,10 @@ export async function startNightPhase(
     const storyteller = await client.users.fetch(state.storytellerId);
     const lang = getLang(storyteller.id);
     await storyteller.send(
-      tr(
-        lang,
-        `🕯️ Night ${session.nightNumber} — Step 1 preview (potential random-event timing).\nReply \`SEND\` to confirm and send these prompts to players:\n${session.step1Preview ?? ""}`,
-        `🕯️ 第 ${session.nightNumber} 夜——第1步预览（潜在随机事件时机）。\n回复 \`SEND\` 以确认并向玩家发送这些提示：\n${session.step1Preview ?? ""}`,
-      ),
+      t(lang, "nightStep1Preview", {
+        n: session.nightNumber,
+        preview: session.step1Preview ?? "",
+      }),
     );
   }
 
@@ -418,11 +378,7 @@ export async function startNightPhase(
     )) as TextChannel;
     const channelLang = getLang(state.players[0]?.userId ?? "");
     await channel.send(
-      tr(
-        channelLang,
-        `🌙 **Night ${session.nightNumber}** has begun. Check your DMs and respond to the bot.`,
-        `🌙 **第 ${session.nightNumber} 夜** 开始。请查看私信并回复机器人。`,
-      ),
+      t(channelLang, "nightBegins", { n: session.nightNumber }),
     );
   }
 
@@ -435,15 +391,21 @@ function validatePromptResponse(
   state: GameState,
   fromPlayer: Player,
 ): { ok: boolean; values?: string[]; error?: string } {
+  const lang = getLang(fromPlayer.userId);
+
   if (prompt.expected === "ack") {
     if (content.trim() !== prompt.ackToken) {
-      return { ok: false, error: `Expected token: ${prompt.ackToken}` };
+      return {
+        ok: false,
+        error: t(lang, "nightExpectedToken", { token: prompt.ackToken ?? "" }),
+      };
     }
     return { ok: true, values: [] };
   }
 
   if (prompt.expected === "free_text") {
-    if (!content.trim()) return { ok: false, error: "Please send a reply." };
+    if (!content.trim())
+      return { ok: false, error: t(lang, "nightPleaseSendReply") };
     return { ok: true, values: [content.trim()] };
   }
 
@@ -454,32 +416,41 @@ function validatePromptResponse(
   if (rawNames.length < minChoices || rawNames.length > maxChoices) {
     return {
       ok: false,
-      error: `Expected ${minChoices === maxChoices ? minChoices : `${minChoices}-${maxChoices}`} player name(s).`,
+      error: t(lang, "nightExpectedPlayerNames", {
+        count:
+          minChoices === maxChoices
+            ? minChoices
+            : `${minChoices}-${maxChoices}`,
+      }),
     };
   }
 
   const resolvedIds: string[] = [];
   for (const rawName of rawNames) {
     const p = resolvePlayerName(rawName, state.players);
-    if (!p) return { ok: false, error: `Unknown player: ${rawName}` };
+    if (!p)
+      return {
+        ok: false,
+        error: t(lang, "nightUnknownPlayerGeneric", { name: rawName }),
+      };
     if (prompt.allowSelf === false && p.userId === fromPlayer.userId) {
       return {
         ok: false,
-        error: "You cannot choose yourself for this ability.",
+        error: t(lang, "nightCannotChooseSelf"),
       };
     }
     resolvedIds.push(p.userId);
   }
 
   if (new Set(resolvedIds).size !== resolvedIds.length) {
-    return { ok: false, error: "Please choose distinct players." };
+    return { ok: false, error: t(lang, "nightChooseDistinctPlayers") };
   }
 
   return { ok: true, values: resolvedIds };
 }
 
 function roleNameFor(lang: Lang, role: Role): string {
-  return lang === "zh" ? role.nameZh : role.name;
+  return getRoleName(lang, role.id);
 }
 
 function playerName(state: GameState, userId: string): string {
@@ -487,7 +458,7 @@ function playerName(state: GameState, userId: string): string {
 }
 
 function boolWord(lang: Lang, value: boolean): string {
-  return lang === "zh" ? (value ? "是" : "否") : value ? "YES" : "NO";
+  return value ? t(lang, "nightBoolYes") : t(lang, "nightBoolNo");
 }
 
 function renderOutcomeDraft(
@@ -502,58 +473,36 @@ function renderOutcomeDraft(
     const roleName = role
       ? roleNameFor(recipientLang, role)
       : String(draft.fields.role);
-    return tr(
-      recipientLang,
-      `You are shown that one of ${p1} and ${p2} is the ${roleName}.`,
-      `你得知 ${p1} 与 ${p2} 中有一人是 ${roleName}。`,
-    );
+    return t(recipientLang, "nightPairRoleInfo", { p1, p2, role: roleName });
   }
 
   if (draft.templateId === "empath_count") {
     const left = playerName(state, String(draft.fields.left));
     const right = playerName(state, String(draft.fields.right));
     const count = Number(draft.fields.count);
-    return tr(
-      recipientLang,
-      `Tonight, your alive neighbors are ${left} and ${right}. You sense ${count} Evil neighbor(s).`,
-      `今夜，你两侧的存活邻居是 ${left} 与 ${right}。你感知到 ${count} 名邪恶邻居。`,
-    );
+    return t(recipientLang, "nightEmpathCount", { left, right, count });
   }
 
   if (draft.templateId === "chef_count") {
     const count = Number(draft.fields.count);
-    return tr(
-      recipientLang,
-      `Tonight, you learn: ${count} adjacent Evil pair(s).`,
-      `今夜你得知：相邻邪恶配对数为 ${count}。`,
-    );
+    return t(recipientLang, "nightChefCount", { count });
   }
 
   if (draft.templateId === "fortune_result") {
     const yes = Boolean(draft.fields.yes);
-    return tr(
-      recipientLang,
-      `Your reading result is: **${boolWord(recipientLang, yes)}**.`,
-      `你的占卜结果是：**${boolWord(recipientLang, yes)}**。`,
-    );
+    return t(recipientLang, "nightFortuneResult", {
+      result: boolWord(recipientLang, yes),
+    });
   }
 
   if (draft.templateId === "undertaker_role") {
     const roleId = String(draft.fields.role);
     const role = ROLE_BY_ID.get(roleId);
     const roleName = role ? roleNameFor(recipientLang, role) : roleId;
-    return tr(
-      recipientLang,
-      `You learn that the executed player was: ${roleName}.`,
-      `你得知被处决玩家的角色是：${roleName}。`,
-    );
+    return t(recipientLang, "nightUndertakerRole", { role: roleName });
   }
 
-  return tr(
-    recipientLang,
-    "Your night interaction has been recorded.",
-    "你的夜间互动已记录。",
-  );
+  return t(recipientLang, "nightInteractionRecorded");
 }
 
 function editableFields(draft: NightOutcomeDraft): string[] {
@@ -562,8 +511,8 @@ function editableFields(draft: NightOutcomeDraft): string[] {
 
 function validateAndNormalizeDraft(
   state: GameState,
-  recipientId: string,
   draft: NightOutcomeDraft,
+  lang: Lang,
 ): string | null {
   if (draft.templateId !== "pair_role_info") return null;
   if (draft.allowArbitraryOverride) return null;
@@ -571,7 +520,7 @@ function validateAndNormalizeDraft(
   const p1 = String(draft.fields.p1);
   const p2 = String(draft.fields.p2);
   if (p1 === p2) {
-    return "p1 and p2 must be different players.";
+    return t(lang, "nightDraftDifferentPlayers");
   }
 
   const pairCategory = String(draft.constraints?.pairCategory ?? "");
@@ -581,7 +530,7 @@ function validateAndNormalizeDraft(
   const r2 = getRole(state, p2);
   const candidates = [r1, r2].filter((r) => r.category === pairCategory);
   if (candidates.length === 0) {
-    return `No ${pairCategory} exists between selected players.`;
+    return t(lang, "nightDraftNoPairCategory", { category: pairCategory });
   }
 
   const currentRoleId = String(draft.fields.role);
@@ -598,29 +547,35 @@ function applyDraftFieldSet(
   draft: NightOutcomeDraft,
   field: string,
   rawValue: string,
+  lang: Lang,
 ): string | null {
   const fieldType = draft.fieldTypes[field];
   if (!fieldType) {
-    return `Field \"${field}\" is not editable for this template. Editable: ${editableFields(draft).join(", ")}`;
+    return t(lang, "nightDraftFieldNotEditable", {
+      field,
+      fields: editableFields(draft).join(", "),
+    });
   }
 
   if (fieldType === "player") {
     const resolved = resolvePlayerName(rawValue, state.players);
-    if (!resolved) return `Unknown player: ${rawValue}`;
+    if (!resolved)
+      return t(lang, "nightUnknownPlayerGeneric", { name: rawValue });
     draft.fields[field] = resolved.userId;
     return null;
   }
 
   if (fieldType === "role") {
     const role = findRole(rawValue);
-    if (!role) return `Unknown role: ${rawValue}`;
+    if (!role) return t(lang, "nightUnknownRole", { name: rawValue });
     draft.fields[field] = role.id;
     return null;
   }
 
   if (fieldType === "number") {
     const n = Number(rawValue);
-    if (!Number.isFinite(n)) return `Invalid number: ${rawValue}`;
+    if (!Number.isFinite(n))
+      return t(lang, "nightInvalidNumber", { value: rawValue });
     draft.fields[field] = Math.trunc(n);
     return null;
   }
@@ -634,14 +589,14 @@ function applyDraftFieldSet(
     draft.fields[field] = false;
     return null;
   }
-  return `Invalid boolean value: ${rawValue}`;
+  return t(lang, "nightInvalidBoolean", { value: rawValue });
 }
 
 function outcomeTag(lang: Lang, meta: NightOutcomeMeta | undefined): string {
   if (!meta || meta.kind === "fixed") {
-    return lang === "zh" ? "📌 固定" : "📌 FIXED";
+    return t(lang, "nightOutcomeFixed");
   }
-  return lang === "zh" ? "🎲 随机" : "🎲 RANDOMIZED";
+  return t(lang, "nightOutcomeRandom");
 }
 
 function outcomeReasonTag(
@@ -651,7 +606,7 @@ function outcomeReasonTag(
   if (!meta) return "";
   const reason = lang === "zh" ? meta.reasonZh : meta.reasonEn;
   if (!reason) return "";
-  return lang === "zh" ? `（${reason}）` : `(${reason})`;
+  return t(lang, "nightOutcomeReason", { reason });
 }
 
 function buildStep3Preview(state: GameState, storytellerLang: Lang): string {
@@ -667,9 +622,7 @@ function buildStep3Preview(state: GameState, storytellerLang: Lang): string {
     const draft = session.step3OutcomeDrafts.get(p.userId);
     const editable = draft ? editableFields(draft).join(",") : "";
     const editHint = draft
-      ? storytellerLang === "zh"
-        ? ` [可改字段: ${editable}]`
-        : ` [editable: ${editable}]`
+      ? t(storytellerLang, "nightEditableFields", { fields: editable })
       : "";
     previewLines.push(
       `${p.displayName}: ${outcomeTag(storytellerLang, meta)} ${outcomeReasonTag(storytellerLang, meta)} ${msg}${editHint}`,
@@ -700,24 +653,17 @@ function buildStep2Summary(state: GameState, storytellerLang: Lang): string {
     let detail = "";
 
     if (prompt.expected === "ack") {
-      detail = tr(storytellerLang, "readiness acknowledged", "已完成准备确认");
+      detail = t(storytellerLang, "nightReadinessAck");
     } else if (prompt.expected === "free_text") {
-      const reply = values[0] ?? tr(storytellerLang, "(no text)", "（无文本）");
-      detail = tr(
-        storytellerLang,
-        `joke reply: \"${reply}\"`,
-        `笑话回复：\"${reply}\"`,
-      );
+      const reply = values[0] ?? t(storytellerLang, "nightNoText");
+      detail = t(storytellerLang, "nightJokeReply", { reply });
     } else {
       const names = values.map((uid) => playerName(state, uid));
+      const sep = storytellerLang === "zh" ? "、" : ", ";
       detail =
         names.length > 0
-          ? tr(
-              storytellerLang,
-              `chose: ${names.join(", ")}`,
-              `选择：${names.join("、")}`,
-            )
-          : tr(storytellerLang, "no valid targets recorded", "未记录有效目标");
+          ? t(storytellerLang, "nightChose", { players: names.join(sep) })
+          : t(storytellerLang, "nightNoTargets");
     }
 
     lines.push(`${p.displayName} (${roleLabel}): ${detail}`);
@@ -795,7 +741,7 @@ function buildSpyGrimoire(state: GameState, lang: Lang): string {
   const lines = state.players.map((p) => {
     const role = getRole(state, p.userId);
     const ps = runtime.playerStates.get(p.userId)!;
-    return `${p.displayName} — ${roleNameFor(lang, role)} | ${ps.alive ? tr(lang, "Alive", "存活") : tr(lang, "Dead", "死亡")} | ${ps.poisoned ? tr(lang, "Poisoned", "中毒") : tr(lang, "Sober", "未中毒")}`;
+    return `${p.displayName} — ${roleNameFor(lang, role)} | ${ps.alive ? t(lang, "nightAlive") : t(lang, "nightDead")} | ${ps.poisoned ? t(lang, "nightPoisoned") : t(lang, "nightSober")}`;
   });
   return lines.join("\n");
 }
@@ -806,7 +752,7 @@ function buildFalseSpyGrimoire(state: GameState, lang: Lang): string {
   const roles = shuffle(state.players.map((p) => getRole(state, p.userId)));
   const lines = state.players.map((p, i) => {
     const ps = runtime.playerStates.get(p.userId)!;
-    return `${p.displayName} — ${roleNameFor(lang, roles[i])} | ${ps.alive ? tr(lang, "Alive", "存活") : tr(lang, "Dead", "死亡")} | ${ps.poisoned ? tr(lang, "Poisoned", "中毒") : tr(lang, "Sober", "未中毒")}`;
+    return `${p.displayName} — ${roleNameFor(lang, roles[i])} | ${ps.alive ? t(lang, "nightAlive") : t(lang, "nightDead")} | ${ps.poisoned ? t(lang, "nightPoisoned") : t(lang, "nightSober")}`;
   });
   return lines.join("\n");
 }
@@ -818,14 +764,7 @@ function resolveNightOutcomes(state: GameState): void {
 
   for (const p of state.players) {
     const lang = getLang(p.userId);
-    session.step3Messages.set(
-      p.userId,
-      tr(
-        lang,
-        "Your night interaction has been recorded.",
-        "你的夜间互动已记录。",
-      ),
-    );
+    session.step3Messages.set(p.userId, t(lang, "nightInteractionRecorded"));
     session.step3OutcomeMeta.set(p.userId, {
       kind: "fixed",
       reasonEn: "deterministic role resolution",
@@ -909,10 +848,7 @@ function resolveNightOutcomes(state: GameState): void {
     if (!prompt) continue;
 
     if (prompt.expected === "free_text") {
-      session.step3Messages.set(
-        player.userId,
-        tr(lang, "I'll be the judge of that.", "这个笑话我来评判。"),
-      );
+      session.step3Messages.set(player.userId, t(lang, "nightJudgeJoke"));
       session.step3OutcomeDrafts.delete(player.userId);
       session.step3OutcomeMeta.set(player.userId, {
         kind: "fixed",
@@ -996,11 +932,7 @@ function resolveNightOutcomes(state: GameState): void {
       if (!randomInfo && outsiders.length === 0) {
         session.step3Messages.set(
           player.userId,
-          tr(
-            lang,
-            "You learn that there are no Outsiders in play.",
-            "你得知本局没有外来者。",
-          ),
+          t(lang, "nightLibrarianNoOutsiders"),
         );
         session.step3OutcomeDrafts.delete(player.userId);
         session.step3OutcomeMeta.set(player.userId, {
@@ -1248,10 +1180,7 @@ function resolveNightOutcomes(state: GameState): void {
 
     if (effectiveRole.id === "undertaker") {
       if (!runtime.lastExecutedPlayerId) {
-        session.step3Messages.set(
-          player.userId,
-          tr(lang, "No player was executed today.", "今天没有玩家被处决。"),
-        );
+        session.step3Messages.set(player.userId, t(lang, "nightNoExecution"));
         session.step3OutcomeDrafts.delete(player.userId);
         session.step3OutcomeMeta.set(player.userId, {
           kind: "fixed",
@@ -1287,7 +1216,7 @@ function resolveNightOutcomes(state: GameState): void {
         : buildSpyGrimoire(state, lang);
       session.step3Messages.set(
         player.userId,
-        tr(lang, `Grimoire:\n${grimoire}`, `说书人手册：\n${grimoire}`),
+        t(lang, "nightGrimoire", { grimoire }),
       );
       session.step3OutcomeDrafts.delete(player.userId);
       session.step3OutcomeMeta.set(player.userId, {
@@ -1304,10 +1233,7 @@ function resolveNightOutcomes(state: GameState): void {
       prompt.expected === "single_player" ||
       prompt.expected === "double_player"
     ) {
-      session.step3Messages.set(
-        player.userId,
-        tr(lang, "Your choice has been recorded.", "你的选择已记录。"),
-      );
+      session.step3Messages.set(player.userId, t(lang, "nightChoiceRecorded"));
       session.step3OutcomeDrafts.delete(player.userId);
       session.step3OutcomeMeta.set(player.userId, {
         kind: "fixed",
@@ -1327,11 +1253,7 @@ function resolveNightOutcomes(state: GameState): void {
     const lang = getLang(dead.userId);
     session.step3Messages.set(
       dead.userId,
-      tr(
-        lang,
-        "You died at night. Ravenkeeper follow-up is not yet automated.",
-        "你在夜晚死亡。守鸦人后续结算尚未自动化。",
-      ),
+      t(lang, "nightRavenkeeperPlaceholder"),
     );
     session.step3OutcomeMeta.set(dead.userId, {
       kind: "fixed",
@@ -1394,22 +1316,17 @@ export async function handleNightPlayerDm(
   const lang = getLang(player.userId);
   if (!validation.ok) {
     await message.reply(
-      tr(
-        lang,
-        `❌ Invalid input. ${validation.error ?? ""} Please try again.`,
-        `❌ 输入无效。${validation.error ?? ""} 请重试。`,
-      ),
+      t(lang, "nightInvalidInput", { error: validation.error ?? "" }),
     );
     return true;
   }
-
   session.responses.set(player.userId, validation.values ?? []);
   session.pendingPlayerIds = session.pendingPlayerIds.filter(
     (id) => id !== player.userId,
   );
   updateGame(state);
 
-  await message.reply(tr(lang, "✅ Response recorded.", "✅ 已记录回复。"));
+  await message.reply(t(lang, "nightResponseRecorded"));
 
   if (session.pendingPlayerIds.length === 0) {
     resolveNightOutcomes(state);
@@ -1422,11 +1339,11 @@ export async function handleNightPlayerDm(
       session.step3Preview = buildStep3Preview(state, stLang);
       updateGame(state);
       await storyteller.send(
-        tr(
-          stLang,
-          `🕯️ Night ${session.nightNumber} — Step 3 preview (random-event outcomes).\nStep 2 responses summary:\n${step2Summary}\n\nEach line is labeled as 🎲 RANDOMIZED or 📌 FIXED.\nCommands:\n\`SET <player> <field> <value>\` (use editable fields shown per line)\n\`OVERRIDE <player>: <full message>\` (replace the whole line)\nWhen ready, reply \`SEND\`.\n\n${session.step3Preview}`,
-          `🕯️ 第 ${session.nightNumber} 夜——第3步预览（随机事件结算）。\n第2步回复汇总：\n${step2Summary}\n\n每行都标注为 🎲 随机 或 📌 固定。\n可用命令：\n\`SET <玩家> <字段> <值>\`（字段见每行 editable 提示）\n\`OVERRIDE <玩家>: <完整消息>\`（整行覆盖）\n准备好后回复 \`SEND\`。\n\n${session.step3Preview}`,
-        ),
+        t(stLang, "nightStep3Preview", {
+          n: session.nightNumber,
+          summary: step2Summary,
+          preview: session.step3Preview ?? "",
+        }),
       );
     } else {
       await sendStep3Messages(client, state);
@@ -1451,13 +1368,7 @@ export async function handleNightStorytellerDm(
 
   if (session.status === "awaiting_storyteller_step1") {
     if (cmd !== "SEND") {
-      await message.reply(
-        tr(
-          stLang,
-          "Reply `SEND` to dispatch Step 1 prompts.",
-          "请回复 `SEND` 以发送第1步提示。",
-        ),
-      );
+      await message.reply(t(stLang, "nightStep1SendPrompt"));
       return true;
     }
 
@@ -1470,9 +1381,7 @@ export async function handleNightStorytellerDm(
       await sendPlayerDm(_client, p, state, step1);
     }
 
-    await message.reply(
-      tr(stLang, "✅ Step 1 prompts dispatched.", "✅ 第1步提示已发送。"),
-    );
+    await message.reply(t(stLang, "nightStep1Dispatched"));
     return true;
   }
 
@@ -1493,13 +1402,7 @@ export async function handleNightStorytellerDm(
       if (upper.startsWith("SET ")) {
         const parts = line.split(/\s+/);
         if (parts.length < 4) {
-          await message.reply(
-            tr(
-              stLang,
-              "Invalid SET format. Use: SET <player> <field> <value>",
-              "SET 格式无效。用法：SET <玩家> <字段> <值>",
-            ),
-          );
+          await message.reply(t(stLang, "nightSetInvalidFormat"));
           return true;
         }
 
@@ -1507,56 +1410,34 @@ export async function handleNightStorytellerDm(
         const field = parts[2].toLowerCase();
         const value = parts.slice(3).join(" ").trim();
         if (!value) {
-          await message.reply(
-            tr(stLang, "SET value cannot be empty.", "SET 的值不能为空。"),
-          );
+          await message.reply(t(stLang, "nightSetEmptyValue"));
           return true;
         }
 
         const target = resolvePlayerName(name, state.players);
         if (!target) {
-          await message.reply(
-            tr(
-              stLang,
-              `Unknown player for SET: ${name}`,
-              `SET 目标玩家不存在：${name}`,
-            ),
-          );
+          await message.reply(t(stLang, "nightSetUnknownPlayer", { name }));
           return true;
         }
 
         const draft = session.step3OutcomeDrafts.get(target.userId);
         if (!draft) {
           await message.reply(
-            tr(
-              stLang,
-              `No field-based template for ${target.displayName}. Use OVERRIDE instead.`,
-              `${target.displayName} 当前不支持字段覆盖，请使用 OVERRIDE。`,
-            ),
+            t(stLang, "nightSetNoTemplate", { player: target.displayName }),
           );
           return true;
         }
 
-        const err = applyDraftFieldSet(state, draft, field, value);
+        const err = applyDraftFieldSet(state, draft, field, value, stLang);
         if (err) {
-          await message.reply(
-            tr(stLang, `SET failed: ${err}`, `SET 失败：${err}`),
-          );
+          await message.reply(t(stLang, "nightSetFailed", { error: err }));
           return true;
         }
 
-        const consistencyErr = validateAndNormalizeDraft(
-          state,
-          target.userId,
-          draft,
-        );
+        const consistencyErr = validateAndNormalizeDraft(state, draft, stLang);
         if (consistencyErr) {
           await message.reply(
-            tr(
-              stLang,
-              `SET rejected: ${consistencyErr}`,
-              `SET 被拒绝：${consistencyErr}`,
-            ),
+            t(stLang, "nightSetRejected", { error: consistencyErr }),
           );
           return true;
         }
@@ -1580,37 +1461,21 @@ export async function handleNightStorytellerDm(
         const body = line.slice("OVERRIDE ".length);
         const colon = body.indexOf(":");
         if (colon <= 0) {
-          await message.reply(
-            tr(
-              stLang,
-              "Invalid OVERRIDE format. Use: OVERRIDE <player>: <message>",
-              "OVERRIDE 格式无效。用法：OVERRIDE <玩家>: <消息>",
-            ),
-          );
+          await message.reply(t(stLang, "nightOverrideInvalidFormat"));
           return true;
         }
 
         const name = body.slice(0, colon).trim();
         const content = body.slice(colon + 1).trim();
         if (!content) {
-          await message.reply(
-            tr(
-              stLang,
-              "Override message cannot be empty.",
-              "覆盖消息不能为空。",
-            ),
-          );
+          await message.reply(t(stLang, "nightOverrideEmptyMessage"));
           return true;
         }
 
         const target = resolvePlayerName(name, state.players);
         if (!target) {
           await message.reply(
-            tr(
-              stLang,
-              `Unknown player for override: ${name}`,
-              `覆盖目标玩家不存在：${name}`,
-            ),
+            t(stLang, "nightOverrideUnknownPlayer", { name }),
           );
           return true;
         }
@@ -1619,11 +1484,9 @@ export async function handleNightStorytellerDm(
         const targetCanArbitrary = targetDraft?.allowArbitraryOverride ?? false;
         if (!targetCanArbitrary) {
           await message.reply(
-            tr(
-              stLang,
-              `OVERRIDE rejected for ${target.displayName}. Only drunk/poisoned outputs may be arbitrary. Use SET for editable fields or keep truthful constraints.`,
-              `已拒绝对 ${target.displayName} 使用 OVERRIDE。仅中毒/酒鬼结果可任意覆盖。请使用 SET（若有可编辑字段）并保持真实性约束。`,
-            ),
+            t(stLang, "nightOverrideRejected", {
+              player: target.displayName,
+            }),
           );
           return true;
         }
@@ -1638,13 +1501,7 @@ export async function handleNightStorytellerDm(
         continue;
       }
 
-      await message.reply(
-        tr(
-          stLang,
-          "Unrecognized input. Use SET / OVERRIDE lines and/or SEND.",
-          "无法识别输入。请使用 SET / OVERRIDE 行和/或 SEND。",
-        ),
-      );
+      await message.reply(t(stLang, "nightUnrecognizedInput"));
       return true;
     }
 
@@ -1652,18 +1509,14 @@ export async function handleNightStorytellerDm(
       session.step3Preview = buildStep3Preview(state, stLang);
       updateGame(state);
       await message.reply(
-        tr(
-          stLang,
-          `✅ Edits applied. Keep editing with \`SET <player> <field> <value>\` or \`OVERRIDE <player>: <message>\`, or reply \`SEND\` to dispatch final messages.\n\n${session.step3Preview}`,
-          `✅ 修改已应用。可继续使用 \`SET <玩家> <字段> <值>\` 或 \`OVERRIDE <玩家>: <消息>\`，或回复 \`SEND\` 发送最终消息。\n\n${session.step3Preview}`,
-        ),
+        t(stLang, "nightEditsApplied", {
+          preview: session.step3Preview ?? "",
+        }),
       );
       return true;
     }
 
-    await message.reply(
-      tr(stLang, "✅ Sending Step 3 messages.", "✅ 正在发送第3步消息。"),
-    );
+    await message.reply(t(stLang, "nightStep3Sending"));
     await sendStep3Messages(_client, state);
     return true;
   }

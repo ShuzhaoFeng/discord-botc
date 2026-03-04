@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction } from "discord.js";
 import { getGame } from "../game/state";
-import { getLang } from "../i18n";
+import { getLang, t } from "../i18n";
 import { getNightPendingPlayerNames, ensureRuntime } from "../game/night";
 import { getActiveNominationInfo } from "../game/day";
 
@@ -12,10 +12,7 @@ export async function handleWhosleft(
 
   if (!state) {
     await interaction.reply({
-      content:
-        lang === "zh"
-          ? "❌ 此命令只能在游戏频道中使用。"
-          : "❌ This command can only be used in an active game channel.",
+      content: t(lang, "errorNotGameChannel"),
       ephemeral: true,
     });
     return;
@@ -28,25 +25,23 @@ export async function handleWhosleft(
     const info = getActiveNominationInfo(state);
     if (!info) {
       await interaction.reply({
-        content:
-          lang === "zh"
-            ? "📋 当前没有进行中的提名投票。"
-            : "📋 No nomination vote is currently in progress.",
+        content: t(lang, "whosleftNoNomination"),
         ephemeral: true,
       });
       return;
     }
+    const sep = lang === "zh" ? "、" : ", ";
     const voterList =
       info.voterNames.length > 0
-        ? info.voterNames.join(lang === "zh" ? "、" : ", ")
-        : lang === "zh"
-          ? "（无）"
-          : "(none yet)";
+        ? info.voterNames.join(sep)
+        : t(lang, "whosleftNone");
     await interaction.reply({
-      content:
-        lang === "zh"
-          ? `🗳️ **${info.nominatorName}** 提名了 **${info.nomineeName}**\n已投票（${info.voteCount}）：${voterList}`
-          : `🗳️ **${info.nominatorName}** nominated **${info.nomineeName}**\nVoted (${info.voteCount}): ${voterList}`,
+      content: t(lang, "whosleftNominated", {
+        nominator: info.nominatorName,
+        nominee: info.nomineeName,
+        count: info.voteCount,
+        voters: voterList,
+      }),
       ephemeral: true,
     });
     return;
@@ -56,20 +51,15 @@ export async function handleWhosleft(
   const pending = getNightPendingPlayerNames(state);
   if (pending.length === 0) {
     await interaction.reply({
-      content:
-        lang === "zh"
-          ? "✅ 当前夜晚阶段没有待回复的玩家。"
-          : "✅ No pending player responses for the current night step.",
+      content: t(lang, "whosleftNoPending"),
       ephemeral: true,
     });
     return;
   }
 
+  const sep = lang === "zh" ? "、" : ", ";
   await interaction.reply({
-    content:
-      lang === "zh"
-        ? `⏳ 尚未回复的玩家：${pending.join("、")}`
-        : `⏳ Players still pending: ${pending.join(", ")}`,
+    content: t(lang, "whosleftPending", { players: pending.join(sep) }),
     ephemeral: true,
   });
 }

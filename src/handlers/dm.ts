@@ -13,8 +13,8 @@
 
 import { Client, Message } from "discord.js";
 import { getGameByStoryteller, updateGame } from "../game/state";
-import { getLang, t } from "../i18n";
-import { findRole, TOWNSFOLK } from "../game/roles";
+import { getLang, getRoleName, t } from "../i18n";
+import { findRole } from "../game/roles";
 import {
   swapRoles,
   setRole,
@@ -59,9 +59,7 @@ export async function handleStorytelllerDm(
       !state.storytellerId?.startsWith(FAKE_PLAYER_ID_PREFIX) ||
       namedId !== state.storytellerId
     ) {
-      await message.reply(
-        `❌ \`${asMatch[1]}\` is not the current storyteller.`,
-      );
+      await message.reply(t(lang, "dmNotStoryteller", { name: asMatch[1] }));
       return;
     }
     rawContent = rawContent.slice(asMatch[0].length);
@@ -85,8 +83,12 @@ export async function handleStorytelllerDm(
       state.players,
       lang,
     );
-    if ("message" in result) {
-      responses.push(t(lang, "draftCmdValidationError", result.message));
+    if ("key" in result) {
+      responses.push(
+        t(lang, "draftCmdValidationError", {
+          msg: t(lang, result.key, result.params),
+        }),
+      );
     } else {
       if (result.adjustmentNote) adjustmentNotes.push(result.adjustmentNote);
       if (result.confirmed) {
@@ -105,11 +107,9 @@ export async function handleStorytelllerDm(
         const validErr = validateDraft(state.draft, state.players);
         if (validErr) {
           responses.push(
-            t(
-              lang,
-              "draftCmdValidationError",
-              lang === "zh" ? validErr.messageZh : validErr.message,
-            ),
+            t(lang, "draftCmdValidationError", {
+              msg: t(lang, validErr.key, validErr.params),
+            }),
           );
         } else {
           confirmed = true;
@@ -127,11 +127,9 @@ export async function handleStorytelllerDm(
           state.draft,
           state.players,
         );
-        const reconcileNote =
-          lang === "zh"
-            ? reconciled.adjustmentNoteZh
-            : reconciled.adjustmentNote;
-        if (reconcileNote) adjustmentNotes.push(reconcileNote);
+        for (const note of reconciled.notes) {
+          adjustmentNotes.push(t(lang, note.key, note.params));
+        }
         shouldResendDraft = true;
       }
     }
@@ -195,8 +193,8 @@ function processAssignBlock(
       const p = resolvePlayer(playerName, players);
       if (!p)
         return {
-          message: `Unknown player: "${playerName}"`,
-          messageZh: `未知玩家："${playerName}"`,
+          key: "draftCmdAssignParseError",
+          params: { line: `Unknown player: "${playerName}"` },
         };
       newRedHerring = p.userId;
       continue;
@@ -206,10 +204,7 @@ function processAssignBlock(
       const roleName = line.slice("DRUNK ".length).trim();
       const role = findRole(roleName);
       if (!role || role.category !== "Townsfolk") {
-        return {
-          message: `Invalid DRUNK role: "${roleName}"`,
-          messageZh: `无效的酒鬼虚假身份："${roleName}"`,
-        };
+        return { key: "draftCmdDrunkNotTownsfolk", params: { name: roleName } };
       }
       newDrunkFake = role;
       continue;
@@ -221,17 +216,11 @@ function processAssignBlock(
         .split(",")
         .map((s) => s.trim());
       if (parts.length !== 3) {
-        return {
-          message: "BLUFF requires exactly 3 roles.",
-          messageZh: "BLUFF 需要恰好3个角色。",
-        };
+        return { key: "draftCmdAssignBluffCount" };
       }
       const bluffRoles = parts.map(findRole);
       if (bluffRoles.some((r) => !r)) {
-        return {
-          message: "One or more bluff roles not found.",
-          messageZh: "一个或多个虚张声势角色未找到。",
-        };
+        return { key: "draftCmdAssignBluffNotFound" };
       }
       newImpBluffs = bluffRoles as [Role, Role, Role];
       continue;
@@ -239,10 +228,7 @@ function processAssignBlock(
 
     const colonIdx = line.indexOf(":");
     if (colonIdx === -1) {
-      return {
-        message: `Cannot parse line: "${line}"`,
-        messageZh: `无法解析行："${line}"`,
-      };
+      return { key: "draftCmdAssignParseError", params: { line } };
     }
     const playerName = line.slice(0, colonIdx).trim();
     const roleName = line.slice(colonIdx + 1).trim();
@@ -250,16 +236,13 @@ function processAssignBlock(
     const p = resolvePlayer(playerName, players);
     if (!p)
       return {
-        message: `Unknown player: "${playerName}"`,
-        messageZh: `未知玩家："${playerName}"`,
+        key: "draftCmdAssignParseError",
+        params: { line: `Unknown player: "${playerName}"` },
       };
 
     const role = findRole(roleName);
     if (!role)
-      return {
-        message: `Unknown role: "${roleName}"`,
-        messageZh: `未知角色："${roleName}"`,
-      };
+      return { key: "draftCmdUnknownRole", params: { name: roleName } };
 
     newAssignments.set(p.userId, role);
   }
@@ -268,8 +251,8 @@ function processAssignBlock(
   const playerAssignmentCount = newAssignments.size;
   if (playerAssignmentCount > 0 && playerAssignmentCount !== players.length) {
     return {
-      message: `Assignment has ${playerAssignmentCount} entries but game has ${players.length} players.`,
-      messageZh: `分配共有 ${playerAssignmentCount} 条记录，但游戏有 ${players.length} 名玩家。`,
+      key: "draftCmdAssignPlayerCount",
+      params: { got: playerAssignmentCount, want: players.length },
     };
   }
 
@@ -286,7 +269,9 @@ function processAssignBlock(
 
   const reconciled = reconcileDraftDependencies(draft, players);
   const adjustmentNote =
-    lang === "zh" ? reconciled.adjustmentNoteZh : reconciled.adjustmentNote;
+    reconciled.notes.length > 0
+      ? reconciled.notes.map((n) => t(lang, n.key, n.params)).join("\n")
+      : undefined;
 
   const validErr = validateDraft(draft, players);
   if (validErr) return validErr;
@@ -323,7 +308,10 @@ function processCommand(
     case "BLUFF":
       return cmdBluff(line, draft, players, lang);
     default:
-      return { response: `❌ Unknown command: "${cmd}".`, error: true };
+      return {
+        response: t(lang, "draftCmdUnknownCommand", { cmd: cmd ?? "" }),
+        error: true,
+      };
   }
 }
 
@@ -347,20 +335,29 @@ function cmdSwap(
   const p2 = resolvePlayer(name2, players);
 
   if (!p1)
-    return { response: t(lang, "draftCmdUnknownPlayer", name1), error: true };
+    return {
+      response: t(lang, "draftCmdUnknownPlayer", { name: name1 }),
+      error: true,
+    };
   if (!p2)
-    return { response: t(lang, "draftCmdUnknownPlayer", name2), error: true };
+    return {
+      response: t(lang, "draftCmdUnknownPlayer", { name: name2 }),
+      error: true,
+    };
 
   swapRoles(draft, p1.userId, p2.userId);
 
   const r1 = draft.assignments.get(p1.userId)!;
   const r2 = draft.assignments.get(p2.userId)!;
-  const rn1 = lang === "zh" ? r1.nameZh : r1.name;
-  const rn2 = lang === "zh" ? r2.nameZh : r2.name;
+  const rn1 = getRoleName(lang, r1.id);
+  const rn2 = getRoleName(lang, r2.id);
   return {
-    response: lang === "zh"
-      ? `✅ 命运已交换：${p1.displayName} ↔ ${p2.displayName}（${rn2} ↔ ${rn1}）`
-      : `✅ Fates exchanged: ${p1.displayName} ↔ ${p2.displayName} (${rn2} ↔ ${rn1})`,
+    response: t(lang, "draftCmdSwapSuccess", {
+      p1: p1.displayName,
+      p2: p2.displayName,
+      r1: rn1,
+      r2: rn2,
+    }),
     error: false,
   };
 }
@@ -400,29 +397,35 @@ function cmdRole(
 
   const newRole = findRole(roleStr);
   if (!newRole)
-    return { response: t(lang, "draftCmdUnknownRole", roleStr), error: true };
+    return {
+      response: t(lang, "draftCmdUnknownRole", { name: roleStr }),
+      error: true,
+    };
 
   const result = setRole(draft, players, player.userId, newRole);
-  if ("message" in result && !("adjustedSlots" in result)) {
+  if ("key" in result && !("adjustedSlots" in result)) {
     // It's a ValidationError.
     const ve = result as ValidationError;
     return {
-      response: t(
-        lang,
-        "draftCmdRoleError",
-        lang === "zh" ? ve.messageZh : ve.message,
-      ),
+      response: t(lang, "draftCmdRoleError", {
+        msg: t(lang, ve.key, ve.params),
+      }),
       error: true,
     };
   }
 
-  const rc = result as { adjustedSlots?: string; adjustedSlotsZh?: string };
-  const adjustmentNote = lang === "zh" ? rc.adjustedSlotsZh : rc.adjustedSlots;
-  const roleName = lang === "zh" ? newRole.nameZh : newRole.name;
+  const rc = result as {
+    adjustedSlots?: { key: string; params?: Record<string, string | number> };
+  };
+  const adjustmentNote = rc.adjustedSlots
+    ? t(lang, rc.adjustedSlots.key, rc.adjustedSlots.params)
+    : undefined;
+  const roleName = getRoleName(lang, newRole.id);
   return {
-    response: lang === "zh"
-      ? `✅ ${player.displayName} 将以 ${roleName} 之身降临。`
-      : `✅ ${player.displayName} now walks as the ${roleName}.`,
+    response: t(lang, "draftCmdRoleSuccess", {
+      player: player.displayName,
+      role: roleName,
+    }),
     error: false,
     adjustmentNote,
   };
@@ -449,7 +452,7 @@ function cmdHerring(
   const p = resolvePlayer(playerName, players);
   if (!p)
     return {
-      response: t(lang, "draftCmdUnknownPlayer", playerName),
+      response: t(lang, "draftCmdUnknownPlayer", { name: playerName }),
       error: true,
     };
 
@@ -460,9 +463,7 @@ function cmdHerring(
 
   draft.redHerring = p.userId;
   return {
-    response: lang === "zh"
-      ? `✅ 迷途的气息将牵向 ${p.displayName}。`
-      : `✅ The false trail leads to ${p.displayName}.`,
+    response: t(lang, "draftCmdHerringSuccess", { player: p.displayName }),
     error: false,
   };
 }
@@ -487,10 +488,13 @@ function cmdDrunk(
 
   const role = findRole(roleName);
   if (!role)
-    return { response: t(lang, "draftCmdUnknownRole", roleName), error: true };
+    return {
+      response: t(lang, "draftCmdUnknownRole", { name: roleName }),
+      error: true,
+    };
   if (role.category !== "Townsfolk")
     return {
-      response: t(lang, "draftCmdDrunkNotTownsfolk", roleName),
+      response: t(lang, "draftCmdDrunkNotTownsfolk", { name: roleName }),
       error: true,
     };
 
@@ -498,16 +502,14 @@ function cmdDrunk(
   const usedIds = new Set([...draft.assignments.values()].map((r) => r.id));
   if (usedIds.has(role.id))
     return {
-      response: t(lang, "draftCmdDrunkAlreadyAssigned", roleName),
+      response: t(lang, "draftCmdDrunkAlreadyAssigned", { name: roleName }),
       error: true,
     };
 
   draft.drunkFakeRole = role;
-  const rn = lang === "zh" ? role.nameZh : role.name;
+  const rn = getRoleName(lang, role.id);
   return {
-    response: lang === "zh"
-      ? `✅ 醉汉的幻象将是 ${rn}。`
-      : `✅ The Drunk wanders under the guise of the ${rn}.`,
+    response: t(lang, "draftCmdDrunkSuccess", { role: rn }),
     error: false,
   };
 }
@@ -538,15 +540,18 @@ function cmdBluff(
   for (const part of parts) {
     const role = findRole(part);
     if (!role)
-      return { response: t(lang, "draftCmdUnknownRole", part), error: true };
+      return {
+        response: t(lang, "draftCmdUnknownRole", { name: part }),
+        error: true,
+      };
     if (role.category !== "Townsfolk")
       return {
-        response: t(lang, "draftCmdBluffNotTownsfolk", part),
+        response: t(lang, "draftCmdBluffNotTownsfolk", { name: part }),
         error: true,
       };
     if (usedIds.has(role.id))
       return {
-        response: t(lang, "draftCmdBluffAlreadyAssigned", part),
+        response: t(lang, "draftCmdBluffAlreadyAssigned", { name: part }),
         error: true,
       };
     resolved.push(role);
@@ -558,12 +563,10 @@ function cmdBluff(
 
   draft.impBluffs = [resolved[0], resolved[1], resolved[2]];
   const names = resolved
-    .map((r) => (lang === "zh" ? r.nameZh : r.name))
+    .map((r) => getRoleName(lang, r.id))
     .join(lang === "zh" ? "、" : ", ");
   return {
-    response: lang === "zh"
-      ? `✅ 恶魔的面具已铸定：${names}。`
-      : `✅ The Demon's masks are chosen: ${names}.`,
+    response: t(lang, "draftCmdBluffSuccess", { roles: names }),
     error: false,
   };
 }

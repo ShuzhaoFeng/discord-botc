@@ -31,12 +31,13 @@ export function isCtestCommand(content: string): boolean {
 }
 
 export async function handleCtest(message: Message): Promise<void> {
+  const lang = getLang(message.author.id);
+
   if (!message.guild) {
-    await message.reply("This command can only be used in a server.");
+    await message.reply(t(lang, "clocktowerServerOnly"));
     return;
   }
 
-  const lang = getLang(message.author.id);
   const guild = message.guild;
   const testOwnerId = message.author.id;
 
@@ -63,9 +64,7 @@ export async function handleCtest(message: Message): Promise<void> {
       try {
         member = await guild.members.fetch(userId);
       } catch {
-        await message.reply(
-          `❌ Could not fetch user <@${userId}>. Make sure they are in the server.`,
-        );
+        await message.reply(t(lang, "clocktowerFetchError", { id: userId }));
         return;
       }
       realMembers.push(member);
@@ -95,11 +94,11 @@ export async function handleCtest(message: Message): Promise<void> {
   const total = players.length;
 
   if (total < 5) {
-    await message.reply(t(lang, "errorPlayerCount", total));
+    await message.reply(t(lang, "errorPlayerCount", { n: total }));
     return;
   }
   if (total > 16) {
-    await message.reply(t(lang, "errorPlayerCount", total));
+    await message.reply(t(lang, "errorPlayerCount", { n: total }));
     return;
   }
 
@@ -137,10 +136,17 @@ export async function handleCtest(message: Message): Promise<void> {
     p.isTestPlayer ? `**${p.displayName}** *(test)*` : `<@${p.userId}>`,
   );
   await channel.send(
-    `🧪 **[TEST MODE]** ${t(lang, "gameChannelReady", gameId, playerLabels)}\n` +
-      `All DMs for fake players will be redirected to <@${testOwnerId}>.`,
+    t(lang, "ctestGameChannelReady", {
+      gameHeader: t(lang, "gameChannelReady", {
+        gameId,
+        players: playerLabels.join(", "),
+      }),
+      ownerId: testOwnerId,
+    }),
   );
   await channel.send(t(lang, "chooseStoryteller"));
 
-  await message.reply(`✅ Created test game channel <#${channel.id}>!`);
+  await message.reply(
+    t(lang, "ctestChannelCreated", { channelId: channel.id }),
+  );
 }

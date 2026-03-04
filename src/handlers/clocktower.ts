@@ -28,12 +28,13 @@ export function isClockTowerCommand(content: string): boolean {
 }
 
 export async function handleClockTower(message: Message): Promise<void> {
+  const lang = getLang(message.author.id);
+
   if (!message.guild) {
-    await message.reply("This command can only be used in a server.");
+    await message.reply(t(lang, "clocktowerServerOnly"));
     return;
   }
 
-  const lang = getLang(message.author.id);
   const guild = message.guild;
 
   // Extract mentioned users (in order of appearance in the message).
@@ -52,11 +53,11 @@ export async function handleClockTower(message: Message): Promise<void> {
   const total = mentionedIds.length;
 
   if (total < 5) {
-    await message.reply(t(lang, "errorPlayerCount", total));
+    await message.reply(t(lang, "errorPlayerCount", { n: total }));
     return;
   }
   if (total > 16) {
-    await message.reply(t(lang, "errorPlayerCount", total));
+    await message.reply(t(lang, "errorPlayerCount", { n: total }));
     return;
   }
 
@@ -67,9 +68,7 @@ export async function handleClockTower(message: Message): Promise<void> {
       const member = await guild.members.fetch(id);
       members.push(member);
     } catch {
-      await message.reply(
-        `❌ Could not fetch user <@${id}>. Make sure they are in the server.`,
-      );
+      await message.reply(t(lang, "clocktowerFetchError", { id }));
       return;
     }
   }
@@ -109,12 +108,12 @@ export async function handleClockTower(message: Message): Promise<void> {
   createGame(state);
 
   // Announce in game channel.
-  const playerMentions = players.map((p) => `<@${p.userId}>`);
-  await channel.send(t(lang, "gameChannelReady", gameId, playerMentions));
+  const playerMentions = players.map((p) => `<@${p.userId}>`).join(", ");
+  await channel.send(t(lang, "gameChannelReady", { gameId, players: playerMentions }));
   await channel.send(t(lang, "chooseStoryteller"));
 
   // Acknowledge in the original channel.
-  await message.reply(`✅ A chamber stirs: <#${channel.id}>`);
+  await message.reply(t(lang, "clocktowerChannelCreated", { channelId: channel.id }));
 }
 
 export async function createGameChannel(

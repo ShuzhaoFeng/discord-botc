@@ -5,7 +5,7 @@
 
 import { Client, TextChannel } from "discord.js";
 import { GameState } from "../game/types";
-import { getLang, t } from "../i18n";
+import { getLang, getRoleName, t } from "../i18n";
 import { renderRoleDm } from "../game/draft_render";
 import { updateGame } from "../game/state";
 import { sendPlayerDm } from "../utils/sendPlayerDm";
@@ -38,7 +38,7 @@ export async function distributeRoles(
             )
             .map((p) => {
               const r = draft.assignments.get(p.userId)!;
-              return `${p.displayName} (${lang === "zh" ? r.nameZh : r.name})`;
+              return `${p.displayName} (${getRoleName(lang, r.id)})`;
             })
         : undefined;
 
@@ -51,7 +51,7 @@ export async function distributeRoles(
           );
           if (!d) return undefined;
           const r = draft.assignments.get(d.userId)!;
-          return `${d.displayName} (${lang === "zh" ? r.nameZh : r.name})`;
+          return `${d.displayName} (${getRoleName(lang, r.id)})`;
         })()
       : undefined;
     const minionPeers = isMinion
@@ -63,7 +63,7 @@ export async function distributeRoles(
           )
           .map((p) => {
             const r = draft.assignments.get(p.userId)!;
-            return `${p.displayName} (${lang === "zh" ? r.nameZh : r.name})`;
+            return `${p.displayName} (${getRoleName(lang, r.id)})`;
           })
       : undefined;
 
@@ -87,9 +87,7 @@ export async function distributeRoles(
       const ref = player.isTestPlayer
         ? `**${player.displayName}** (test player)`
         : `<@${player.userId}>`;
-      await channel.send(
-        `⚠️ Fate's message could not reach ${ref}. Please ensure your DMs are open for this server.`,
-      );
+      await channel.send(t(lang, "roleSenderDmFailed", { ref }));
     }
   }
 

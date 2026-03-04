@@ -24,11 +24,7 @@ export type NightPromptExpected =
 
 export interface Role {
   id: string;
-  name: string;
-  nameZh: string;
   category: RoleCategory;
-  description: string;
-  descriptionZh: string;
 }
 
 export interface Player {
@@ -57,16 +53,16 @@ export interface PlayerRuntimeState {
 export interface NominationRecord {
   nominatorId: string;
   nomineeId: string;
-  votes: Set<string>;      // userIds who cast /ye (includes nominator's auto-vote)
-  finalVoteCount: number;  // resolved vote count after Butler adjustment
-  aliveThenCount: number;  // alive count when window closed
-  windowClosedAt: number;  // timestamp
+  votes: Set<string>; // userIds who cast /ye (includes nominator's auto-vote)
+  finalVoteCount: number; // resolved vote count after Butler adjustment
+  aliveThenCount: number; // alive count when window closed
+  windowClosedAt: number; // timestamp
   status: "active" | "completed" | "cancelled";
 }
 
 export interface PendingSlayRecluse {
   slayerId: string;
-  targetId: string;    // Recluse's userId
+  targetId: string; // Recluse's userId
   proposedKill: boolean; // bot's random proposal: true = kill Recluse
 }
 
@@ -78,17 +74,17 @@ export interface PendingSlayFixed {
 
 export interface DaySession {
   dayNumber: number;
-  nominatorIds: Set<string>;       // players who have nominated today
-  nomineeIds: Set<string>;         // players who have been nominated today
+  nominatorIds: Set<string>; // players who have nominated today
+  nomineeIds: Set<string>; // players who have been nominated today
   nominations: NominationRecord[];
   activeNomination: NominationRecord | null;
-  endDayVotes: Set<string>;        // alive players who used /endday
-  endDayThresholdMet: boolean;     // majority /endday reached
+  endDayVotes: Set<string>; // alive players who used /endday
+  endDayThresholdMet: boolean; // majority /endday reached
   dayEndsAfterNomination: boolean; // any end condition triggered; wait for active window to close
   status: "open" | "ended";
-  nightKillIds: string[];          // players who died last night (announced at day start)
+  nightKillIds: string[]; // players who died last night (announced at day start)
   pendingSlayRecluse: PendingSlayRecluse | null; // manual mode pending Recluse slay (Scenario 4)
-  pendingSlayFixed: PendingSlayFixed | null;     // manual mode pending confirmation for Scenarios 1-3
+  pendingSlayFixed: PendingSlayFixed | null; // manual mode pending confirmation for Scenarios 1-3
 }
 
 export interface NightPrompt {
@@ -148,8 +144,8 @@ export interface RuntimeState {
   nightSession: NightSession | null;
   daySession: DaySession | null;
   lastExecutedPlayerId: string | null;
-  nightKillIds: string[];    // kills from last night, consumed at day start
-  slayerHasUsed: boolean;    // Slayer's once-per-game ability has been consumed
+  nightKillIds: string[]; // kills from last night, consumed at day start
+  slayerHasUsed: boolean; // Slayer's once-per-game ability has been consumed
 }
 
 export interface GameState {

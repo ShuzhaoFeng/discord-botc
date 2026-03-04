@@ -90,14 +90,16 @@ export async function handleImpersonate(message: Message, client: Client): Promi
   const rest = tokens.slice(1);
 
   if (!playerName || rest.length === 0) {
-    await message.reply('❌ Usage: `!as <player> <command>`');
+    const lang0 = getLang(message.author.id);
+    await message.reply(t(lang0, 'impersonateUsage'));
     return;
   }
 
   // Resolve to a fake player in this game.
   const fakePlayer = resolveFakePlayer(playerName, state.players);
   if (!fakePlayer) {
-    await message.reply(`❌ No fake player named "${playerName}" in this game.`);
+    const lang0 = getLang(message.author.id);
+    await message.reply(t(lang0, 'impersonateUnknownPlayer', { name: playerName }));
     return;
   }
 
@@ -129,7 +131,7 @@ export async function handleImpersonate(message: Message, client: Client): Promi
 
       // Announce in the game channel.
       await (message.channel as TextChannel).send(
-        `🧪 **[TEST]** ${t(lang, 'iamAccepted', fakePlayer.displayName)}`,
+        `🧪 **[TEST]** ${t(lang, 'iamAccepted', { username: fakePlayer.displayName })}`,
       );
 
       // Send draft DM to the test owner, labelled as going to the fake storyteller.
@@ -141,9 +143,7 @@ export async function handleImpersonate(message: Message, client: Client): Promi
           renderDraft(state, stLang),
         );
       } catch {
-        await message.reply(
-          '⚠️ Could not DM you the draft. Please enable DMs from server members.',
-        );
+        await message.reply(t(lang, 'iamDmFailed'));
       }
       break;
     }
