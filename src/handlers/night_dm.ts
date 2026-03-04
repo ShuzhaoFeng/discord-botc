@@ -7,7 +7,7 @@ import {
 } from "../game/state";
 import { handleNightPlayerDm, handleNightStorytellerDm } from "../game/night";
 import { handleDayStorytellerDm } from "../game/day";
-import { FAKE_PLAYER_ID_PREFIX, GameState, Player } from "../game/types";
+import { Player } from "../game/types";
 
 function resolveFakePlayer(
   name: string,

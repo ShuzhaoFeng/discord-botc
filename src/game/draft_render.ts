@@ -1,5 +1,5 @@
 import { Draft, GameState, Lang, Player, Role } from "./types";
-import { t, getRoleDescription, getRoleGuide, getRoleName } from "../i18n";
+import { t, getRoleGuide, getRoleName } from "../i18n";
 
 function pad(s: string, len: number): string {
   return s.length >= len ? s : s + " ".repeat(len - s.length);
@@ -108,14 +108,8 @@ export function renderRoleDm(
   const cat = categoryDisplay(displayRole.category, lang);
   lines.push(t(lang, "roleDmRole", { roleName, category: cat }));
 
-  const desc = getRoleDescription(lang, displayRole.id);
-  lines.push(t(lang, "roleDmAbility", { description: desc }));
-
   lines.push("");
-  // Use the role guide if available, otherwise fall back to the generic beginner guide string
-  lines.push(
-    getRoleGuide(lang, displayRole.id) ?? t(lang, "roleDmBeginnerGuide"),
-  );
+  lines.push(getRoleGuide(lang, displayRole.id) ?? t(lang, "roleDmBeginnerGuide"));
 
   if (impBluffs) {
     lines.push("");

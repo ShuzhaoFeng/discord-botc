@@ -1,11 +1,14 @@
 import enStrings from "./en.json";
 import zhStrings from "./zh.json";
 import { Lang } from "../game/types";
+import { ALL_ROLE_DEFINITIONS } from "../roles";
 
 const strings: Record<Lang, Record<string, string>> = {
   en: enStrings as Record<string, string>,
   zh: zhStrings as Record<string, string>,
 };
+
+const roleDefById = new Map(ALL_ROLE_DEFINITIONS.map((r) => [r.id, r]));
 
 /** Per-user language preferences (lives for bot session lifetime). */
 const userLang = new Map<string, Lang>();
@@ -18,19 +21,13 @@ export function setLang(userId: string, lang: Lang): void {
   userLang.set(userId, lang);
 }
 
-/** Retrieve the detailed rules-reminder text for a role, or undefined if not found. */
-export function getRoleGuide(lang: Lang, roleId: string): string | undefined {
-  return (
-    strings[lang][`roleGuide.${roleId}`] ?? strings["en"][`roleGuide.${roleId}`]
-  );
-}
-
 export function getRoleName(lang: Lang, roleId: string): string {
-  return t(lang, `roleName.${roleId}`);
+  return roleDefById.get(roleId)?.name[lang] ?? roleId;
 }
 
-export function getRoleDescription(lang: Lang, roleId: string): string {
-  return t(lang, `roleDesc.${roleId}`);
+/** Retrieve the rules-reminder text for a role, or undefined if not found. */
+export function getRoleGuide(lang: Lang, roleId: string): string | undefined {
+  return roleDefById.get(roleId)?.guide[lang];
 }
 
 export function roleParam(roleId: string): string {
@@ -54,12 +51,9 @@ export function resolveRoleIdByLocalizedName(
   const query = normalizeLookupText(input);
   if (!query) return undefined;
 
-  for (const localeStrings of Object.values(strings)) {
-    for (const [key, value] of Object.entries(localeStrings)) {
-      if (!key.startsWith("roleName.")) continue;
-      if (normalizeLookupText(value) === query) {
-        return key.slice("roleName.".length);
-      }
+  for (const def of ALL_ROLE_DEFINITIONS) {
+    for (const name of Object.values(def.name)) {
+      if (normalizeLookupText(name) === query) return def.id;
     }
   }
 

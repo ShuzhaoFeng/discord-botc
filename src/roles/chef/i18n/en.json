@@ -1,0 +1,4 @@
+{
+  "name": "Chef",
+  "guide": "**Rules reminder:**\n• During the first night, you learn how many pairs of evil players are adjacent.\n• A chain of three adjacent evil players counts as two pairs, etc.\n• You learn this only once and then learn nothing more."
+}

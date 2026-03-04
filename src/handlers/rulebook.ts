@@ -2,14 +2,13 @@
  * Handles the /rulebook slash command.
  *
  * /rulebook               — lists all Trouble Brewing roles grouped by category
- * /rulebook role:<name>   — shows the short ability description + detailed rules
- *                           reminder for a specific role (EN or ZH name accepted)
+ * /rulebook role:<name>   — shows the detailed rules reminder for a specific role
+ *                           (EN or ZH name accepted)
  */
 
 import { ChatInputCommandInteraction } from "discord.js";
 import {
   getLang,
-  getRoleDescription,
   getRoleGuide,
   getRoleName,
   t,
@@ -58,10 +57,9 @@ function buildList(lang: Lang): string {
 function buildDetail(lang: Lang, role: Role): string {
   const name = getRoleName(lang, role.id);
   const cat = catLabel(lang, role.category);
-  const ability = getRoleDescription(lang, role.id);
   const guide = getRoleGuide(lang, role.id);
 
-  const lines: string[] = [`📖 **${name}** · ${cat}`, "", ability];
+  const lines: string[] = [`📖 **${name}** · ${cat}`];
 
   if (guide) {
     lines.push("", guide);

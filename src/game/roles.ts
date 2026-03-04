@@ -1,35 +1,17 @@
 import { resolveRoleIdByLocalizedName } from "../i18n";
+import { TROUBLE_BREWING } from "../scripts/trouble_brewing";
 import { Role, RoleCategory } from "./types";
 
-const ROLE_DEFS: Array<{ id: string; category: RoleCategory }> = [
-  { id: "imp", category: "Demon" },
-  { id: "poisoner", category: "Minion" },
-  { id: "spy", category: "Minion" },
-  { id: "scarlet_woman", category: "Minion" },
-  { id: "baron", category: "Minion" },
-  { id: "washerwoman", category: "Townsfolk" },
-  { id: "librarian", category: "Townsfolk" },
-  { id: "investigator", category: "Townsfolk" },
-  { id: "chef", category: "Townsfolk" },
-  { id: "empath", category: "Townsfolk" },
-  { id: "fortune_teller", category: "Townsfolk" },
-  { id: "undertaker", category: "Townsfolk" },
-  { id: "monk", category: "Townsfolk" },
-  { id: "ravenkeeper", category: "Townsfolk" },
-  { id: "virgin", category: "Townsfolk" },
-  { id: "slayer", category: "Townsfolk" },
-  { id: "soldier", category: "Townsfolk" },
-  { id: "mayor", category: "Townsfolk" },
-  { id: "butler", category: "Outsider" },
-  { id: "drunk", category: "Outsider" },
-  { id: "recluse", category: "Outsider" },
-  { id: "saint", category: "Outsider" },
-];
+function fromList(defs: { id: string }[], category: RoleCategory): Role[] {
+  return defs.map(({ id }) => ({ id, category }));
+}
 
-export const ROLES: Role[] = ROLE_DEFS.map(({ id, category }) => ({
-  id,
-  category,
-}));
+export const ROLES: Role[] = [
+  ...fromList(TROUBLE_BREWING.townsfolk, "Townsfolk"),
+  ...fromList(TROUBLE_BREWING.outsiders, "Outsider"),
+  ...fromList(TROUBLE_BREWING.minions, "Minion"),
+  ...fromList(TROUBLE_BREWING.demons, "Demon"),
+];
 
 // Lookup helpers
 export const ROLE_BY_ID = new Map<string, Role>(ROLES.map((r) => [r.id, r]));

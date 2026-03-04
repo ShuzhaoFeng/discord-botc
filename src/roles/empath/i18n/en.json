@@ -1,0 +1,4 @@
+{
+  "name": "Empath",
+  "guide": "**Rules reminder:**\n• Each night, you learn how many of your two alive neighbors are evil (0, 1, or 2).\n• Dead neighbors are skipped; use the next closest alive neighbor in that direction.\n• You receive this information every night while alive."
+}

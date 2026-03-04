@@ -4,15 +4,7 @@ import {
   TextChannel,
   Message,
 } from "discord.js";
-import {
-  GameState,
-  DaySession,
-  NominationRecord,
-  Player,
-  Lang,
-  PlayerRuntimeState,
-  RuntimeState,
-} from "./types";
+import { GameState, NominationRecord, Player, Lang } from "./types";
 import { getLang, getRoleName, t } from "../i18n";
 import { sendPlayerDm } from "../utils/sendPlayerDm";
 import { getGame, updateGame } from "./state";
@@ -28,10 +20,6 @@ function getAlivePlayers(state: GameState): Player[] {
 
 function getRole(state: GameState, playerId: string) {
   return state.draft!.assignments.get(playerId)!;
-}
-
-function isDrunk(state: GameState, playerId: string): boolean {
-  return getRole(state, playerId).id === "drunk";
 }
 
 function isPoisoned(state: GameState, playerId: string): boolean {
