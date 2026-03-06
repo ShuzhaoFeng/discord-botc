@@ -12,7 +12,7 @@ import {
   RuntimeState,
 } from "./types";
 import { getLang, getRoleName, t } from "../i18n";
-import { findRole, ROLE_BY_ID } from "./roles";
+import { findRole, getScript } from "./roles";
 import { sendPlayerDm } from "../utils/sendPlayerDm";
 import { updateGame } from "./state";
 
@@ -469,7 +469,7 @@ function renderOutcomeDraft(
   if (draft.templateId === "pair_role_info") {
     const p1 = playerName(state, String(draft.fields.p1));
     const p2 = playerName(state, String(draft.fields.p2));
-    const role = ROLE_BY_ID.get(String(draft.fields.role));
+    const role = getScript().roles.find((r) => r.id === String(draft.fields.role));
     const roleName = role
       ? roleNameFor(recipientLang, role)
       : String(draft.fields.role);
@@ -497,7 +497,7 @@ function renderOutcomeDraft(
 
   if (draft.templateId === "undertaker_role") {
     const roleId = String(draft.fields.role);
-    const role = ROLE_BY_ID.get(roleId);
+    const role = getScript().roles.find((r) => r.id === roleId);
     const roleName = role ? roleNameFor(recipientLang, role) : roleId;
     return t(recipientLang, "nightUndertakerRole", { role: roleName });
   }
@@ -872,7 +872,7 @@ function resolveNightOutcomes(state: GameState): void {
 
       const role = randomInfo
         ? (pick(
-            [...ROLE_BY_ID.values()].filter((r) => r.category === "Townsfolk"),
+            getScript().roles.filter((r) => r.category === "Townsfolk"),
             1,
           )[0] ?? effectiveRoleForPlayer(state, player.userId))
         : tfTarget
@@ -951,7 +951,7 @@ function resolveNightOutcomes(state: GameState): void {
         : pick(outsiders, 1)[0];
       const osRole = randomInfo
         ? (pick(
-            [...ROLE_BY_ID.values()].filter((r) => r.category === "Outsider"),
+            getScript().roles.filter((r) => r.category === "Outsider"),
             1,
           )[0] ?? effectiveRoleForPlayer(state, player.userId))
         : osTarget
@@ -1015,7 +1015,7 @@ function resolveNightOutcomes(state: GameState): void {
         : pick(minions, 1)[0];
       const minionRole = randomInfo
         ? (pick(
-            [...ROLE_BY_ID.values()].filter((r) => r.category === "Minion"),
+            getScript().roles.filter((r) => r.category === "Minion"),
             1,
           )[0] ?? effectiveRoleForPlayer(state, player.userId))
         : minionTarget

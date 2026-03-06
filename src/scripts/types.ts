@@ -1,8 +1,10 @@
 import type { RoleDefinition } from "../roles/types";
+import type { RoleCategory } from "../game/types";
+
+export interface ScriptRole extends RoleDefinition {
+  category: RoleCategory;
+}
 
 export interface ScriptDefinition {
-  townsfolk: RoleDefinition[];
-  outsiders: RoleDefinition[];
-  minions: RoleDefinition[];
-  demons: RoleDefinition[];
+  roles: ScriptRole[];
 }

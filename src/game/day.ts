@@ -8,7 +8,7 @@ import { GameState, NominationRecord, Player, Lang } from "./types";
 import { getLang, getRoleName, t } from "../i18n";
 import { sendPlayerDm } from "../utils/sendPlayerDm";
 import { getGame, updateGame } from "./state";
-import { ROLE_BY_ID } from "./roles";
+import { getScript } from "./roles";
 import { ensureRuntime } from "./night";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ export async function killPlayerDuringDay(
     );
     if (swPlayer && alive.length >= 5) {
       // SW becomes the new Imp
-      const impRole = ROLE_BY_ID.get("imp")!;
+      const impRole = getScript().roles.find((r) => r.id === "imp")!;
       state.draft!.assignments.set(swPlayer.userId, impRole);
       updateGame(state);
 
