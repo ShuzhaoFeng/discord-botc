@@ -99,8 +99,8 @@ export interface NightPrompt {
 
 export interface NightOutcomeMeta {
   kind: "randomized" | "fixed";
-  reasonEn?: string;
-  reasonZh?: string;
+  reasonKey?: string;
+  reasonParams?: Record<string, string | number>;
 }
 
 export type NightOutcomeTemplateId =

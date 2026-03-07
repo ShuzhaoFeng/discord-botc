@@ -296,6 +296,23 @@
   "nightInvalidNumber": "无效数字：{value}",
   "nightInvalidBoolean": "无效是/否：{value}",
 
+  "nightReasonDeterministic": "确定性角色结算",
+  "nightReasonJokeInteraction": "该夜无能力（笑话互动）",
+  "nightReasonFalseInfo": "中毒/酒鬼导致虚假信息",
+  "nightReasonDecoyPair": "说书人模型随机选取干扰位",
+  "nightReasonNoOutsiders": "本局无外来者",
+  "nightReasonChefSeating": "按真实座次计算",
+  "nightReasonEmpathNeighbors": "按存活邻座计算",
+  "nightReasonFortuneCheck": "按恶魔/红鲱鱼检定结算",
+  "nightReasonNoExecution": "今日无处决记录",
+  "nightReasonExecutionRecord": "按处决记录结算",
+  "nightReasonFalseGrimoire": "中毒/酒鬼导致虚假手册",
+  "nightReasonGrimoireReveal": "直接展示手册信息",
+  "nightReasonActionAck": "行动回执",
+  "nightReasonRavenkeeper": "守鸦人后续占位结算",
+  "nightReasonStorytellerSet": "说书人字段覆盖 {field}",
+  "nightReasonStorytellerOverride": "说书人覆盖",
+
   "impersonateUsage": "❌ 用法：`!as <玩家> <命令>`",
   "impersonateUnknownPlayer": "❌ 此游戏中没有名为 \"{name}\" 的测试玩家。"
 }

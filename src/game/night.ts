@@ -126,7 +126,6 @@ function buildNightPrompt(
   const runtime = ensureRuntime(state);
   const lang = getLang(player.userId);
   const nightNumber = runtime.nightNumber;
-  const trueRole = getRole(state, player.userId);
   const effectiveRole = effectiveRoleForPlayer(state, player.userId);
 
   const isFirstNight = nightNumber === 1;
@@ -469,7 +468,9 @@ function renderOutcomeDraft(
   if (draft.templateId === "pair_role_info") {
     const p1 = playerName(state, String(draft.fields.p1));
     const p2 = playerName(state, String(draft.fields.p2));
-    const role = getScript().roles.find((r) => r.id === String(draft.fields.role));
+    const role = getScript().roles.find(
+      (r) => r.id === String(draft.fields.role),
+    );
     const roleName = role
       ? roleNameFor(recipientLang, role)
       : String(draft.fields.role);
@@ -603,10 +604,10 @@ function outcomeReasonTag(
   lang: Lang,
   meta: NightOutcomeMeta | undefined,
 ): string {
-  if (!meta) return "";
-  const reason = lang === "zh" ? meta.reasonZh : meta.reasonEn;
-  if (!reason) return "";
-  return t(lang, "nightOutcomeReason", { reason });
+  if (!meta || !meta.reasonKey) return "";
+  return t(lang, "nightOutcomeReason", {
+    reason: t(lang, meta.reasonKey, meta.reasonParams),
+  });
 }
 
 function buildInfoPreview(state: GameState, storytellerLang: Lang): string {
@@ -767,8 +768,7 @@ function resolveNightOutcomes(state: GameState): void {
     session.infoMessages.set(p.userId, t(lang, "nightInteractionRecorded"));
     session.infoOutcomeMeta.set(p.userId, {
       kind: "fixed",
-      reasonEn: "deterministic role resolution",
-      reasonZh: "确定性角色结算",
+      reasonKey: "nightReasonDeterministic",
     });
     session.infoOutcomeDrafts.delete(p.userId);
   }
@@ -852,8 +852,7 @@ function resolveNightOutcomes(state: GameState): void {
       session.infoOutcomeDrafts.delete(player.userId);
       session.infoOutcomeMeta.set(player.userId, {
         kind: "fixed",
-        reasonEn: "no night ability (joke interaction)",
-        reasonZh: "该夜无能力（笑话互动）",
+        reasonKey: "nightReasonJokeInteraction",
       });
       continue;
     }
@@ -914,12 +913,7 @@ function resolveNightOutcomes(state: GameState): void {
       );
       session.infoOutcomeMeta.set(player.userId, {
         kind: "randomized",
-        reasonEn: randomInfo
-          ? "poisoned/drunk false information"
-          : "decoy pair randomized by storyteller model",
-        reasonZh: randomInfo
-          ? "中毒/酒鬼导致虚假信息"
-          : "说书人模型随机选取干扰位",
+        reasonKey: randomInfo ? "nightReasonFalseInfo" : "nightReasonDecoyPair",
       });
       continue;
     }
@@ -937,8 +931,7 @@ function resolveNightOutcomes(state: GameState): void {
         session.infoOutcomeDrafts.delete(player.userId);
         session.infoOutcomeMeta.set(player.userId, {
           kind: "fixed",
-          reasonEn: "no Outsiders in play",
-          reasonZh: "本局无外来者",
+          reasonKey: "nightReasonNoOutsiders",
         });
         continue;
       }
@@ -992,12 +985,7 @@ function resolveNightOutcomes(state: GameState): void {
       );
       session.infoOutcomeMeta.set(player.userId, {
         kind: "randomized",
-        reasonEn: randomInfo
-          ? "poisoned/drunk false information"
-          : "decoy pair randomized by storyteller model",
-        reasonZh: randomInfo
-          ? "中毒/酒鬼导致虚假信息"
-          : "说书人模型随机选取干扰位",
+        reasonKey: randomInfo ? "nightReasonFalseInfo" : "nightReasonDecoyPair",
       });
       continue;
     }
@@ -1058,12 +1046,7 @@ function resolveNightOutcomes(state: GameState): void {
       );
       session.infoOutcomeMeta.set(player.userId, {
         kind: "randomized",
-        reasonEn: randomInfo
-          ? "poisoned/drunk false information"
-          : "decoy pair randomized by storyteller model",
-        reasonZh: randomInfo
-          ? "中毒/酒鬼导致虚假信息"
-          : "说书人模型随机选取干扰位",
+        reasonKey: randomInfo ? "nightReasonFalseInfo" : "nightReasonDecoyPair",
       });
       continue;
     }
@@ -1091,10 +1074,7 @@ function resolveNightOutcomes(state: GameState): void {
       );
       session.infoOutcomeMeta.set(player.userId, {
         kind: randomInfo ? "randomized" : "fixed",
-        reasonEn: randomInfo
-          ? "poisoned/drunk false information"
-          : "computed from true seating",
-        reasonZh: randomInfo ? "中毒/酒鬼导致虚假信息" : "按真实座次计算",
+        reasonKey: randomInfo ? "nightReasonFalseInfo" : "nightReasonChefSeating",
       });
       continue;
     }
@@ -1137,10 +1117,9 @@ function resolveNightOutcomes(state: GameState): void {
       );
       session.infoOutcomeMeta.set(player.userId, {
         kind: randomInfo ? "randomized" : "fixed",
-        reasonEn: randomInfo
-          ? "poisoned/drunk false information"
-          : "computed from alive neighbors",
-        reasonZh: randomInfo ? "中毒/酒鬼导致虚假信息" : "按存活邻座计算",
+        reasonKey: randomInfo
+          ? "nightReasonFalseInfo"
+          : "nightReasonEmpathNeighbors",
       });
       continue;
     }
@@ -1168,12 +1147,9 @@ function resolveNightOutcomes(state: GameState): void {
       );
       session.infoOutcomeMeta.set(player.userId, {
         kind: randomInfo ? "randomized" : "fixed",
-        reasonEn: randomInfo
-          ? "poisoned/drunk false information"
-          : "resolved from demon/red herring check",
-        reasonZh: randomInfo
-          ? "中毒/酒鬼导致虚假信息"
-          : "按恶魔/红鲱鱼检定结算",
+        reasonKey: randomInfo
+          ? "nightReasonFalseInfo"
+          : "nightReasonFortuneCheck",
       });
       continue;
     }
@@ -1184,8 +1160,7 @@ function resolveNightOutcomes(state: GameState): void {
         session.infoOutcomeDrafts.delete(player.userId);
         session.infoOutcomeMeta.set(player.userId, {
           kind: "fixed",
-          reasonEn: "no execution recorded today",
-          reasonZh: "今日无处决记录",
+          reasonKey: "nightReasonNoExecution",
         });
       } else {
         const executedRole = getRole(state, runtime.lastExecutedPlayerId);
@@ -1202,8 +1177,7 @@ function resolveNightOutcomes(state: GameState): void {
         );
         session.infoOutcomeMeta.set(player.userId, {
           kind: "fixed",
-          reasonEn: "resolved from execution record",
-          reasonZh: "按处决记录结算",
+          reasonKey: "nightReasonExecutionRecord",
         });
       }
       continue;
@@ -1221,10 +1195,9 @@ function resolveNightOutcomes(state: GameState): void {
       session.infoOutcomeDrafts.delete(player.userId);
       session.infoOutcomeMeta.set(player.userId, {
         kind: randomInfo ? "randomized" : "fixed",
-        reasonEn: randomInfo
-          ? "poisoned/drunk false grimoire"
-          : "direct grimoire reveal",
-        reasonZh: randomInfo ? "中毒/酒鬼导致虚假手册" : "直接展示手册信息",
+        reasonKey: randomInfo
+          ? "nightReasonFalseGrimoire"
+          : "nightReasonGrimoireReveal",
       });
       continue;
     }
@@ -1237,8 +1210,7 @@ function resolveNightOutcomes(state: GameState): void {
       session.infoOutcomeDrafts.delete(player.userId);
       session.infoOutcomeMeta.set(player.userId, {
         kind: "fixed",
-        reasonEn: "action acknowledgment",
-        reasonZh: "行动回执",
+        reasonKey: "nightReasonActionAck",
       });
     }
   }
@@ -1257,8 +1229,7 @@ function resolveNightOutcomes(state: GameState): void {
     );
     session.infoOutcomeMeta.set(dead.userId, {
       kind: "fixed",
-      reasonEn: "placeholder for Ravenkeeper follow-up",
-      reasonZh: "守鸦人后续占位结算",
+      reasonKey: "nightReasonRavenkeeper",
     });
   }
 }
@@ -1451,8 +1422,8 @@ export async function handleNightStorytellerDm(
         const prevMeta = session.infoOutcomeMeta.get(target.userId);
         session.infoOutcomeMeta.set(target.userId, {
           kind: prevMeta?.kind ?? "fixed",
-          reasonEn: `storyteller set ${field}`,
-          reasonZh: `说书人字段覆盖 ${field}`,
+          reasonKey: "nightReasonStorytellerSet",
+          reasonParams: { field },
         });
         continue;
       }
@@ -1495,8 +1466,7 @@ export async function handleNightStorytellerDm(
         session.infoOutcomeDrafts.delete(target.userId);
         session.infoOutcomeMeta.set(target.userId, {
           kind: "fixed",
-          reasonEn: "storyteller override",
-          reasonZh: "说书人覆盖",
+          reasonKey: "nightReasonStorytellerOverride",
         });
         continue;
       }

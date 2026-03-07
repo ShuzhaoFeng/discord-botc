@@ -296,6 +296,23 @@
   "nightInvalidNumber": "Invalid number: {value}",
   "nightInvalidBoolean": "Invalid boolean value: {value}",
 
+  "nightReasonDeterministic": "deterministic role resolution",
+  "nightReasonJokeInteraction": "no night ability (joke interaction)",
+  "nightReasonFalseInfo": "poisoned/drunk false information",
+  "nightReasonDecoyPair": "decoy pair randomized by storyteller model",
+  "nightReasonNoOutsiders": "no Outsiders in play",
+  "nightReasonChefSeating": "computed from true seating",
+  "nightReasonEmpathNeighbors": "computed from alive neighbors",
+  "nightReasonFortuneCheck": "resolved from demon/red herring check",
+  "nightReasonNoExecution": "no execution recorded today",
+  "nightReasonExecutionRecord": "resolved from execution record",
+  "nightReasonFalseGrimoire": "poisoned/drunk false grimoire",
+  "nightReasonGrimoireReveal": "direct grimoire reveal",
+  "nightReasonActionAck": "action acknowledgment",
+  "nightReasonRavenkeeper": "placeholder for Ravenkeeper follow-up",
+  "nightReasonStorytellerSet": "storyteller set {field}",
+  "nightReasonStorytellerOverride": "storyteller override",
+
   "impersonateUsage": "❌ Usage: `!as <player> <command>`",
   "impersonateUnknownPlayer": "❌ No fake player named \"{name}\" in this game."
 }

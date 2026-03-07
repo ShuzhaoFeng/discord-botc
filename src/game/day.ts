@@ -835,7 +835,6 @@ export async function handleSlay(
       notifyStoryteller(
         client,
         state,
-        stLang,
         t(stLang, "daySlayBluffStNotify", {
           slayer: player.displayName,
           target: target.displayName,
@@ -846,7 +845,6 @@ export async function handleSlay(
       notifyStoryteller(
         client,
         state,
-        lang,
         t(lang, "daySlayBluffStLog", {
           slayer: player.displayName,
           target: target.displayName,
@@ -870,7 +868,6 @@ export async function handleSlay(
       notifyStoryteller(
         client,
         state,
-        stLang,
         t(stLang, "daySlayPoisonedStNotify", {
           slayer: player.displayName,
           target: target.displayName,
@@ -881,7 +878,6 @@ export async function handleSlay(
       notifyStoryteller(
         client,
         state,
-        lang,
         t(lang, "daySlayPoisonedStLog", {
           slayer: player.displayName,
           target: target.displayName,
@@ -905,7 +901,6 @@ export async function handleSlay(
       notifyStoryteller(
         client,
         state,
-        stLang,
         t(stLang, "daySlayUsedStNotify", {
           slayer: player.displayName,
           target: target.displayName,
@@ -916,7 +911,6 @@ export async function handleSlay(
       notifyStoryteller(
         client,
         state,
-        lang,
         t(lang, "daySlayUsedStLog", {
           slayer: player.displayName,
           target: target.displayName,
@@ -972,7 +966,6 @@ export async function handleSlay(
       notifyStoryteller(
         client,
         state,
-        stLang,
         t(stLang, "daySlayRecluseStNotify", {
           slayer: player.displayName,
           target: target.displayName,
@@ -998,7 +991,6 @@ export async function handleSlay(
       notifyStoryteller(
         client,
         state,
-        stLang,
         t(stLang, "daySlayDemonStNotify", {
           slayer: player.displayName,
           target: target.displayName,
@@ -1011,7 +1003,6 @@ export async function handleSlay(
       notifyStoryteller(
         client,
         state,
-        lang,
         t(lang, "daySlayDemonStLog", {
           slayer: player.displayName,
           target: target.displayName,
@@ -1043,7 +1034,6 @@ export async function handleSlay(
       notifyStoryteller(
         client,
         state,
-        stLang,
         t(stLang, "daySlayNotDemonStNotify", {
           slayer: player.displayName,
           target: target.displayName,
@@ -1054,7 +1044,6 @@ export async function handleSlay(
       notifyStoryteller(
         client,
         state,
-        lang,
         t(lang, "daySlayNotDemonStLog", {
           slayer: player.displayName,
           target: target.displayName,
@@ -1095,7 +1084,6 @@ async function cancelActiveNomination(
 function notifyStoryteller(
   client: Client,
   state: GameState,
-  lang: Lang,
   content: string,
 ): void {
   if (!state.storytellerId) return;
