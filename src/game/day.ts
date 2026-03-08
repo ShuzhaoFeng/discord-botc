@@ -139,11 +139,11 @@ export async function killPlayerDuringDay(
   await channel.send(t(lang, "dayPlayerDied", { name }));
 
   // Scarlet Woman check: if the dead player is the Imp and SW is alive with 5+ alive
-  const deadRole = getRole(state, playerId);
+  const deadRole = getRole(runtime,playerId);
   if (deadRole.id === "imp") {
     const alive = getAlivePlayers(state);
     const swPlayer = alive.find(
-      (p) => getRole(state, p.userId).id === "scarlet_woman",
+      (p) => getRole(runtime,p.userId).id === "scarlet_woman",
     );
     if (swPlayer && alive.length >= 5) {
       // SW becomes the new Imp — update runtime (primary source of truth) and draft
@@ -320,7 +320,7 @@ async function processEndOfDay(
     const alive = getAlivePlayers(state);
     if (alive.length === 3) {
       const mayorPlayer = alive.find(
-        (p) => getRole(state, p.userId).id === "mayor",
+        (p) => getRole(runtime,p.userId).id === "mayor",
       );
       if (mayorPlayer) {
         await channel.send(
@@ -340,7 +340,7 @@ async function processEndOfDay(
   // Execute the winner
   const executeId = executedNomination.nomineeId;
   const executeName = playerDisplayName(state, executeId);
-  const executeRole = getRole(state, executeId);
+  const executeRole = getRole(runtime,executeId);
 
   await channel.send(
     t(lang, "dayExecuted", {
@@ -551,8 +551,8 @@ export async function handleNominate(
   }
 
   // ── Virgin check ──────────────────────────────────────────────────────────
-  const nomineeRole = getRole(state, nominee.userId);
-  const nominatorRealRole = getRole(state, i.user.id);
+  const nomineeRole = getRole(runtime,nominee.userId);
+  const nominatorRealRole = getRole(runtime,i.user.id);
 
   // Virgin triggers if: nominee is Virgin, not poisoned, never nominated before,
   // and nominator's true role is Townsfolk (not Drunk, not Evil)
@@ -789,8 +789,8 @@ export async function handleSlay(
   }
 
   // Determine the scenario
-  const realRole = getRole(state, i.user.id);
-  const targetRole = getRole(state, target.userId);
+  const realRole = getRole(runtime,i.user.id);
+  const targetRole = getRole(runtime,target.userId);
   const isRealSlayer = realRole.id === "slayer";
   const slayerPoisoned = playerState.tags.has("poisoned");
 

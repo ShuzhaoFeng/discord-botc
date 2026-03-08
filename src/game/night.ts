@@ -61,8 +61,8 @@ export function getPlayerState(
   return runtime.playerStates.find((ps) => ps.player.userId === userId);
 }
 
-export function getRole(state: GameState, playerId: string): Role {
-  return getPlayerState(state.runtime!, playerId)!.role;
+export function getRole(runtime: RuntimeState, playerId: string): Role {
+  return getPlayerState(runtime, playerId)!.role;
 }
 
 function makeAckToken(): string {
@@ -516,6 +516,7 @@ function validateAndNormalizeDraft(
 ): string | null {
   if (draft.templateId !== "pair_role_info") return null;
   if (draft.allowArbitraryOverride) return null;
+  const runtime = ensureRuntime(state);
 
   const p1 = String(draft.fields.p1);
   const p2 = String(draft.fields.p2);
@@ -526,8 +527,8 @@ function validateAndNormalizeDraft(
   const pairCategory = String(draft.constraints?.pairCategory ?? "");
   if (!pairCategory) return null;
 
-  const r1 = getRole(state, p1);
-  const r2 = getRole(state, p2);
+  const r1 = getRole(runtime, p1);
+  const r2 = getRole(runtime, p2);
   const candidates = [r1, r2].filter((r) => r.category === pairCategory);
   if (candidates.length === 0) {
     return t(lang, "nightDraftNoPairCategory", { category: pairCategory });
@@ -845,7 +846,7 @@ function resolveNightOutcomes(state: GameState): void {
     if (effectiveRole.id === "washerwoman") {
       const randomInfo = shouldGetRandomInfo(ps);
       const townsfolk = state.players.filter(
-        (p) => getRole(state, p.userId).category === "Townsfolk",
+        (p) => getRole(runtime, p.userId).category === "Townsfolk",
       );
       const otherPlayers = randomInfo
         ? state.players.filter((p) => p.userId !== player.userId)
@@ -860,7 +861,7 @@ function resolveNightOutcomes(state: GameState): void {
             1,
           )[0] ?? ps.effectiveRole)
         : tfTarget
-          ? getRole(state, tfTarget.userId)
+          ? getRole(runtime, tfTarget.userId)
           : ps.effectiveRole;
 
       const decoy = pick(
@@ -906,7 +907,7 @@ function resolveNightOutcomes(state: GameState): void {
     if (effectiveRole.id === "librarian") {
       const randomInfo = shouldGetRandomInfo(ps);
       const outsiders = state.players.filter(
-        (p) => getRole(state, p.userId).category === "Outsider",
+        (p) => getRole(runtime, p.userId).category === "Outsider",
       );
       if (!randomInfo && outsiders.length === 0) {
         session.infoMessages.set(
@@ -933,7 +934,7 @@ function resolveNightOutcomes(state: GameState): void {
             1,
           )[0] ?? ps.effectiveRole)
         : osTarget
-          ? getRole(state, osTarget.userId)
+          ? getRole(runtime, osTarget.userId)
           : ps.effectiveRole;
       const decoy = pick(
         otherPlayers.filter((p) => p.userId !== osTarget?.userId),
@@ -978,7 +979,7 @@ function resolveNightOutcomes(state: GameState): void {
     if (effectiveRole.id === "investigator") {
       const randomInfo = shouldGetRandomInfo(ps);
       const minions = state.players.filter(
-        (p) => getRole(state, p.userId).category === "Minion",
+        (p) => getRole(runtime, p.userId).category === "Minion",
       );
       const otherPlayers = randomInfo
         ? state.players.filter((p) => p.userId !== player.userId)
@@ -992,7 +993,7 @@ function resolveNightOutcomes(state: GameState): void {
             1,
           )[0] ?? ps.effectiveRole)
         : minionTarget
-          ? getRole(state, minionTarget.userId)
+          ? getRole(runtime, minionTarget.userId)
           : ps.effectiveRole;
       const decoy = pick(
         otherPlayers.filter((p) => p.userId !== minionTarget?.userId),
@@ -1113,7 +1114,7 @@ function resolveNightOutcomes(state: GameState): void {
       const choices = session.responses.get(player.userId) ?? [];
       const randomInfo = shouldGetRandomInfo(ps);
       const hasDemon = choices.some(
-        (uid) => getRole(state, uid)?.category === "Demon",
+        (uid) => getRole(runtime, uid)?.category === "Demon",
       );
       const hasHerring = choices.some(
         (uid) => getPlayerState(runtime, uid)?.tags.has("red_herring"),
@@ -1150,7 +1151,7 @@ function resolveNightOutcomes(state: GameState): void {
           reasonKey: "nightReasonNoExecution",
         });
       } else {
-        const executedRole = getRole(state, runtime.lastExecutedPlayerId);
+        const executedRole = getRole(runtime, runtime.lastExecutedPlayerId);
         const draft: NightOutcomeDraft = {
           templateId: "undertaker_role",
           fields: { role: executedRole.id },
