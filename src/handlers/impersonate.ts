@@ -22,6 +22,8 @@ import { renderDraft } from '../game/draft_render';
 import { distributeRoles } from './role_sender';
 import { Player } from '../game/types';
 import { handleNominate, handleYe, handleSlay, handleEndDay } from '../game/day';
+import { handleLang } from './lang';
+import { handleRulebook } from './rulebook';
 
 const COMMAND_PREFIX = '!as ';
 
@@ -55,8 +57,8 @@ class FakeDayInteraction {
   }
 
   options = {
-    getString: (_name: string, _required?: boolean): string =>
-      this._arg ?? '',
+    getString: (_name: string, required?: boolean): string | null =>
+      required ? (this._arg ?? '') : this._arg,
   };
 
   async reply(
@@ -215,9 +217,27 @@ export async function handleImpersonate(message: Message, client: Client): Promi
       break;
     }
 
+    case 'lang': {
+      const langInput = rest[1] ?? null;
+      if (!langInput) {
+        await message.reply('❌ Usage: `!as <player> lang <en|zh>`');
+        return;
+      }
+      const fakeI = new FakeDayInteraction(fakePlayer.userId, channelId, message, langInput);
+      await handleLang(fakeI as unknown as ChatInputCommandInteraction);
+      break;
+    }
+
+    case 'rulebook': {
+      const roleInput = rest.slice(1).join(' ') || null;
+      const fakeI = new FakeDayInteraction(fakePlayer.userId, channelId, message, roleInput);
+      await handleRulebook(fakeI as unknown as ChatInputCommandInteraction);
+      break;
+    }
+
     default: {
       await message.reply(
-        `❌ \`!as\` does not support \`${subCmd}\`. Supported: \`iam\`, \`youare\`, \`nominate\`, \`ye\`, \`slay\`, \`endday\`.`,
+        `❌ \`!as\` does not support \`${subCmd}\`. Supported: \`iam\`, \`youare\`, \`nominate\`, \`ye\`, \`slay\`, \`endday\`, \`lang\`, \`rulebook\`.`,
       );
     }
   }
