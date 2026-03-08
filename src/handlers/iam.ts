@@ -12,6 +12,13 @@ import { renderDraft } from '../game/draft_render';
 export async function handleIam(
   interaction: ChatInputCommandInteraction,
   client: Client,
+  /**
+   * Override the user that receives the draft DM and is registered as the
+   * storyteller for DM routing.  Used in test-mode impersonation, where the
+   * fake player's synthetic ID cannot receive DMs; pass the test owner's ID
+   * instead so DMs arrive at a real Discord account.
+   */
+  dmRecipientId?: string,
 ): Promise<void> {
   const lang = getLang(interaction.user.id);
   const channelId = interaction.channelId;
@@ -45,7 +52,8 @@ export async function handleIam(
   // Generate a random draft.
   state.draft = generateDraft(state.players);
 
-  setStoryteller(storytellerId, channelId);
+  const dmTarget = dmRecipientId ?? storytellerId;
+  setStoryteller(dmTarget, channelId);
   updateGame(state);
 
   // Announce in game channel.
@@ -53,10 +61,10 @@ export async function handleIam(
     t(lang, 'iamAccepted', { username: interaction.user.username }),
   );
 
-  // Send draft DM to storyteller.
+  // Send draft DM to storyteller (or dmRecipientId override in test mode).
   try {
-    const stUser = await client.users.fetch(storytellerId);
-    const stLang = getLang(storytellerId);
+    const stUser = await client.users.fetch(dmTarget);
+    const stLang = getLang(dmTarget);
     await stUser.send(renderDraft(state, stLang));
   } catch {
     await interaction.followUp({
