@@ -3,6 +3,7 @@ import { getGame, getGameByStoryteller, getGameByPlayer } from "../game/state";
 import { getLang, t } from "../i18n";
 import { getDistribution } from "../game/distribution";
 import { GameState, Lang } from "../game/types";
+import { getPlayerState } from "../game/night";
 
 function phaseLabel(state: GameState, lang: Lang): string {
   switch (state.phase) {
@@ -65,7 +66,7 @@ function buildInfoMessage(state: GameState, lang: Lang): string {
   const runtime = state.runtime;
   lines.push(t(lang, "infoPlayersHeader", { count: state.players.length }));
   for (const player of state.players) {
-    const ps = runtime?.playerStates.get(player.userId);
+    const ps = runtime ? getPlayerState(runtime, player.userId) : undefined;
     const alive = ps ? ps.alive : true; // assume alive before runtime initialises
     const icon = alive ? "🟢" : "💀";
     const statusLabel = alive ? t(lang, "infoAlive") : t(lang, "infoDead");

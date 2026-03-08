@@ -9,22 +9,13 @@ import { getLang, getRoleName, t } from "../i18n";
 import { sendPlayerDm } from "../utils/sendPlayerDm";
 import { getGame, updateGame } from "./state";
 import { getScript } from "./roles";
-import { ensureRuntime } from "./night";
+import { ensureRuntime, getPlayerState, getRole } from "./night";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
 
 function getAlivePlayers(state: GameState): Player[] {
   const runtime = ensureRuntime(state);
-  return state.players.filter((p) => runtime.playerStates.get(p.userId)?.alive);
-}
-
-function getRole(state: GameState, playerId: string) {
-  return state.draft!.assignments.get(playerId)!;
-}
-
-function isPoisoned(state: GameState, playerId: string): boolean {
-  const runtime = ensureRuntime(state);
-  return runtime.playerStates.get(playerId)?.poisoned ?? false;
+  return runtime.playerStates.filter((ps) => ps.alive).map((ps) => ps.player);
 }
 
 function channelLang(state: GameState): Lang {
@@ -73,15 +64,10 @@ async function checkWinConditions(
   channel: TextChannel,
 ): Promise<boolean> {
   const runtime = ensureRuntime(state);
-  const draft = state.draft!;
 
   // Find the current Imp (may have shifted to Scarlet Woman)
-  const impPlayer = state.players.find(
-    (p) => draft.assignments.get(p.userId)?.id === "imp",
-  );
-  const impAlive = impPlayer
-    ? (runtime.playerStates.get(impPlayer.userId)?.alive ?? false)
-    : false;
+  const impPs = runtime.playerStates.find((ps) => ps.role.id === "imp");
+  const impAlive = impPs?.alive ?? false;
 
   const aliveCount = getAlivePlayers(state).length;
 
@@ -107,7 +93,6 @@ async function endGame(
   winner: "good" | "evil" | "good_saint_fail",
 ): Promise<void> {
   const runtime = ensureRuntime(state);
-  const draft = state.draft!;
   const lang = channelLang(state);
 
   state.phase = "ended";
@@ -124,12 +109,10 @@ async function endGame(
   }
 
   // Role reveal
-  const lines = state.players.map((p) => {
-    const role = draft.assignments.get(p.userId)!;
-    const ps = runtime.playerStates.get(p.userId)!;
+  const lines = runtime.playerStates.map((ps) => {
     const aliveLabel = ps.alive ? t(lang, "dayAlive") : t(lang, "dayDead");
-    const roleName = getRoleName(lang, role.id);
-    return `${p.displayName} — ${roleName} (${aliveLabel})`;
+    const roleName = getRoleName(lang, ps.role.id);
+    return `${ps.player.displayName} — ${roleName} (${aliveLabel})`;
   });
   await channel.send(t(lang, "dayFinalRoles", { roles: lines.join("\n") }));
 }
@@ -145,7 +128,7 @@ export async function killPlayerDuringDay(
   playerId: string,
 ): Promise<boolean> {
   const runtime = ensureRuntime(state);
-  const playerState = runtime.playerStates.get(playerId);
+  const playerState = getPlayerState(runtime, playerId);
   if (!playerState || !playerState.alive) return false;
 
   playerState.alive = false;
@@ -163,9 +146,11 @@ export async function killPlayerDuringDay(
       (p) => getRole(state, p.userId).id === "scarlet_woman",
     );
     if (swPlayer && alive.length >= 5) {
-      // SW becomes the new Imp
+      // SW becomes the new Imp — update runtime (primary source of truth) and draft
       const impRole = getScript().roles.find((r) => r.id === "imp")!;
-      state.draft!.assignments.set(swPlayer.userId, impRole);
+      const swPs = getPlayerState(runtime, swPlayer.userId);
+      if (swPs) { swPs.role = impRole; swPs.effectiveRole = impRole; }
+      if (state.draft) state.draft.assignments.set(swPlayer.userId, impRole);
       updateGame(state);
 
       // Notify SW via DM
@@ -239,10 +224,12 @@ async function finalizeNomination(
 
   let voteCount = 0;
   for (const voterId of nomination.votes) {
-    const voterRole = state.draft!.assignments.get(voterId);
-    if (voterRole?.id === "butler") {
+    const voterPs = getPlayerState(runtime, voterId);
+    if (voterPs?.role.id === "butler") {
       // Butler vote only counts if master also voted by window close
-      const masterId = runtime.playerStates.get(voterId)?.butlerMasterId;
+      const masterId = runtime.playerStates.find((ps) =>
+        ps.tags.has("butler_master"),
+      )?.player.userId;
       if (masterId && nomination.votes.has(masterId)) {
         voteCount++;
       }
@@ -369,7 +356,7 @@ async function processEndOfDay(
   if (executeRole.id === "saint") {
     await channel.send(t(lang, "daySaintExecuted", { player: executeName }));
     // Saint is still killed before calling endGame
-    const ps = ensureRuntime(state).playerStates.get(executeId);
+    const ps = getPlayerState(ensureRuntime(state), executeId);
     if (ps) ps.alive = false;
     updateGame(state);
     await endGame(client, state, channel, "good_saint_fail");
@@ -503,7 +490,7 @@ export async function handleNominate(
   }
 
   // Must be alive
-  const nominatorRtState = runtime.playerStates.get(i.user.id);
+  const nominatorRtState = getPlayerState(runtime, i.user.id);
   if (!nominatorRtState?.alive) {
     await i.reply({
       content: t(lang, "dayDeadCannotNominate"),
@@ -545,7 +532,7 @@ export async function handleNominate(
   }
 
   // Nominee must be alive
-  const nomineeRtState = runtime.playerStates.get(nominee.userId);
+  const nomineeRtState = getPlayerState(runtime, nominee.userId);
   if (!nomineeRtState?.alive) {
     await i.reply({
       content: t(lang, "dayNomineeDead", { player: nominee.displayName }),
@@ -571,7 +558,7 @@ export async function handleNominate(
   // and nominator's true role is Townsfolk (not Drunk, not Evil)
   const virginTriggered =
     nomineeRole.id === "virgin" &&
-    !isPoisoned(state, nominee.userId) &&
+    !(getPlayerState(runtime, nominee.userId)?.tags.has("poisoned") ?? false) &&
     nominatorRealRole.id !== "drunk" &&
     nominatorRealRole.category === "Townsfolk";
 
@@ -610,7 +597,7 @@ export async function handleNominate(
 
     // Saint check for the Virgin-trigger execution target (the nominator)
     if (nominatorRealRole.id === "saint") {
-      const ps = runtime.playerStates.get(i.user.id);
+      const ps = getPlayerState(runtime, i.user.id);
       if (ps) ps.alive = false;
       updateGame(state);
       await channel.send(
@@ -709,17 +696,17 @@ export async function handleYe(
     return;
   }
 
-  const playerState = runtime.playerStates.get(i.user.id);
+  const playerState = getPlayerState(runtime, i.user.id);
   const isAlive = playerState?.alive ?? false;
 
   if (!isAlive) {
     // Dead player uses ghost vote
-    if (playerState?.ghostVoteUsed) {
+    if (playerState?.tags.has("ghost_vote_used")) {
       await i.reply({ content: t(lang, "dayGhostVoteUsed"), ephemeral: true });
       return;
     }
     // Mark ghost vote as used
-    if (playerState) playerState.ghostVoteUsed = true;
+    if (playerState) playerState.tags.add("ghost_vote_used");
   }
 
   if (nomination.votes.has(i.user.id)) {
@@ -776,7 +763,7 @@ export async function handleSlay(
   }
 
   // Must be alive to use /slay (dead players cannot slay)
-  const playerState = runtime.playerStates.get(i.user.id);
+  const playerState = getPlayerState(runtime, i.user.id);
   if (!playerState?.alive) {
     await i.reply({ content: t(lang, "dayDeadCannotSlay"), ephemeral: true });
     return;
@@ -792,7 +779,7 @@ export async function handleSlay(
     return;
   }
 
-  const targetState = runtime.playerStates.get(target.userId);
+  const targetState = getPlayerState(runtime, target.userId);
   if (!targetState?.alive) {
     await i.reply({
       content: t(lang, "daySlayTargetDead", { player: target.displayName }),
@@ -805,7 +792,7 @@ export async function handleSlay(
   const realRole = getRole(state, i.user.id);
   const targetRole = getRole(state, target.userId);
   const isRealSlayer = realRole.id === "slayer";
-  const slayerPoisoned = isPoisoned(state, i.user.id);
+  const slayerPoisoned = playerState.tags.has("poisoned");
 
   // Publicly announce the attempt
   const channel = (await client.channels.fetch(state.channelId)) as TextChannel;
@@ -887,7 +874,7 @@ export async function handleSlay(
     return;
   }
 
-  if (runtime.slayerHasUsed) {
+  if (playerState.tags.has("slayer_used")) {
     // Already used their ability — treated as Scenario 1 (nothing happens)
     if (state.mode === "manual") {
       daySession.pendingSlayFixed = {
@@ -921,7 +908,7 @@ export async function handleSlay(
   }
 
   // Scenarios 3 & 4: Real Slayer, not poisoned, ability not yet used
-  runtime.slayerHasUsed = true;
+  playerState.tags.add("slayer_used");
   updateGame(state);
 
   if (targetRole.id === "recluse") {
@@ -1142,7 +1129,7 @@ export async function handleEndDay(
   }
 
   // Dead players' /endday is silently ignored
-  const playerState = runtime.playerStates.get(i.user.id);
+  const playerState = getPlayerState(runtime, i.user.id);
   if (!playerState?.alive) {
     await i.reply({ content: t(lang, "dayNoted"), ephemeral: true });
     return;

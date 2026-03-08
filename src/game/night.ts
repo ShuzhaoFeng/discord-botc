@@ -8,6 +8,7 @@ import {
   NightSession,
   Player,
   PlayerRuntimeState,
+  PlayerTag,
   Role,
   RuntimeState,
 } from "./types";
@@ -30,25 +31,17 @@ function pick<T>(arr: T[], n: number): T[] {
   return shuffle(arr).slice(0, n);
 }
 
-function effectiveRoleForPlayer(state: GameState, playerId: string): Role {
-  const draft = state.draft!;
-  const role = draft.assignments.get(playerId)!;
-  if (role.id === "drunk" && draft.drunkFakeRole) return draft.drunkFakeRole;
-  return role;
-}
-
 export function ensureRuntime(state: GameState): RuntimeState {
   if (!state.runtime) {
-    const playerStates = new Map<string, PlayerRuntimeState>();
-    for (const p of state.players) {
-      playerStates.set(p.userId, {
-        alive: true,
-        poisoned: false,
-        butlerMasterId: null,
-        protectedTonight: false,
-        ghostVoteUsed: false,
-      });
-    }
+    const draft = state.draft!;
+    const playerStates: PlayerRuntimeState[] = state.players.map((p) => {
+      const role = draft.assignments.get(p.userId)!;
+      const effectiveRole =
+        role.id === "drunk" && draft.drunkFakeRole ? draft.drunkFakeRole : role;
+      const tags = new Set<PlayerTag>();
+      if (draft.redHerring === p.userId) tags.add("red_herring");
+      return { player: p, role, effectiveRole, alive: true, tags };
+    });
     state.runtime = {
       nightNumber: 0,
       playerStates,
@@ -56,10 +49,20 @@ export function ensureRuntime(state: GameState): RuntimeState {
       daySession: null,
       lastExecutedPlayerId: null,
       nightKillIds: [],
-      slayerHasUsed: false,
     };
   }
   return state.runtime;
+}
+
+export function getPlayerState(
+  runtime: RuntimeState,
+  userId: string,
+): PlayerRuntimeState | undefined {
+  return runtime.playerStates.find((ps) => ps.player.userId === userId);
+}
+
+export function getRole(state: GameState, playerId: string): Role {
+  return getPlayerState(state.runtime!, playerId)!.role;
 }
 
 function makeAckToken(): string {
@@ -108,11 +111,7 @@ function resolvePlayerName(
 
 function getAlivePlayers(state: GameState): Player[] {
   const runtime = ensureRuntime(state);
-  return state.players.filter((p) => runtime.playerStates.get(p.userId)?.alive);
-}
-
-function getRole(state: GameState, playerId: string): Role {
-  return state.draft!.assignments.get(playerId)!;
+  return runtime.playerStates.filter((ps) => ps.alive).map((ps) => ps.player);
 }
 
 function isEvil(role: Role): boolean {
@@ -126,7 +125,7 @@ function buildNightPrompt(
   const runtime = ensureRuntime(state);
   const lang = getLang(player.userId);
   const nightNumber = runtime.nightNumber;
-  const effectiveRole = effectiveRoleForPlayer(state, player.userId);
+  const effectiveRole = getPlayerState(runtime, player.userId)!.effectiveRole;
 
   const isFirstNight = nightNumber === 1;
 
@@ -293,9 +292,9 @@ export async function startNightPhase(
   runtime.nightNumber += 1;
   runtime.nightKillIds = []; // clear previous night's kills
 
-  for (const ps of runtime.playerStates.values()) {
-    ps.protectedTonight = false;
-    ps.poisoned = false;
+  for (const ps of runtime.playerStates) {
+    ps.tags.delete("protected");
+    ps.tags.delete("poisoned");
   }
 
   const alivePlayers = getAlivePlayers(state);
@@ -673,49 +672,46 @@ function buildActionSummary(state: GameState, storytellerLang: Lang): string {
   return lines.join("\n");
 }
 
-function computeChefCount(state: GameState): number {
-  const n = state.players.length;
+function computeChefCount(runtime: RuntimeState): number {
+  const n = runtime.playerStates.length;
   if (n <= 1) return 0;
   let count = 0;
   for (let i = 0; i < n; i++) {
-    const a = state.players[i];
-    const b = state.players[(i + 1) % n];
-    const roleA = getRole(state, a.userId);
-    const roleB = getRole(state, b.userId);
-    if (isEvil(roleA) && isEvil(roleB)) count += 1;
+    const psA = runtime.playerStates[i];
+    const psB = runtime.playerStates[(i + 1) % n];
+    if (isEvil(psA.role) && isEvil(psB.role)) count += 1;
   }
   return count;
 }
 
 function findAliveNeighborInDirection(
-  state: GameState,
+  runtime: RuntimeState,
   startIndex: number,
   dir: -1 | 1,
 ): Player | undefined {
-  const runtime = ensureRuntime(state);
-  const n = state.players.length;
+  const n = runtime.playerStates.length;
   for (let step = 1; step < n; step++) {
     const idx = (startIndex + dir * step + n) % n;
-    const candidate = state.players[idx];
-    if (runtime.playerStates.get(candidate.userId)?.alive) return candidate;
+    const ps = runtime.playerStates[idx];
+    if (ps.alive) return ps.player;
   }
   return undefined;
 }
 
-function computeEmpathCount(state: GameState, empathId: string): number {
-  const player = state.players.find((p) => p.userId === empathId);
-  if (!player) return 0;
+function computeEmpathCount(runtime: RuntimeState, empathId: string): number {
+  const empathPs = getPlayerState(runtime, empathId);
+  if (!empathPs) return 0;
 
-  const left = findAliveNeighborInDirection(state, player.seatIndex, -1);
-  const right = findAliveNeighborInDirection(state, player.seatIndex, 1);
+  const left = findAliveNeighborInDirection(runtime, empathPs.player.seatIndex, -1);
+  const right = findAliveNeighborInDirection(runtime, empathPs.player.seatIndex, 1);
   const neighborIds = [left?.userId, right?.userId].filter(
     (x): x is string => !!x,
   );
 
   let count = 0;
   for (const uid of neighborIds) {
-    const role = getRole(state, uid);
-    if (isEvil(role)) count += 1;
+    const neighborPs = getPlayerState(runtime, uid);
+    if (neighborPs && isEvil(neighborPs.role)) count += 1;
   }
   return count;
 }
@@ -724,25 +720,14 @@ function randomBoolean(): boolean {
   return Math.random() < 0.5;
 }
 
-function isDrunk(state: GameState, playerId: string): boolean {
-  return getRole(state, playerId).id === "drunk";
-}
-
-function isPoisoned(state: GameState, playerId: string): boolean {
-  const runtime = ensureRuntime(state);
-  return runtime.playerStates.get(playerId)?.poisoned ?? false;
-}
-
-function shouldGetRandomInfo(state: GameState, playerId: string): boolean {
-  return isDrunk(state, playerId) || isPoisoned(state, playerId);
+function shouldGetRandomInfo(ps: PlayerRuntimeState): boolean {
+  return ps.role.id === "drunk" || ps.tags.has("poisoned");
 }
 
 function buildSpyGrimoire(state: GameState, lang: Lang): string {
   const runtime = ensureRuntime(state);
-  const lines = state.players.map((p) => {
-    const role = getRole(state, p.userId);
-    const ps = runtime.playerStates.get(p.userId)!;
-    return `${p.displayName} — ${roleNameFor(lang, role)} | ${ps.alive ? t(lang, "nightAlive") : t(lang, "nightDead")} | ${ps.poisoned ? t(lang, "nightPoisoned") : t(lang, "nightSober")}`;
+  const lines = runtime.playerStates.map((ps) => {
+    return `${ps.player.displayName} — ${roleNameFor(lang, ps.role)} | ${ps.alive ? t(lang, "nightAlive") : t(lang, "nightDead")} | ${ps.tags.has("poisoned") ? t(lang, "nightPoisoned") : t(lang, "nightSober")}`;
   });
   return lines.join("\n");
 }
@@ -750,10 +735,9 @@ function buildSpyGrimoire(state: GameState, lang: Lang): string {
 function buildFalseSpyGrimoire(state: GameState, lang: Lang): string {
   const runtime = ensureRuntime(state);
   // Shuffle role assignments across players so every entry is plausibly wrong.
-  const roles = shuffle(state.players.map((p) => getRole(state, p.userId)));
-  const lines = state.players.map((p, i) => {
-    const ps = runtime.playerStates.get(p.userId)!;
-    return `${p.displayName} — ${roleNameFor(lang, roles[i])} | ${ps.alive ? t(lang, "nightAlive") : t(lang, "nightDead")} | ${ps.poisoned ? t(lang, "nightPoisoned") : t(lang, "nightSober")}`;
+  const roles = shuffle(runtime.playerStates.map((ps) => ps.role));
+  const lines = runtime.playerStates.map((ps, i) => {
+    return `${ps.player.displayName} — ${roleNameFor(lang, roles[i])} | ${ps.alive ? t(lang, "nightAlive") : t(lang, "nightDead")} | ${ps.tags.has("poisoned") ? t(lang, "nightPoisoned") : t(lang, "nightSober")}`;
   });
   return lines.join("\n");
 }
@@ -775,12 +759,12 @@ function resolveNightOutcomes(state: GameState): void {
 
   // Process action intents first.
   for (const [playerId, values] of session.responses.entries()) {
-    const effectiveRole = effectiveRoleForPlayer(state, playerId);
-    const actorState = runtime.playerStates.get(playerId);
-    if (!actorState?.alive) continue;
+    const actorPs = getPlayerState(runtime, playerId);
+    if (!actorPs?.alive) continue;
+    const effectiveRole = actorPs.effectiveRole;
 
     if (
-      isDrunk(state, playerId) &&
+      actorPs.role.id === "drunk" &&
       (effectiveRole.id === "poisoner" ||
         effectiveRole.id === "butler" ||
         effectiveRole.id === "monk" ||
@@ -790,60 +774,61 @@ function resolveNightOutcomes(state: GameState): void {
     }
 
     if (effectiveRole.id === "poisoner" && values[0]) {
-      const targetState = runtime.playerStates.get(values[0]);
-      if (targetState) targetState.poisoned = true;
+      const targetPs = getPlayerState(runtime, values[0]);
+      if (targetPs) targetPs.tags.add("poisoned");
     }
 
     if (effectiveRole.id === "butler" && values[0]) {
-      const actor = runtime.playerStates.get(playerId);
-      if (actor) actor.butlerMasterId = values[0];
+      runtime.playerStates.forEach((ps) => ps.tags.delete("butler_master"));
+      getPlayerState(runtime, values[0])?.tags.add("butler_master");
     }
 
     if (effectiveRole.id === "monk" && values[0]) {
-      const targetState = runtime.playerStates.get(values[0]);
-      if (targetState) targetState.protectedTonight = true;
+      const targetPs = getPlayerState(runtime, values[0]);
+      if (targetPs) targetPs.tags.add("protected");
     }
   }
 
   // Resolve Imp kill after Monk protection.
   for (const [playerId, values] of session.responses.entries()) {
-    const effectiveRole = effectiveRoleForPlayer(state, playerId);
-    if (effectiveRole.id !== "imp") continue;
-    if (isDrunk(state, playerId)) continue;
+    const actorPs = getPlayerState(runtime, playerId);
+    if (!actorPs) continue;
+    if (actorPs.effectiveRole.id !== "imp") continue;
+    if (actorPs.role.id === "drunk") continue;
 
     const targetId = values[0];
     if (!targetId) continue;
 
-    const targetRole = getRole(state, targetId);
-    const targetState = runtime.playerStates.get(targetId);
-    if (!targetState || !targetState.alive) continue;
+    const targetPs = getPlayerState(runtime, targetId);
+    if (!targetPs || !targetPs.alive) continue;
 
-    if (targetRole.id === "soldier") continue;
-    if (targetState.protectedTonight) continue;
+    if (targetPs.role.id === "soldier") continue;
+    if (targetPs.tags.has("protected")) continue;
 
-    if (targetRole.id === "mayor" && randomBoolean()) {
+    if (targetPs.role.id === "mayor" && randomBoolean()) {
       const candidates = getAlivePlayers(state).filter(
         (p) => p.userId !== targetId,
       );
       const redirected = pick(candidates, 1)[0];
       if (redirected) {
-        const redirectedState = runtime.playerStates.get(redirected.userId);
-        if (redirectedState) {
-          redirectedState.alive = false;
+        const redirectedPs = getPlayerState(runtime, redirected.userId);
+        if (redirectedPs) {
+          redirectedPs.alive = false;
           runtime.nightKillIds.push(redirected.userId);
         }
       }
       continue;
     }
 
-    targetState.alive = false;
+    targetPs.alive = false;
     runtime.nightKillIds.push(targetId);
   }
 
   // Compute third-message content.
-  for (const player of state.players) {
+  for (const ps of runtime.playerStates) {
+    const { player } = ps;
     const lang = getLang(player.userId);
-    const effectiveRole = effectiveRoleForPlayer(state, player.userId);
+    const effectiveRole = ps.effectiveRole;
     const prompt = session.prompts.get(player.userId);
     if (!prompt) continue;
 
@@ -858,7 +843,7 @@ function resolveNightOutcomes(state: GameState): void {
     }
 
     if (effectiveRole.id === "washerwoman") {
-      const randomInfo = shouldGetRandomInfo(state, player.userId);
+      const randomInfo = shouldGetRandomInfo(ps);
       const townsfolk = state.players.filter(
         (p) => getRole(state, p.userId).category === "Townsfolk",
       );
@@ -873,10 +858,10 @@ function resolveNightOutcomes(state: GameState): void {
         ? (pick(
             getScript().roles.filter((r) => r.category === "Townsfolk"),
             1,
-          )[0] ?? effectiveRoleForPlayer(state, player.userId))
+          )[0] ?? ps.effectiveRole)
         : tfTarget
           ? getRole(state, tfTarget.userId)
-          : effectiveRoleForPlayer(state, player.userId);
+          : ps.effectiveRole;
 
       const decoy = pick(
         otherPlayers.filter((p) => p.userId !== tfTarget?.userId),
@@ -919,7 +904,7 @@ function resolveNightOutcomes(state: GameState): void {
     }
 
     if (effectiveRole.id === "librarian") {
-      const randomInfo = shouldGetRandomInfo(state, player.userId);
+      const randomInfo = shouldGetRandomInfo(ps);
       const outsiders = state.players.filter(
         (p) => getRole(state, p.userId).category === "Outsider",
       );
@@ -946,10 +931,10 @@ function resolveNightOutcomes(state: GameState): void {
         ? (pick(
             getScript().roles.filter((r) => r.category === "Outsider"),
             1,
-          )[0] ?? effectiveRoleForPlayer(state, player.userId))
+          )[0] ?? ps.effectiveRole)
         : osTarget
           ? getRole(state, osTarget.userId)
-          : effectiveRoleForPlayer(state, player.userId);
+          : ps.effectiveRole;
       const decoy = pick(
         otherPlayers.filter((p) => p.userId !== osTarget?.userId),
         1,
@@ -991,7 +976,7 @@ function resolveNightOutcomes(state: GameState): void {
     }
 
     if (effectiveRole.id === "investigator") {
-      const randomInfo = shouldGetRandomInfo(state, player.userId);
+      const randomInfo = shouldGetRandomInfo(ps);
       const minions = state.players.filter(
         (p) => getRole(state, p.userId).category === "Minion",
       );
@@ -1005,10 +990,10 @@ function resolveNightOutcomes(state: GameState): void {
         ? (pick(
             getScript().roles.filter((r) => r.category === "Minion"),
             1,
-          )[0] ?? effectiveRoleForPlayer(state, player.userId))
+          )[0] ?? ps.effectiveRole)
         : minionTarget
           ? getRole(state, minionTarget.userId)
-          : effectiveRoleForPlayer(state, player.userId);
+          : ps.effectiveRole;
       const decoy = pick(
         otherPlayers.filter((p) => p.userId !== minionTarget?.userId),
         1,
@@ -1052,13 +1037,13 @@ function resolveNightOutcomes(state: GameState): void {
     }
 
     if (effectiveRole.id === "chef") {
-      const randomInfo = shouldGetRandomInfo(state, player.userId);
+      const randomInfo = shouldGetRandomInfo(ps);
       // Max possible Chef count in a circular seating of E evil players is E−1
       // (all evil consecutive), so the false range is {0, …, E−1}.
-      const numEvil = state.players.filter((p) =>
-        isEvil(getRole(state, p.userId)),
+      const numEvil = runtime.playerStates.filter((p2) =>
+        isEvil(p2.role),
       ).length;
-      const fixedValue = computeChefCount(state);
+      const fixedValue = computeChefCount(runtime);
       const randomizedValue = Math.floor(Math.random() * Math.max(numEvil, 1));
       const selectedValue = randomInfo ? randomizedValue : fixedValue;
       const draft: NightOutcomeDraft = {
@@ -1080,18 +1065,18 @@ function resolveNightOutcomes(state: GameState): void {
     }
 
     if (effectiveRole.id === "empath") {
-      const randomInfo = shouldGetRandomInfo(state, player.userId);
+      const randomInfo = shouldGetRandomInfo(ps);
       const leftNeighbor = findAliveNeighborInDirection(
-        state,
+        runtime,
         player.seatIndex,
         -1,
       );
       const rightNeighbor = findAliveNeighborInDirection(
-        state,
+        runtime,
         player.seatIndex,
         1,
       );
-      const fixedValue = computeEmpathCount(state, player.userId);
+      const fixedValue = computeEmpathCount(runtime, player.userId);
       const randomizedValue = Math.floor(Math.random() * 3);
       const selectedValue = randomInfo ? randomizedValue : fixedValue;
       const draft: NightOutcomeDraft = {
@@ -1126,11 +1111,13 @@ function resolveNightOutcomes(state: GameState): void {
 
     if (effectiveRole.id === "fortune_teller") {
       const choices = session.responses.get(player.userId) ?? [];
-      const randomInfo = shouldGetRandomInfo(state, player.userId);
+      const randomInfo = shouldGetRandomInfo(ps);
       const hasDemon = choices.some(
         (uid) => getRole(state, uid)?.category === "Demon",
       );
-      const hasHerring = choices.some((uid) => uid === state.draft?.redHerring);
+      const hasHerring = choices.some(
+        (uid) => getPlayerState(runtime, uid)?.tags.has("red_herring"),
+      );
       const fixedYes = hasDemon || hasHerring;
       const randomizedYes = randomBoolean();
       const selectedYes = randomInfo ? randomizedYes : fixedYes;
@@ -1184,7 +1171,7 @@ function resolveNightOutcomes(state: GameState): void {
     }
 
     if (effectiveRole.id === "spy") {
-      const randomInfo = shouldGetRandomInfo(state, player.userId);
+      const randomInfo = shouldGetRandomInfo(ps);
       const grimoire = randomInfo
         ? buildFalseSpyGrimoire(state, lang)
         : buildSpyGrimoire(state, lang);
@@ -1215,19 +1202,15 @@ function resolveNightOutcomes(state: GameState): void {
     }
   }
 
-  const deadTonight = state.players.filter(
-    (p) => !runtime.playerStates.get(p.userId)?.alive,
-  );
-  for (const dead of deadTonight) {
-    const role = getRole(state, dead.userId);
-    if (role.id !== "ravenkeeper") continue;
+  for (const deadPs of runtime.playerStates.filter((ps) => !ps.alive)) {
+    if (deadPs.role.id !== "ravenkeeper") continue;
     // Placeholder for Ravenkeeper immediate wake on night death.
-    const lang = getLang(dead.userId);
+    const lang = getLang(deadPs.player.userId);
     session.infoMessages.set(
-      dead.userId,
+      deadPs.player.userId,
       t(lang, "nightRavenkeeperPlaceholder"),
     );
-    session.infoOutcomeMeta.set(dead.userId, {
+    session.infoOutcomeMeta.set(deadPs.player.userId, {
       kind: "fixed",
       reasonKey: "nightReasonRavenkeeper",
     });
@@ -1273,7 +1256,7 @@ export async function handleNightPlayerDm(
   if (!isParticipant) return false;
 
   const player = state.players.find((p) => p.userId === message.author.id)!;
-  if (!runtime.playerStates.get(player.userId)?.alive) return true;
+  if (!getPlayerState(runtime, player.userId)?.alive) return true;
 
   const prompt = session.prompts.get(player.userId);
   if (!prompt) return false;

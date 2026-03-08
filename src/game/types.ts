@@ -42,12 +42,20 @@ export interface Draft {
   impBluffs: [Role, Role, Role] | null;
 }
 
+export type PlayerTag =
+  | "poisoned" // set by Poisoner; cleared at start of next night
+  | "protected" // set by Monk; cleared at start of next night
+  | "ghost_vote_used" // set when dead player uses ghost vote; permanent
+  | "red_herring" // set at runtime initialization; permanent
+  | "slayer_used" // set when Slayer ability is consumed; permanent
+  | "butler_master"; // set by Butler's resolve; transferred each night
+
 export interface PlayerRuntimeState {
+  player: Player;
+  role: Role; // true assigned role
+  effectiveRole: Role; // Drunk → fake Townsfolk role; everyone else → same as role
   alive: boolean;
-  poisoned: boolean;
-  butlerMasterId: string | null;
-  protectedTonight: boolean;
-  ghostVoteUsed: boolean; // dead players' one-time ghost vote
+  tags: Set<PlayerTag>;
 }
 
 export interface NominationRecord {
@@ -140,12 +148,11 @@ export interface NightSession {
 
 export interface RuntimeState {
   nightNumber: number;
-  playerStates: Map<string, PlayerRuntimeState>;
+  playerStates: PlayerRuntimeState[]; // in seating order, same order as state.players
   nightSession: NightSession | null;
   daySession: DaySession | null;
   lastExecutedPlayerId: string | null;
   nightKillIds: string[]; // kills from last night, consumed at day start
-  slayerHasUsed: boolean; // Slayer's once-per-game ability has been consumed
 }
 
 export interface GameState {
