@@ -16,19 +16,13 @@ import { getLang, getRoleName, t } from "../i18n";
 import { findRole, getScript } from "./roles";
 import { sendPlayerDm } from "../utils/sendPlayerDm";
 import { updateGame } from "./state";
+import { ALL_ROLE_DEFINITIONS } from "../roles/index";
+import type { NightCtx } from "../roles/types";
+import { shuffle, pick, getPlayerState, getRole, isEvil } from "./utils";
+export { shuffle, pick, getPlayerState, getRole, isEvil };
 
-function shuffle<T>(arr: T[]): T[] {
-  const next = [...arr];
-  for (let i = next.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [next[i], next[j]] = [next[j], next[i]];
-  }
-  return next;
-}
-
-function pick<T>(arr: T[], n: number): T[] {
-  if (n <= 0) return [];
-  return shuffle(arr).slice(0, n);
+function getHandlers(roleId: string) {
+  return ALL_ROLE_DEFINITIONS.find((r) => r.id === roleId)?.nightHandlers;
 }
 
 export function ensureRuntime(state: GameState): RuntimeState {
@@ -49,21 +43,12 @@ export function ensureRuntime(state: GameState): RuntimeState {
       daySession: null,
       lastExecutedPlayerId: null,
       nightKillIds: [],
+      nightKillIntentId: null,
     };
   }
   return state.runtime;
 }
 
-export function getPlayerState(
-  runtime: RuntimeState,
-  userId: string,
-): PlayerRuntimeState | undefined {
-  return runtime.playerStates.find((ps) => ps.player.userId === userId);
-}
-
-export function getRole(runtime: RuntimeState, playerId: string): Role {
-  return getPlayerState(runtime, playerId)!.role;
-}
 
 function makeAckToken(): string {
   const syllables = [
@@ -114,159 +99,31 @@ function getAlivePlayers(state: GameState): Player[] {
   return runtime.playerStates.filter((ps) => ps.alive).map((ps) => ps.player);
 }
 
-function isEvil(role: Role): boolean {
-  return role.category === "Minion" || role.category === "Demon";
+function buildCtx(
+  runtime: RuntimeState,
+  ps: PlayerRuntimeState,
+  nightNumber: number,
+  responses: Map<string, (string | null)[]>,
+  lang: Lang,
+): NightCtx {
+  return {
+    runtime,
+    player: ps.player,
+    nightNumber,
+    responses,
+    lang,
+    randomizeInfo: ps.role.id === "drunk" || ps.tags.has("poisoned"),
+    scriptRoles: getScript().roles,
+  };
 }
 
-function buildNightPrompt(
-  state: GameState,
-  player: Player,
-): { prompt: NightPrompt; message: string } {
-  const runtime = ensureRuntime(state);
-  const lang = getLang(player.userId);
-  const nightNumber = runtime.nightNumber;
-  const effectiveRole = getPlayerState(runtime, player.userId)!.effectiveRole;
-
-  const isFirstNight = nightNumber === 1;
-
-  const infoRolesFirstNight = new Set([
-    "washerwoman",
-    "librarian",
-    "investigator",
-    "chef",
-    "empath",
-    "spy",
-  ]);
-  const infoRolesOtherNights = new Set([
-    "empath",
-    "fortune_teller",
-    "undertaker",
-    "spy",
-  ]);
-
-  const actionRolesFirstNight = new Set([
-    "poisoner",
-    "butler",
-    "fortune_teller",
-  ]);
-  const actionRolesOtherNights = new Set([
-    "poisoner",
-    "butler",
-    "monk",
-    "imp",
-    "fortune_teller",
-  ]);
-
-  if (
-    (isFirstNight ? actionRolesFirstNight : actionRolesOtherNights).has(
-      effectiveRole.id,
-    )
-  ) {
-    if (effectiveRole.id === "fortune_teller") {
-      const msg = t(lang, "nightFortuneTellerPrompt");
-      return {
-        prompt: {
-          playerId: player.userId,
-          effectiveRoleId: effectiveRole.id,
-          expected: "double_player",
-          minChoices: 2,
-          maxChoices: 2,
-          allowSelf: true,
-        },
-        message: msg,
-      };
-    }
-
-    if (effectiveRole.id === "butler") {
-      const msg = t(lang, "nightButlerPrompt");
-      return {
-        prompt: {
-          playerId: player.userId,
-          effectiveRoleId: effectiveRole.id,
-          expected: "single_player",
-          minChoices: 1,
-          maxChoices: 1,
-          allowSelf: false,
-        },
-        message: msg,
-      };
-    }
-
-    if (effectiveRole.id === "monk") {
-      const msg = t(lang, "nightMonkPrompt");
-      return {
-        prompt: {
-          playerId: player.userId,
-          effectiveRoleId: effectiveRole.id,
-          expected: "single_player",
-          minChoices: 1,
-          maxChoices: 1,
-          allowSelf: false,
-        },
-        message: msg,
-      };
-    }
-
-    if (effectiveRole.id === "imp") {
-      const msg = t(lang, "nightImpPrompt");
-      return {
-        prompt: {
-          playerId: player.userId,
-          effectiveRoleId: effectiveRole.id,
-          expected: "single_player",
-          minChoices: 1,
-          maxChoices: 1,
-          allowSelf: true,
-        },
-        message: msg,
-      };
-    }
-
-    if (effectiveRole.id === "poisoner") {
-      const msg = t(lang, "nightPoisonerPrompt");
-      return {
-        prompt: {
-          playerId: player.userId,
-          effectiveRoleId: effectiveRole.id,
-          expected: "single_player",
-          minChoices: 1,
-          maxChoices: 1,
-          allowSelf: true,
-        },
-        message: msg,
-      };
-    }
-  }
-
-  if (
-    (isFirstNight ? infoRolesFirstNight : infoRolesOtherNights).has(
-      effectiveRole.id,
-    )
-  ) {
-    const token = makeAckToken();
-    const msg = t(lang, "nightAckPrompt", { token });
-    return {
-      prompt: {
-        playerId: player.userId,
-        effectiveRoleId: effectiveRole.id,
-        expected: "ack",
-        ackToken: token,
-      },
-      message: msg,
-    };
-  }
-
-  return {
-    prompt: {
-      playerId: player.userId,
-      effectiveRoleId: effectiveRole.id,
-      expected: "free_text",
-      minChoices: 1,
-      maxChoices: 1,
-      allowSelf: true,
-    },
-    message: t(lang, "nightJokePrompt", { joke: "..." }),
-  };
+/** Derives the action prompt i18n key from a role ID using the naming convention. */
+function nightPromptKey(roleId: string): string {
+  const pascal = roleId
+    .split("_")
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join("");
+  return `night${pascal}Prompt`;
 }
 
 async function getDadJoke(): Promise<string> {
@@ -291,6 +148,7 @@ export async function startNightPhase(
   const runtime = ensureRuntime(state);
   runtime.nightNumber += 1;
   runtime.nightKillIds = []; // clear previous night's kills
+  runtime.nightKillIntentId = null;
 
   for (const ps of runtime.playerStates) {
     ps.tags.delete("protected");
@@ -300,7 +158,7 @@ export async function startNightPhase(
   const alivePlayers = getAlivePlayers(state);
   const prompts = new Map<string, NightPrompt>();
   const actionMessages = new Map<string, string>();
-  const responses = new Map<string, string[]>();
+  const responses = new Map<string, (string | null)[]>();
   const infoMessages = new Map<string, string>();
   const infoOutcomeMeta = new Map<string, NightOutcomeMeta>();
   const infoOutcomeDrafts = new Map<string, NightOutcomeDraft>();
@@ -308,16 +166,53 @@ export async function startNightPhase(
   const promptPreviewLines: string[] = [];
 
   // First pass: build all prompts synchronously, identify which players need jokes.
+  const nightNumber = runtime.nightNumber;
   const promptResults = alivePlayers.map((p) => {
-    const { prompt, message } = buildNightPrompt(state, p);
+    const ps = getPlayerState(runtime, p.userId)!;
+    const lang = getLang(p.userId);
+    const ctx = buildCtx(runtime, ps, nightNumber, responses, lang);
+    const handlers = getHandlers(ps.effectiveRole.id);
+
+    let prompt: NightPrompt;
+    let message: string;
+
+    if (handlers?.action?.active(nightNumber)) {
+      const inputs = handlers.action.buildPrompt(ctx);
+      prompt = {
+        kind: "action",
+        inputs,
+        playerId: p.userId,
+        effectiveRoleId: ps.effectiveRole.id,
+      };
+      message = t(lang, nightPromptKey(ps.effectiveRole.id));
+    } else if (handlers?.info?.active(nightNumber)) {
+      const ackToken = makeAckToken();
+      prompt = {
+        kind: "info",
+        inputs: [],
+        ackToken,
+        playerId: p.userId,
+        effectiveRoleId: ps.effectiveRole.id,
+      };
+      message = t(lang, "nightAckPrompt", { token: ackToken });
+    } else {
+      prompt = {
+        kind: "joke",
+        inputs: [],
+        playerId: p.userId,
+        effectiveRoleId: ps.effectiveRole.id,
+      };
+      message = t(lang, "nightJokePrompt", { joke: "..." }); // replaced below
+    }
+
     prompts.set(p.userId, prompt);
-    promptPreviewLines.push(`- ${p.displayName}: ${prompt.effectiveRoleId}`);
+    promptPreviewLines.push(`- ${p.displayName}: ${ps.effectiveRole.id}`);
     return { player: p, prompt, message };
   });
 
   // Fetch all required jokes in parallel before sending any messages.
   const jokePlayerIds = promptResults
-    .filter((r) => r.prompt.expected === "free_text")
+    .filter((r) => r.prompt.kind === "joke")
     .map((r) => r.player.userId);
   const fetchedJokes = await Promise.all(jokePlayerIds.map(() => getDadJoke()));
   const jokeByPlayerId = new Map(
@@ -326,7 +221,7 @@ export async function startNightPhase(
 
   // Second pass: assemble actionMessages with pre-fetched jokes.
   for (const { player, prompt, message } of promptResults) {
-    if (prompt.expected === "free_text") {
+    if (prompt.kind === "joke") {
       const lang = getLang(player.userId);
       const joke = jokeByPlayerId.get(player.userId)!;
       actionMessages.set(player.userId, t(lang, "nightJokePrompt", { joke }));
@@ -388,10 +283,10 @@ function validatePromptResponse(
   prompt: NightPrompt,
   state: GameState,
   fromPlayer: Player,
-): { ok: boolean; values?: string[]; error?: string } {
+): { ok: boolean; values?: (string | null)[]; error?: string } {
   const lang = getLang(fromPlayer.userId);
 
-  if (prompt.expected === "ack") {
+  if (prompt.kind === "info") {
     if (content.trim() !== prompt.ackToken) {
       return {
         ok: false,
@@ -401,37 +296,38 @@ function validatePromptResponse(
     return { ok: true, values: [] };
   }
 
-  if (prompt.expected === "free_text") {
+  if (prompt.kind === "joke") {
     if (!content.trim())
       return { ok: false, error: t(lang, "nightPleaseSendReply") };
     return { ok: true, values: [content.trim()] };
   }
 
-  const rawNames = parsePlayerInput(content);
-  const minChoices = prompt.minChoices ?? 1;
-  const maxChoices = prompt.maxChoices ?? minChoices;
+  // kind === "action": per-slot validation
+  const inputs = prompt.inputs;
+  const required = inputs.filter((i) => !i.optional).length;
+  const max = inputs.length;
 
-  if (rawNames.length < minChoices || rawNames.length > maxChoices) {
+  const rawNames = parsePlayerInput(content);
+
+  if (rawNames.length < required || rawNames.length > max) {
     return {
       ok: false,
       error: t(lang, "nightExpectedPlayerNames", {
-        count:
-          minChoices === maxChoices
-            ? minChoices
-            : `${minChoices}-${maxChoices}`,
+        count: required === max ? required : `${required}-${max}`,
       }),
     };
   }
 
   const resolvedIds: string[] = [];
-  for (const rawName of rawNames) {
+  for (let i = 0; i < rawNames.length; i++) {
+    const rawName = rawNames[i];
     const p = resolvePlayerName(rawName, state.players);
     if (!p)
       return {
         ok: false,
         error: t(lang, "nightUnknownPlayerGeneric", { name: rawName }),
       };
-    if (prompt.allowSelf === false && p.userId === fromPlayer.userId) {
+    if (inputs[i].allowSelf === false && p.userId === fromPlayer.userId) {
       return {
         ok: false,
         error: t(lang, "nightCannotChooseSelf"),
@@ -444,7 +340,13 @@ function validatePromptResponse(
     return { ok: false, error: t(lang, "nightChooseDistinctPlayers") };
   }
 
-  return { ok: true, values: resolvedIds };
+  // Pad to max length with null for omitted optional slots.
+  const values: (string | null)[] = new Array(max).fill(null);
+  for (let i = 0; i < resolvedIds.length; i++) {
+    values[i] = resolvedIds[i];
+  }
+
+  return { ok: true, values };
 }
 
 function roleNameFor(lang: Lang, role: Role): string {
@@ -500,6 +402,25 @@ function renderOutcomeDraft(
     const role = getScript().roles.find((r) => r.id === roleId);
     const roleName = role ? roleNameFor(recipientLang, role) : roleId;
     return t(recipientLang, "nightUndertakerRole", { role: roleName });
+  }
+
+  if (draft.templateId === "grimoire") {
+    const runtime = ensureRuntime(state);
+    const lines = runtime.playerStates.map((ps) => {
+      const roleId = String(
+        draft.fields[ps.player.displayName] ?? ps.role.id,
+      );
+      const role = getScript().roles.find((r) => r.id === roleId);
+      const roleName = role ? roleNameFor(recipientLang, role) : roleId;
+      const aliveLabel = ps.alive
+        ? t(recipientLang, "nightAlive")
+        : t(recipientLang, "nightDead");
+      const poisonLabel = ps.tags.has("poisoned")
+        ? t(recipientLang, "nightPoisoned")
+        : t(recipientLang, "nightSober");
+      return `${ps.player.displayName} — ${roleName} | ${aliveLabel} | ${poisonLabel}`;
+    });
+    return t(recipientLang, "nightGrimoire", { grimoire: lines.join("\n") });
   }
 
   return t(recipientLang, "nightInteractionRecorded");
@@ -653,13 +574,17 @@ function buildActionSummary(state: GameState, storytellerLang: Lang): string {
     const values = session.responses.get(p.userId) ?? [];
     let detail = "";
 
-    if (prompt.expected === "ack") {
+    if (prompt.kind === "info") {
       detail = t(storytellerLang, "nightReadinessAck");
-    } else if (prompt.expected === "free_text") {
-      const reply = values[0] ?? t(storytellerLang, "nightNoText");
+    } else if (prompt.kind === "joke") {
+      const reply =
+        (values.find((v) => v !== null) as string | undefined) ??
+        t(storytellerLang, "nightNoText");
       detail = t(storytellerLang, "nightJokeReply", { reply });
     } else {
-      const names = values.map((uid) => playerName(state, uid));
+      const names = values
+        .filter((v): v is string => v !== null)
+        .map((uid) => playerName(state, uid));
       const sep = storytellerLang === "zh" ? "、" : ", ";
       detail =
         names.length > 0
@@ -670,76 +595,6 @@ function buildActionSummary(state: GameState, storytellerLang: Lang): string {
     lines.push(`${p.displayName} (${roleLabel}): ${detail}`);
   }
 
-  return lines.join("\n");
-}
-
-function computeChefCount(runtime: RuntimeState): number {
-  const n = runtime.playerStates.length;
-  if (n <= 1) return 0;
-  let count = 0;
-  for (let i = 0; i < n; i++) {
-    const psA = runtime.playerStates[i];
-    const psB = runtime.playerStates[(i + 1) % n];
-    if (isEvil(psA.role) && isEvil(psB.role)) count += 1;
-  }
-  return count;
-}
-
-function findAliveNeighborInDirection(
-  runtime: RuntimeState,
-  startIndex: number,
-  dir: -1 | 1,
-): Player | undefined {
-  const n = runtime.playerStates.length;
-  for (let step = 1; step < n; step++) {
-    const idx = (startIndex + dir * step + n) % n;
-    const ps = runtime.playerStates[idx];
-    if (ps.alive) return ps.player;
-  }
-  return undefined;
-}
-
-function computeEmpathCount(runtime: RuntimeState, empathId: string): number {
-  const empathPs = getPlayerState(runtime, empathId);
-  if (!empathPs) return 0;
-
-  const left = findAliveNeighborInDirection(runtime, empathPs.player.seatIndex, -1);
-  const right = findAliveNeighborInDirection(runtime, empathPs.player.seatIndex, 1);
-  const neighborIds = [left?.userId, right?.userId].filter(
-    (x): x is string => !!x,
-  );
-
-  let count = 0;
-  for (const uid of neighborIds) {
-    const neighborPs = getPlayerState(runtime, uid);
-    if (neighborPs && isEvil(neighborPs.role)) count += 1;
-  }
-  return count;
-}
-
-function randomBoolean(): boolean {
-  return Math.random() < 0.5;
-}
-
-function shouldGetRandomInfo(ps: PlayerRuntimeState): boolean {
-  return ps.role.id === "drunk" || ps.tags.has("poisoned");
-}
-
-function buildSpyGrimoire(state: GameState, lang: Lang): string {
-  const runtime = ensureRuntime(state);
-  const lines = runtime.playerStates.map((ps) => {
-    return `${ps.player.displayName} — ${roleNameFor(lang, ps.role)} | ${ps.alive ? t(lang, "nightAlive") : t(lang, "nightDead")} | ${ps.tags.has("poisoned") ? t(lang, "nightPoisoned") : t(lang, "nightSober")}`;
-  });
-  return lines.join("\n");
-}
-
-function buildFalseSpyGrimoire(state: GameState, lang: Lang): string {
-  const runtime = ensureRuntime(state);
-  // Shuffle role assignments across players so every entry is plausibly wrong.
-  const roles = shuffle(runtime.playerStates.map((ps) => ps.role));
-  const lines = runtime.playerStates.map((ps, i) => {
-    return `${ps.player.displayName} — ${roleNameFor(lang, roles[i])} | ${ps.alive ? t(lang, "nightAlive") : t(lang, "nightDead")} | ${ps.tags.has("poisoned") ? t(lang, "nightPoisoned") : t(lang, "nightSober")}`;
-  });
   return lines.join("\n");
 }
 
@@ -758,454 +613,101 @@ function resolveNightOutcomes(state: GameState): void {
     session.infoOutcomeDrafts.delete(p.userId);
   }
 
-  // Process action intents first.
+  // Pass 1 — action resolves.
   for (const [playerId, values] of session.responses.entries()) {
     const actorPs = getPlayerState(runtime, playerId);
     if (!actorPs?.alive) continue;
-    const effectiveRole = actorPs.effectiveRole;
+    const handlers = getHandlers(actorPs.effectiveRole.id);
+    if (!handlers?.action) continue;
 
-    if (
-      actorPs.role.id === "drunk" &&
-      (effectiveRole.id === "poisoner" ||
-        effectiveRole.id === "butler" ||
-        effectiveRole.id === "monk" ||
-        effectiveRole.id === "imp")
-    ) {
-      continue;
-    }
-
-    if (effectiveRole.id === "poisoner" && values[0]) {
-      const targetPs = getPlayerState(runtime, values[0]);
-      if (targetPs) targetPs.tags.add("poisoned");
-    }
-
-    if (effectiveRole.id === "butler" && values[0]) {
-      runtime.playerStates.forEach((ps) => ps.tags.delete("butler_master"));
-      getPlayerState(runtime, values[0])?.tags.add("butler_master");
-    }
-
-    if (effectiveRole.id === "monk" && values[0]) {
-      const targetPs = getPlayerState(runtime, values[0]);
-      if (targetPs) targetPs.tags.add("protected");
-    }
-  }
-
-  // Resolve Imp kill after Monk protection.
-  for (const [playerId, values] of session.responses.entries()) {
-    const actorPs = getPlayerState(runtime, playerId);
-    if (!actorPs) continue;
-    if (actorPs.effectiveRole.id !== "imp") continue;
+    // Drunk experiences the ability prompt but resolve has no effect on game state.
     if (actorPs.role.id === "drunk") continue;
 
-    const targetId = values[0];
-    if (!targetId) continue;
+    const lang = getLang(playerId);
+    const ctx = buildCtx(
+      runtime,
+      actorPs,
+      session.nightNumber,
+      session.responses,
+      lang,
+    );
+    handlers.action.resolve(ctx, values);
+  }
 
+  // Core kill resolution — runs after all action resolves.
+  if (runtime.nightKillIntentId !== null) {
+    const targetId = runtime.nightKillIntentId;
     const targetPs = getPlayerState(runtime, targetId);
-    if (!targetPs || !targetPs.alive) continue;
 
-    if (targetPs.role.id === "soldier") continue;
-    if (targetPs.tags.has("protected")) continue;
-
-    if (targetPs.role.id === "mayor" && randomBoolean()) {
-      const candidates = getAlivePlayers(state).filter(
-        (p) => p.userId !== targetId,
-      );
-      const redirected = pick(candidates, 1)[0];
-      if (redirected) {
-        const redirectedPs = getPlayerState(runtime, redirected.userId);
-        if (redirectedPs) {
-          redirectedPs.alive = false;
+    if (targetPs?.alive) {
+      if (targetPs.role.id === "soldier") {
+        // Soldier is immune — kill blocked.
+      } else if (targetPs.tags.has("protected")) {
+        // Monk protection — kill blocked.
+      } else if (targetPs.role.id === "mayor" && Math.random() < 0.5) {
+        // Mayor redirect — kill goes to a random other alive player.
+        const candidates = getAlivePlayers(state).filter(
+          (p) => p.userId !== targetId,
+        );
+        const redirected = pick(candidates, 1)[0];
+        if (redirected) {
           runtime.nightKillIds.push(redirected.userId);
         }
-      }
-      continue;
-    }
-
-    targetPs.alive = false;
-    runtime.nightKillIds.push(targetId);
-  }
-
-  // Compute third-message content.
-  for (const ps of runtime.playerStates) {
-    const { player } = ps;
-    const lang = getLang(player.userId);
-    const effectiveRole = ps.effectiveRole;
-    const prompt = session.prompts.get(player.userId);
-    if (!prompt) continue;
-
-    if (prompt.expected === "free_text") {
-      session.infoMessages.set(player.userId, t(lang, "nightJudgeJoke"));
-      session.infoOutcomeDrafts.delete(player.userId);
-      session.infoOutcomeMeta.set(player.userId, {
-        kind: "fixed",
-        reasonKey: "nightReasonJokeInteraction",
-      });
-      continue;
-    }
-
-    if (effectiveRole.id === "washerwoman") {
-      const randomInfo = shouldGetRandomInfo(ps);
-      const townsfolk = state.players.filter(
-        (p) => getRole(runtime, p.userId).category === "Townsfolk",
-      );
-      const otherPlayers = randomInfo
-        ? state.players.filter((p) => p.userId !== player.userId)
-        : state.players;
-      const tfTarget = randomInfo
-        ? pick(otherPlayers, 1)[0]
-        : pick(townsfolk, 1)[0];
-
-      const role = randomInfo
-        ? (pick(
-            getScript().roles.filter((r) => r.category === "Townsfolk"),
-            1,
-          )[0] ?? ps.effectiveRole)
-        : tfTarget
-          ? getRole(runtime, tfTarget.userId)
-          : ps.effectiveRole;
-
-      const decoy = pick(
-        otherPlayers.filter((p) => p.userId !== tfTarget?.userId),
-        1,
-      )[0];
-      const two = shuffle([tfTarget, decoy].filter((x): x is Player => !!x));
-      const selectedFields = {
-        p1: two[0]?.userId ?? player.userId,
-        p2: two[1]?.userId ?? player.userId,
-        role: role.id,
-      };
-      const draft: NightOutcomeDraft = {
-        templateId: "pair_role_info",
-        fields: selectedFields,
-        fieldTypes: randomInfo
-          ? {
-              p1: "player",
-              p2: "player",
-              role: "role",
-            }
-          : {
-              p1: "player",
-              p2: "player",
-            },
-        constraints: {
-          pairCategory: "Townsfolk",
-        },
-        allowArbitraryOverride: randomInfo,
-      };
-      session.infoOutcomeDrafts.set(player.userId, draft);
-      session.infoMessages.set(
-        player.userId,
-        renderOutcomeDraft(state, lang, draft),
-      );
-      session.infoOutcomeMeta.set(player.userId, {
-        kind: "randomized",
-        reasonKey: randomInfo ? "nightReasonFalseInfo" : "nightReasonDecoyPair",
-      });
-      continue;
-    }
-
-    if (effectiveRole.id === "librarian") {
-      const randomInfo = shouldGetRandomInfo(ps);
-      const outsiders = state.players.filter(
-        (p) => getRole(runtime, p.userId).category === "Outsider",
-      );
-      if (!randomInfo && outsiders.length === 0) {
-        session.infoMessages.set(
-          player.userId,
-          t(lang, "nightLibrarianNoOutsiders"),
-        );
-        session.infoOutcomeDrafts.delete(player.userId);
-        session.infoOutcomeMeta.set(player.userId, {
-          kind: "fixed",
-          reasonKey: "nightReasonNoOutsiders",
-        });
-        continue;
-      }
-
-      const otherPlayers = randomInfo
-        ? state.players.filter((p) => p.userId !== player.userId)
-        : state.players;
-      const osTarget = randomInfo
-        ? pick(otherPlayers, 1)[0]
-        : pick(outsiders, 1)[0];
-      const osRole = randomInfo
-        ? (pick(
-            getScript().roles.filter((r) => r.category === "Outsider"),
-            1,
-          )[0] ?? ps.effectiveRole)
-        : osTarget
-          ? getRole(runtime, osTarget.userId)
-          : ps.effectiveRole;
-      const decoy = pick(
-        otherPlayers.filter((p) => p.userId !== osTarget?.userId),
-        1,
-      )[0];
-      const two = shuffle([osTarget, decoy].filter((x): x is Player => !!x));
-      const selectedFields = {
-        p1: two[0]?.userId ?? player.userId,
-        p2: two[1]?.userId ?? player.userId,
-        role: osRole.id,
-      };
-      const draft: NightOutcomeDraft = {
-        templateId: "pair_role_info",
-        fields: selectedFields,
-        fieldTypes: randomInfo
-          ? {
-              p1: "player",
-              p2: "player",
-              role: "role",
-            }
-          : {
-              p1: "player",
-              p2: "player",
-            },
-        constraints: {
-          pairCategory: "Outsider",
-        },
-        allowArbitraryOverride: randomInfo,
-      };
-      session.infoOutcomeDrafts.set(player.userId, draft);
-      session.infoMessages.set(
-        player.userId,
-        renderOutcomeDraft(state, lang, draft),
-      );
-      session.infoOutcomeMeta.set(player.userId, {
-        kind: "randomized",
-        reasonKey: randomInfo ? "nightReasonFalseInfo" : "nightReasonDecoyPair",
-      });
-      continue;
-    }
-
-    if (effectiveRole.id === "investigator") {
-      const randomInfo = shouldGetRandomInfo(ps);
-      const minions = state.players.filter(
-        (p) => getRole(runtime, p.userId).category === "Minion",
-      );
-      const otherPlayers = randomInfo
-        ? state.players.filter((p) => p.userId !== player.userId)
-        : state.players;
-      const minionTarget = randomInfo
-        ? pick(otherPlayers, 1)[0]
-        : pick(minions, 1)[0];
-      const minionRole = randomInfo
-        ? (pick(
-            getScript().roles.filter((r) => r.category === "Minion"),
-            1,
-          )[0] ?? ps.effectiveRole)
-        : minionTarget
-          ? getRole(runtime, minionTarget.userId)
-          : ps.effectiveRole;
-      const decoy = pick(
-        otherPlayers.filter((p) => p.userId !== minionTarget?.userId),
-        1,
-      )[0];
-      const two = shuffle(
-        [minionTarget, decoy].filter((x): x is Player => !!x),
-      );
-      const selectedFields = {
-        p1: two[0]?.userId ?? player.userId,
-        p2: two[1]?.userId ?? player.userId,
-        role: minionRole.id,
-      };
-      const draft: NightOutcomeDraft = {
-        templateId: "pair_role_info",
-        fields: selectedFields,
-        fieldTypes: randomInfo
-          ? {
-              p1: "player",
-              p2: "player",
-              role: "role",
-            }
-          : {
-              p1: "player",
-              p2: "player",
-            },
-        constraints: {
-          pairCategory: "Minion",
-        },
-        allowArbitraryOverride: randomInfo,
-      };
-      session.infoOutcomeDrafts.set(player.userId, draft);
-      session.infoMessages.set(
-        player.userId,
-        renderOutcomeDraft(state, lang, draft),
-      );
-      session.infoOutcomeMeta.set(player.userId, {
-        kind: "randomized",
-        reasonKey: randomInfo ? "nightReasonFalseInfo" : "nightReasonDecoyPair",
-      });
-      continue;
-    }
-
-    if (effectiveRole.id === "chef") {
-      const randomInfo = shouldGetRandomInfo(ps);
-      // Max possible Chef count in a circular seating of E evil players is E−1
-      // (all evil consecutive), so the false range is {0, …, E−1}.
-      const numEvil = runtime.playerStates.filter((p2) =>
-        isEvil(p2.role),
-      ).length;
-      const fixedValue = computeChefCount(runtime);
-      const randomizedValue = Math.floor(Math.random() * Math.max(numEvil, 1));
-      const selectedValue = randomInfo ? randomizedValue : fixedValue;
-      const draft: NightOutcomeDraft = {
-        templateId: "chef_count",
-        fields: { count: selectedValue },
-        fieldTypes: randomInfo ? { count: "number" } : {},
-        allowArbitraryOverride: randomInfo,
-      };
-      session.infoOutcomeDrafts.set(player.userId, draft);
-      session.infoMessages.set(
-        player.userId,
-        renderOutcomeDraft(state, lang, draft),
-      );
-      session.infoOutcomeMeta.set(player.userId, {
-        kind: randomInfo ? "randomized" : "fixed",
-        reasonKey: randomInfo ? "nightReasonFalseInfo" : "nightReasonChefSeating",
-      });
-      continue;
-    }
-
-    if (effectiveRole.id === "empath") {
-      const randomInfo = shouldGetRandomInfo(ps);
-      const leftNeighbor = findAliveNeighborInDirection(
-        runtime,
-        player.seatIndex,
-        -1,
-      );
-      const rightNeighbor = findAliveNeighborInDirection(
-        runtime,
-        player.seatIndex,
-        1,
-      );
-      const fixedValue = computeEmpathCount(runtime, player.userId);
-      const randomizedValue = Math.floor(Math.random() * 3);
-      const selectedValue = randomInfo ? randomizedValue : fixedValue;
-      const draft: NightOutcomeDraft = {
-        templateId: "empath_count",
-        fields: {
-          left: leftNeighbor?.userId ?? player.userId,
-          right: rightNeighbor?.userId ?? player.userId,
-          count: selectedValue,
-        },
-        fieldTypes: randomInfo
-          ? {
-              left: "player",
-              right: "player",
-              count: "number",
-            }
-          : {},
-        allowArbitraryOverride: randomInfo,
-      };
-      session.infoOutcomeDrafts.set(player.userId, draft);
-      session.infoMessages.set(
-        player.userId,
-        renderOutcomeDraft(state, lang, draft),
-      );
-      session.infoOutcomeMeta.set(player.userId, {
-        kind: randomInfo ? "randomized" : "fixed",
-        reasonKey: randomInfo
-          ? "nightReasonFalseInfo"
-          : "nightReasonEmpathNeighbors",
-      });
-      continue;
-    }
-
-    if (effectiveRole.id === "fortune_teller") {
-      const choices = session.responses.get(player.userId) ?? [];
-      const randomInfo = shouldGetRandomInfo(ps);
-      const hasDemon = choices.some(
-        (uid) => getRole(runtime, uid)?.category === "Demon",
-      );
-      const hasHerring = choices.some(
-        (uid) => getPlayerState(runtime, uid)?.tags.has("red_herring"),
-      );
-      const fixedYes = hasDemon || hasHerring;
-      const randomizedYes = randomBoolean();
-      const selectedYes = randomInfo ? randomizedYes : fixedYes;
-      const draft: NightOutcomeDraft = {
-        templateId: "fortune_result",
-        fields: { yes: selectedYes },
-        fieldTypes: randomInfo ? { yes: "boolean" } : {},
-        allowArbitraryOverride: randomInfo,
-      };
-      session.infoOutcomeDrafts.set(player.userId, draft);
-      session.infoMessages.set(
-        player.userId,
-        renderOutcomeDraft(state, lang, draft),
-      );
-      session.infoOutcomeMeta.set(player.userId, {
-        kind: randomInfo ? "randomized" : "fixed",
-        reasonKey: randomInfo
-          ? "nightReasonFalseInfo"
-          : "nightReasonFortuneCheck",
-      });
-      continue;
-    }
-
-    if (effectiveRole.id === "undertaker") {
-      if (!runtime.lastExecutedPlayerId) {
-        session.infoMessages.set(player.userId, t(lang, "nightNoExecution"));
-        session.infoOutcomeDrafts.delete(player.userId);
-        session.infoOutcomeMeta.set(player.userId, {
-          kind: "fixed",
-          reasonKey: "nightReasonNoExecution",
-        });
       } else {
-        const executedRole = getRole(runtime, runtime.lastExecutedPlayerId);
-        const draft: NightOutcomeDraft = {
-          templateId: "undertaker_role",
-          fields: { role: executedRole.id },
-          fieldTypes: {},
-          allowArbitraryOverride: false,
-        };
-        session.infoOutcomeDrafts.set(player.userId, draft);
-        session.infoMessages.set(
-          player.userId,
-          renderOutcomeDraft(state, lang, draft),
-        );
-        session.infoOutcomeMeta.set(player.userId, {
-          kind: "fixed",
-          reasonKey: "nightReasonExecutionRecord",
-        });
+        runtime.nightKillIds.push(targetId);
       }
-      continue;
     }
 
-    if (effectiveRole.id === "spy") {
-      const randomInfo = shouldGetRandomInfo(ps);
-      const grimoire = randomInfo
-        ? buildFalseSpyGrimoire(state, lang)
-        : buildSpyGrimoire(state, lang);
-      session.infoMessages.set(
-        player.userId,
-        t(lang, "nightGrimoire", { grimoire }),
-      );
-      session.infoOutcomeDrafts.delete(player.userId);
-      session.infoOutcomeMeta.set(player.userId, {
-        kind: randomInfo ? "randomized" : "fixed",
-        reasonKey: randomInfo
-          ? "nightReasonFalseGrimoire"
-          : "nightReasonGrimoireReveal",
-      });
-      continue;
-    }
+    runtime.nightKillIntentId = null;
+  }
 
-    if (
-      prompt.expected === "single_player" ||
-      prompt.expected === "double_player"
-    ) {
-      session.infoMessages.set(player.userId, t(lang, "nightChoiceRecorded"));
-      session.infoOutcomeDrafts.delete(player.userId);
-      session.infoOutcomeMeta.set(player.userId, {
+  // Pass 2 — info compute. Info handlers run while alive state is still as at night start.
+  for (const ps of runtime.playerStates) {
+    const handlers = getHandlers(ps.effectiveRole.id);
+    if (!handlers?.info?.active(session.nightNumber)) continue;
+
+    const lang = getLang(ps.player.userId);
+    const ctx = buildCtx(
+      runtime,
+      ps,
+      session.nightNumber,
+      session.responses,
+      lang,
+    );
+    const draft = handlers.info.compute(ctx);
+
+    if (draft === null) {
+      const msgKey = handlers.info.nullMsgKey ?? "nightNoExecution";
+      const reasonKey =
+        handlers.info.nullReasonKey ?? "nightReasonNoExecution";
+      session.infoMessages.set(ps.player.userId, t(lang, msgKey));
+      session.infoOutcomeDrafts.delete(ps.player.userId);
+      session.infoOutcomeMeta.set(ps.player.userId, {
         kind: "fixed",
-        reasonKey: "nightReasonActionAck",
+        reasonKey,
+      });
+    } else {
+      session.infoOutcomeDrafts.set(ps.player.userId, draft);
+      session.infoMessages.set(
+        ps.player.userId,
+        renderOutcomeDraft(state, lang, draft),
+      );
+      session.infoOutcomeMeta.set(ps.player.userId, {
+        kind: Object.keys(draft.fieldTypes).length > 0 ? "randomized" : "fixed",
+        reasonKey: ctx.randomizeInfo ? "nightReasonFalseInfo" : draft.reasonKey,
       });
     }
   }
 
+  // Apply kills after info handlers so Pass 2 sees alive state from night start.
+  for (const killedId of runtime.nightKillIds) {
+    const killedPs = getPlayerState(runtime, killedId);
+    if (killedPs) killedPs.alive = false;
+  }
+
+  // Ravenkeeper placeholder: wakes immediately on night death (event-triggered).
   for (const deadPs of runtime.playerStates.filter((ps) => !ps.alive)) {
     if (deadPs.role.id !== "ravenkeeper") continue;
-    // Placeholder for Ravenkeeper immediate wake on night death.
     const lang = getLang(deadPs.player.userId);
     session.infoMessages.set(
       deadPs.player.userId,
@@ -1214,6 +716,36 @@ function resolveNightOutcomes(state: GameState): void {
     session.infoOutcomeMeta.set(deadPs.player.userId, {
       kind: "fixed",
       reasonKey: "nightReasonRavenkeeper",
+    });
+  }
+
+  // Confirm choice recorded for action-only players (those without an info handler).
+  for (const ps of runtime.playerStates) {
+    const prompt = session.prompts.get(ps.player.userId);
+    if (prompt?.kind !== "action") continue;
+    const handlers = getHandlers(ps.effectiveRole.id);
+    // Skip if this role also has an info handler — it already got info above.
+    if (handlers?.info?.active(session.nightNumber)) continue;
+
+    const lang = getLang(ps.player.userId);
+    session.infoMessages.set(ps.player.userId, t(lang, "nightChoiceRecorded"));
+    session.infoOutcomeDrafts.delete(ps.player.userId);
+    session.infoOutcomeMeta.set(ps.player.userId, {
+      kind: "fixed",
+      reasonKey: "nightReasonActionAck",
+    });
+  }
+
+  // Joke players get a response to their joke reply.
+  for (const ps of runtime.playerStates) {
+    const prompt = session.prompts.get(ps.player.userId);
+    if (prompt?.kind !== "joke") continue;
+    const lang = getLang(ps.player.userId);
+    session.infoMessages.set(ps.player.userId, t(lang, "nightJudgeJoke"));
+    session.infoOutcomeDrafts.delete(ps.player.userId);
+    session.infoOutcomeMeta.set(ps.player.userId, {
+      kind: "fixed",
+      reasonKey: "nightReasonJokeInteraction",
     });
   }
 }

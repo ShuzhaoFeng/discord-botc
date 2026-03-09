@@ -16,11 +16,11 @@ export type NightSessionStatus =
   | "awaiting_storyteller_info"
   | "completed";
 
-export type NightPromptExpected =
-  | "ack"
-  | "single_player"
-  | "double_player"
-  | "free_text";
+export interface InputSpec {
+  type: "player"; // extensible union for future input types
+  optional: boolean;
+  allowSelf: boolean; // enforced per-slot during validation
+}
 
 export interface Role {
   id: string;
@@ -98,11 +98,9 @@ export interface DaySession {
 export interface NightPrompt {
   playerId: string;
   effectiveRoleId: string;
-  expected: NightPromptExpected;
-  ackToken?: string;
-  minChoices?: number;
-  maxChoices?: number;
-  allowSelf?: boolean;
+  kind: "action" | "info" | "joke";
+  inputs: InputSpec[]; // non-empty only when kind === "action"
+  ackToken?: string; // only when kind === "info"
 }
 
 export interface NightOutcomeMeta {
@@ -116,7 +114,8 @@ export type NightOutcomeTemplateId =
   | "empath_count"
   | "chef_count"
   | "fortune_result"
-  | "undertaker_role";
+  | "undertaker_role"
+  | "grimoire";
 
 export type NightOutcomeFieldType = "player" | "role" | "number" | "boolean";
 
@@ -130,6 +129,7 @@ export interface NightOutcomeDraft {
   fieldTypes: Record<string, NightOutcomeFieldType>;
   constraints?: Record<string, NightOutcomeConstraintValue>;
   allowArbitraryOverride?: boolean;
+  reasonKey?: string; // fixed-case reason for storyteller display; core overrides when randomized
 }
 
 export interface NightSession {
@@ -137,7 +137,7 @@ export interface NightSession {
   status: NightSessionStatus;
   prompts: Map<string, NightPrompt>;
   actionMessages: Map<string, string>;
-  responses: Map<string, string[]>;
+  responses: Map<string, (string | null)[]>;
   pendingPlayerIds: string[];
   actionPreview?: string;
   infoPreview?: string;
@@ -153,6 +153,7 @@ export interface RuntimeState {
   daySession: DaySession | null;
   lastExecutedPlayerId: string | null;
   nightKillIds: string[]; // kills from last night, consumed at day start
+  nightKillIntentId: string | null; // set by Imp's resolve; consumed by core kill resolution; reset each night
 }
 
 export interface GameState {
