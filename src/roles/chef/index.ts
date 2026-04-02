@@ -1,6 +1,6 @@
 import type { RoleDefinition } from "../types";
 import { Night } from "../types";
-import { isEvil } from "../../game/utils";
+import { isEvil, getPlayerState } from "../../game/utils";
 import type { NightOutcomeFieldType, RuntimeState } from "../../game/types";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
@@ -25,7 +25,10 @@ export const definition: RoleDefinition = {
     info: {
       active: Night.firstOnly,
       compute: (ctx) => {
-        const { runtime, randomizeInfo } = ctx;
+        const { runtime } = ctx.state;
+        const { player } = ctx.night;
+        const ps = getPlayerState(runtime, player.userId);
+        const randomizeInfo = ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
         const numEvil = runtime.playerStates.filter((ps) => isEvil(ps.role)).length;
         const fixedValue = computeChefCount(runtime);
         const randomizedValue = Math.floor(Math.random() * Math.max(numEvil, 1));

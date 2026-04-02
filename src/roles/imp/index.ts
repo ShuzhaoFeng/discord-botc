@@ -12,7 +12,7 @@ export const definition: RoleDefinition = {
       active: Night.afterFirst,
       buildPrompt: () => [{ type: "player", optional: false, allowSelf: true }],
       resolve: (ctx, values) => {
-        ctx.runtime.nightKillIntentId = values[0];
+        ctx.state.runtime.nightKillIntentId = values[0];
       },
     },
   },

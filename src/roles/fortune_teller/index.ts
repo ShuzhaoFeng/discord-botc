@@ -23,7 +23,10 @@ export const definition: RoleDefinition = {
     info: {
       active: Night.always,
       compute: (ctx) => {
-        const { runtime, player, responses, randomizeInfo } = ctx;
+        const { runtime } = ctx.state;
+        const { player, responses } = ctx.night;
+        const ps = getPlayerState(runtime, player.userId);
+        const randomizeInfo = ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
         const choices = (responses.get(player.userId) ?? []).filter(
           (v): v is string => v !== null,
         );

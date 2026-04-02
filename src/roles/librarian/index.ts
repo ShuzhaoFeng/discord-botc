@@ -1,6 +1,6 @@
 import type { RoleDefinition } from "../types";
 import { Night } from "../types";
-import { getRole, shuffle, pick } from "../../game/utils";
+import { getRole, getPlayerState, shuffle, pick } from "../../game/utils";
 import type { NightOutcomeFieldType } from "../../game/types";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
@@ -15,7 +15,10 @@ export const definition: RoleDefinition = {
       nullMsgKey: "nightLibrarianNoOutsiders",
       nullReasonKey: "nightReasonNoOutsiders",
       compute: (ctx) => {
-        const { runtime, player, randomizeInfo } = ctx;
+        const { runtime } = ctx.state;
+        const { player } = ctx.night;
+        const ps = getPlayerState(runtime, player.userId);
+        const randomizeInfo = ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
         const players = runtime.playerStates.map((ps) => ps.player);
         const outsiders = players.filter(
           (p) => getRole(runtime, p.userId).category === "Outsider",
@@ -29,7 +32,7 @@ export const definition: RoleDefinition = {
           : pick(outsiders, 1)[0];
         const osRole = randomizeInfo
           ? (pick(
-              ctx.scriptRoles.filter((r) => r.category === "Outsider"),
+              ctx.night.scriptRoles.filter((r) => r.category === "Outsider"),
               1,
             )[0] ?? runtime.playerStates.find((ps) => ps.player.userId === player.userId)!.effectiveRole)
           : osTarget

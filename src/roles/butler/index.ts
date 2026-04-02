@@ -13,8 +13,8 @@ export const definition: RoleDefinition = {
       active: Night.always,
       buildPrompt: () => [{ type: "player", optional: false, allowSelf: false }],
       resolve: (ctx, values) => {
-        ctx.runtime.playerStates.forEach((ps) => ps.tags.delete("butler_master"));
-        const targetPs = getPlayerState(ctx.runtime, values[0]!);
+        ctx.state.runtime.playerStates.forEach((ps) => ps.tags.delete("butler_master"));
+        const targetPs = getPlayerState(ctx.state.runtime, values[0]!);
         if (targetPs) targetPs.tags.add("butler_master");
       },
     },

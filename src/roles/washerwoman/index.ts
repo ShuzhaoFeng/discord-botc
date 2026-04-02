@@ -1,6 +1,6 @@
 import type { RoleDefinition } from "../types";
 import { Night } from "../types";
-import { getRole, shuffle, pick } from "../../game/utils";
+import { getRole, getPlayerState, shuffle, pick } from "../../game/utils";
 import type { NightOutcomeFieldType } from "../../game/types";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
@@ -13,7 +13,10 @@ export const definition: RoleDefinition = {
     info: {
       active: Night.firstOnly,
       compute: (ctx) => {
-        const { runtime, player, randomizeInfo } = ctx;
+        const { runtime } = ctx.state;
+        const { player } = ctx.night;
+        const ps = getPlayerState(runtime, player.userId);
+        const randomizeInfo = ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
         const players = runtime.playerStates.map((ps) => ps.player);
         const townsfolk = players.filter(
           (p) => getRole(runtime, p.userId).category === "Townsfolk",
@@ -26,7 +29,7 @@ export const definition: RoleDefinition = {
           : pick(townsfolk, 1)[0];
         const role = randomizeInfo
           ? (pick(
-              ctx.scriptRoles.filter((r) => r.category === "Townsfolk"),
+              ctx.night.scriptRoles.filter((r) => r.category === "Townsfolk"),
               1,
             )[0] ?? runtime.playerStates.find((ps) => ps.player.userId === player.userId)!.effectiveRole)
           : tfTarget

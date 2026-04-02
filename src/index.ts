@@ -24,7 +24,7 @@ import { handleRulebook } from "./handlers/rulebook";
 import { handleWhosleft } from "./handlers/whosleft";
 import { handleNominateCommand } from "./handlers/nominate";
 import { handleYeCommand } from "./handlers/ye";
-import { handleSlayCommand } from "./handlers/slay";
+import { handleRoleCommand } from "./game/roleCommands";
 import { handleEnddayCommand } from "./handlers/endday";
 import { handleInfo } from "./handlers/info";
 
@@ -77,15 +77,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
       case "ye":
         await handleYeCommand(i, client);
         break;
-      case "slay":
-        await handleSlayCommand(i, client);
-        break;
       case "endday":
         await handleEnddayCommand(i, client);
         break;
       case "info":
         await handleInfo(i);
         break;
+      default:
+        if (!await handleRoleCommand(i, client)) {
+          console.warn(`Unrecognized command: /${i.commandName}`);
+        }
     }
   } catch (err) {
     console.error(`Error handling /${i.commandName}:`, err);

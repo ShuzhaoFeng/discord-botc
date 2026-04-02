@@ -17,7 +17,8 @@ import { findRole, getScript } from "./roles";
 import { sendPlayerDm } from "../utils/sendPlayerDm";
 import { updateGame } from "./state";
 import { ALL_ROLE_DEFINITIONS } from "../roles/index";
-import type { NightCtx } from "../roles/types";
+import type { NightGameCtx } from "../roles/types";
+import { ActiveGameState } from "./types";
 import { shuffle, pick, getPlayerState, getRole, isEvil } from "./utils";
 export { shuffle, pick, getPlayerState, getRole, isEvil };
 
@@ -100,20 +101,23 @@ function getAlivePlayers(state: GameState): Player[] {
 }
 
 function buildCtx(
-  runtime: RuntimeState,
+  state: GameState,
+  client: Client,
   ps: PlayerRuntimeState,
   nightNumber: number,
   responses: Map<string, (string | null)[]>,
   lang: Lang,
-): NightCtx {
+): NightGameCtx {
   return {
-    runtime,
-    player: ps.player,
-    nightNumber,
-    responses,
-    lang,
-    randomizeInfo: ps.role.id === "drunk" || ps.tags.has("poisoned"),
-    scriptRoles: getScript().roles,
+    state: state as ActiveGameState,
+    client,
+    night: {
+      player: ps.player,
+      nightNumber,
+      responses,
+      lang,
+      scriptRoles: getScript().roles,
+    },
   };
 }
 
@@ -170,7 +174,7 @@ export async function startNightPhase(
   const promptResults = alivePlayers.map((p) => {
     const ps = getPlayerState(runtime, p.userId)!;
     const lang = getLang(p.userId);
-    const ctx = buildCtx(runtime, ps, nightNumber, responses, lang);
+    const ctx = buildCtx(state, client, ps, nightNumber, responses, lang);
     const handlers = getHandlers(ps.effectiveRole.id);
 
     let prompt: NightPrompt;
@@ -598,7 +602,7 @@ function buildActionSummary(state: GameState, storytellerLang: Lang): string {
   return lines.join("\n");
 }
 
-function resolveNightOutcomes(state: GameState): void {
+function resolveNightOutcomes(client: Client, state: GameState): void {
   const runtime = ensureRuntime(state);
   const session = runtime.nightSession;
   if (!session) return;
@@ -625,7 +629,8 @@ function resolveNightOutcomes(state: GameState): void {
 
     const lang = getLang(playerId);
     const ctx = buildCtx(
-      runtime,
+      state,
+      client,
       actorPs,
       session.nightNumber,
       session.responses,
@@ -668,7 +673,8 @@ function resolveNightOutcomes(state: GameState): void {
 
     const lang = getLang(ps.player.userId);
     const ctx = buildCtx(
-      runtime,
+      state,
+      client,
       ps,
       session.nightNumber,
       session.responses,
@@ -694,7 +700,7 @@ function resolveNightOutcomes(state: GameState): void {
       );
       session.infoOutcomeMeta.set(ps.player.userId, {
         kind: Object.keys(draft.fieldTypes).length > 0 ? "randomized" : "fixed",
-        reasonKey: ctx.randomizeInfo ? "nightReasonFalseInfo" : draft.reasonKey,
+        reasonKey: ps.role.id === "drunk" || ps.tags.has("poisoned") ? "nightReasonFalseInfo" : draft.reasonKey,
       });
     }
   }
@@ -816,7 +822,7 @@ export async function handleNightPlayerDm(
   await message.reply(t(lang, "nightResponseRecorded"));
 
   if (session.pendingPlayerIds.length === 0) {
-    resolveNightOutcomes(state);
+    resolveNightOutcomes(client, state);
 
     if (state.mode === "manual" && state.storytellerId) {
       session.status = "awaiting_storyteller_info";

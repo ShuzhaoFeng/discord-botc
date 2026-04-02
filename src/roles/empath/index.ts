@@ -41,7 +41,10 @@ export const definition: RoleDefinition = {
     info: {
       active: Night.always,
       compute: (ctx) => {
-        const { runtime, player, randomizeInfo } = ctx;
+        const { runtime } = ctx.state;
+        const { player } = ctx.night;
+        const ps = getPlayerState(runtime, player.userId);
+        const randomizeInfo = ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
         const leftNeighbor = findAliveNeighborInDirection(runtime, player.seatIndex, -1);
         const rightNeighbor = findAliveNeighborInDirection(runtime, player.seatIndex, 1);
         const fixedValue = computeEmpathCount(runtime, player.userId);

@@ -31,6 +31,7 @@ import {
   Role,
   FAKE_PLAYER_ID_PREFIX,
 } from "../game/types";
+import { resolvePlayer } from "../game/utils";
 
 export async function handleStorytelllerDm(
   message: Message,
@@ -574,22 +575,3 @@ function cmdBluff(
 // ─── Player resolver ──────────────────────────────────────────────────────────
 
 /** Find a player by username or displayName (case-insensitive). */
-function resolvePlayer(name: string, players: Player[]): Player | undefined {
-  const lower = name.toLowerCase();
-  const exact = players.filter(
-    (p) =>
-      p.username.toLowerCase() === lower ||
-      p.displayName.toLowerCase() === lower,
-  );
-  if (exact.length === 1) return exact[0];
-
-  // Prefix match.
-  const prefix = players.filter(
-    (p) =>
-      p.username.toLowerCase().startsWith(lower) ||
-      p.displayName.toLowerCase().startsWith(lower),
-  );
-  if (prefix.length === 1) return prefix[0];
-
-  return undefined;
-}

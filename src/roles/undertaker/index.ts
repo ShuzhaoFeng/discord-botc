@@ -12,7 +12,7 @@ export const definition: RoleDefinition = {
     info: {
       active: Night.afterFirst,
       compute: (ctx) => {
-        const { runtime } = ctx;
+        const { runtime } = ctx.state;
         if (!runtime.lastExecutedPlayerId) return null;
         const executedRole = getRole(runtime, runtime.lastExecutedPlayerId);
         return {

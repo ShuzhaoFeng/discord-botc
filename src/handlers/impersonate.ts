@@ -13,7 +13,8 @@ import { ChatInputCommandInteraction, Client, Message, TextChannel } from 'disco
 import { getGame } from '../game/state';
 import { getLang, t } from '../i18n';
 import { Player } from '../game/types';
-import { handleNominate, handleYe, handleSlay, handleEndDay } from '../game/day';
+import { handleNominate, handleYe, handleEndDay } from '../game/day';
+import { handleRoleCommand } from '../game/roleCommands';
 import { handleIam } from './iam';
 import { handleYouare } from './youare';
 import { handleLang } from './lang';
@@ -118,7 +119,7 @@ export async function handleImpersonate(message: Message, client: Client): Promi
     youare:   { handler: handleYouare },
     nominate: { handler: handleNominate, argRequired: true },
     ye:       { handler: handleYe },
-    slay:     { handler: handleSlay,    argRequired: true },
+    slay:     { handler: async (i, c) => { await handleRoleCommand(i, c); }, argRequired: true },
     endday:   { handler: handleEndDay },
     lang:     { handler: (i, _c) => handleLang(i),     argRequired: true },
     rulebook: { handler: (i, _c) => handleRulebook(i) },

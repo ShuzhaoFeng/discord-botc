@@ -170,3 +170,6 @@ export interface GameState {
   testMode?: boolean; // true when started via !ctest
   testOwnerId?: string; // receives all redirected DMs for fake players
 }
+
+/** A GameState that is guaranteed to have an active RuntimeState. */
+export type ActiveGameState = GameState & { runtime: RuntimeState };

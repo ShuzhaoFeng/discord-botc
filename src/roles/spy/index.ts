@@ -1,6 +1,6 @@
 import type { RoleDefinition } from "../types";
 import { Night } from "../types";
-import { shuffle } from "../../game/utils";
+import { shuffle, getPlayerState } from "../../game/utils";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
 
@@ -12,7 +12,10 @@ export const definition: RoleDefinition = {
     info: {
       active: Night.always,
       compute: (ctx) => {
-        const { runtime, randomizeInfo } = ctx;
+        const { runtime } = ctx.state;
+        const { player } = ctx.night;
+        const ps = getPlayerState(runtime, player.userId);
+        const randomizeInfo = ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
         const playerStates = runtime.playerStates;
 
         if (randomizeInfo) {

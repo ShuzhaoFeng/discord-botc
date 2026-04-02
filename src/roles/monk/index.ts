@@ -13,7 +13,7 @@ export const definition: RoleDefinition = {
       active: Night.afterFirst,
       buildPrompt: () => [{ type: "player", optional: false, allowSelf: false }],
       resolve: (ctx, values) => {
-        const targetPs = getPlayerState(ctx.runtime, values[0]!);
+        const targetPs = getPlayerState(ctx.state.runtime, values[0]!);
         if (targetPs) targetPs.tags.add("protected");
       },
     },
