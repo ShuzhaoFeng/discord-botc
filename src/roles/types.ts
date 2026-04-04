@@ -101,12 +101,34 @@ export interface RoleCommandDefinition {
   execute: (i: ChatInputCommandInteraction, ctx: DayGameCtx) => Promise<void>;
 }
 
+/** Context passed to every death handler when any player dies. */
+export interface DeathCtx {
+  state: ActiveGameState;
+  client: Client;
+  /** The userId of the player who just died. */
+  deadPlayerId: string;
+  /** Which game phase the death occurred in. */
+  phase: "day" | "night";
+  /** True only for deaths caused by execution (daytime vote or Virgin trigger). */
+  byExecution: boolean;
+}
+
+/**
+ * Optional per-role hook invoked whenever ANY player dies.
+ * The handler is responsible for checking whether the death is relevant to it.
+ */
+export interface RoleDeathHandler {
+  onDeath: (ctx: DeathCtx) => Promise<void>;
+}
+
 export interface RoleDefinition {
   id: string;
   name: LocalizedString;
   guide: LocalizedString;
   nightHandlers?: RoleNightHandlers;
   commands?: RoleCommandDefinition[];
+  /** Called whenever any player dies; handler decides internally if it cares. */
+  deathHandler?: RoleDeathHandler;
   /**
    * Storyteller DM handler for role-specific pending → confirm patterns
    * (e.g. SLAY CONFIRM / SLAY KILL / SLAY NOTHING).

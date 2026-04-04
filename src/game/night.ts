@@ -18,6 +18,7 @@ import { sendPlayerDm } from "../utils/sendPlayerDm";
 import { updateGame } from "./state";
 import { ALL_ROLE_DEFINITIONS } from "../roles/index";
 import type { NightGameCtx } from "../roles/types";
+import { triggerDeathHandlers } from "./death";
 import { ActiveGameState } from "./types";
 import { shuffle, pick, getPlayerState, getRole, isEvil } from "./utils";
 export { shuffle, pick, getPlayerState, getRole, isEvil };
@@ -45,6 +46,7 @@ export function ensureRuntime(state: GameState): RuntimeState {
       lastExecutedPlayerId: null,
       nightKillIds: [],
       nightKillIntentId: null,
+      pendingEndGame: null,
     };
   }
   return state.runtime;
@@ -248,6 +250,7 @@ export async function startNightPhase(
     infoMessages,
     infoOutcomeMeta,
     infoOutcomeDrafts,
+    pendingRavenkeeperPick: null,
   };
 
   runtime.nightSession = session;
@@ -602,7 +605,7 @@ function buildActionSummary(state: GameState, storytellerLang: Lang): string {
   return lines.join("\n");
 }
 
-function resolveNightOutcomes(client: Client, state: GameState): void {
+async function resolveNightOutcomes(client: Client, state: GameState): Promise<void> {
   const runtime = ensureRuntime(state);
   const session = runtime.nightSession;
   if (!session) return;
@@ -711,18 +714,9 @@ function resolveNightOutcomes(client: Client, state: GameState): void {
     if (killedPs) killedPs.alive = false;
   }
 
-  // Ravenkeeper placeholder: wakes immediately on night death (event-triggered).
-  for (const deadPs of runtime.playerStates.filter((ps) => !ps.alive)) {
-    if (deadPs.role.id !== "ravenkeeper") continue;
-    const lang = getLang(deadPs.player.userId);
-    session.infoMessages.set(
-      deadPs.player.userId,
-      t(lang, "nightRavenkeeperPlaceholder"),
-    );
-    session.infoOutcomeMeta.set(deadPs.player.userId, {
-      kind: "fixed",
-      reasonKey: "nightReasonRavenkeeper",
-    });
+  // Trigger death handlers for every player who died this night.
+  for (const killedId of runtime.nightKillIds) {
+    await triggerDeathHandlers(client, state as ActiveGameState, killedId, "night", false);
   }
 
   // Confirm choice recorded for action-only players (those without an info handler).
@@ -787,7 +781,7 @@ export async function handleNightPlayerDm(
 ): Promise<boolean> {
   const runtime = ensureRuntime(state);
   const session = runtime.nightSession;
-  if (!session || session.status !== "awaiting_players") return false;
+  if (!session) return false;
 
   const isParticipant = state.players.some(
     (p) => p.userId === message.author.id,
@@ -795,6 +789,17 @@ export async function handleNightPlayerDm(
   if (!isParticipant) return false;
 
   const player = state.players.find((p) => p.userId === message.author.id)!;
+
+  // Ravenkeeper pick phase — the RK died this night and is choosing a player.
+  if (session.status === "awaiting_ravenkeeper_pick") {
+    if (session.pendingRavenkeeperPick === player.userId) {
+      return await processRavenkeeperPickDm(message, client, state, player);
+    }
+    return false;
+  }
+
+  if (session.status !== "awaiting_players") return false;
+
   if (!getPlayerState(runtime, player.userId)?.alive) return true;
 
   const prompt = session.prompts.get(player.userId);
@@ -822,27 +827,120 @@ export async function handleNightPlayerDm(
   await message.reply(t(lang, "nightResponseRecorded"));
 
   if (session.pendingPlayerIds.length === 0) {
-    resolveNightOutcomes(client, state);
+    await resolveNightOutcomes(client, state);
 
-    if (state.mode === "manual" && state.storytellerId) {
-      session.status = "awaiting_storyteller_info";
-      const storyteller = await client.users.fetch(state.storytellerId);
-      const stLang = getLang(storyteller.id);
-      const actionSummary = buildActionSummary(state, stLang);
-      session.infoPreview = buildInfoPreview(state, stLang);
+    if (session.pendingRavenkeeperPick) {
+      // RK died this night — wait for their pick before proceeding.
+      session.status = "awaiting_ravenkeeper_pick";
       updateGame(state);
-      await storyteller.send(
-        t(stLang, "nightInfoPreview", {
-          n: session.nightNumber,
-          summary: actionSummary,
-          preview: session.infoPreview ?? "",
+      return true;
+    }
+
+    await proceedAfterResolution(client, state, session);
+  }
+
+  return true;
+}
+
+/**
+ * Shared post-resolution step: either hand off to the storyteller for info
+ * review (manual mode) or send info messages directly (automated mode).
+ */
+async function proceedAfterResolution(
+  client: Client,
+  state: GameState,
+  session: NightSession,
+): Promise<void> {
+  if (state.mode === "manual" && state.storytellerId) {
+    session.status = "awaiting_storyteller_info";
+    const storyteller = await client.users.fetch(state.storytellerId);
+    const stLang = getLang(storyteller.id);
+    const actionSummary = buildActionSummary(state, stLang);
+    session.infoPreview = buildInfoPreview(state, stLang);
+    updateGame(state);
+    await storyteller.send(
+      t(stLang, "nightInfoPreview", {
+        n: session.nightNumber,
+        summary: actionSummary,
+        preview: session.infoPreview ?? "",
+      }),
+    );
+  } else {
+    await sendInfoMessages(client, state);
+  }
+}
+
+/**
+ * Handles the Ravenkeeper's player-pick DM after they died at night.
+ * Computes the role result (false info if poisoned), sends it back, then
+ * proceeds to the storyteller info phase or sendInfoMessages.
+ */
+async function processRavenkeeperPickDm(
+  message: Message,
+  client: Client,
+  state: GameState,
+  rkPlayer: Player,
+): Promise<boolean> {
+  const runtime = ensureRuntime(state);
+  const session = runtime.nightSession!;
+  const lang = getLang(rkPlayer.userId);
+
+  const target = resolvePlayerName(message.content.trim(), state.players);
+  if (!target) {
+    await message.reply(
+      t(lang, "nightRavenkeeperPickInvalidPlayer", {
+        name: message.content.trim(),
+      }),
+    );
+    return true;
+  }
+
+  const rkPs = getPlayerState(runtime, rkPlayer.userId);
+  const targetPs = getPlayerState(runtime, target.userId);
+  const poisoned = rkPs?.tags.has("poisoned") ?? false;
+
+  let shownRoleId: string;
+  if (poisoned) {
+    // Give a random role from the script that is NOT the target's true role.
+    const trueId = targetPs?.role.id ?? "";
+    const candidates = getScript().roles.filter((r) => r.id !== trueId);
+    shownRoleId = (pick(candidates, 1)[0] ?? getScript().roles[0]).id;
+  } else {
+    shownRoleId = targetPs!.role.id;
+  }
+
+  const result = t(lang, "nightRavenkeeperPickResult", {
+    player: target.displayName,
+    role: getRoleName(lang, shownRoleId),
+  });
+  await message.reply(result);
+
+  // Record in the session so the storyteller sees it in the info preview.
+  session.infoMessages.set(rkPlayer.userId, result);
+  session.infoOutcomeMeta.set(rkPlayer.userId, {
+    kind: poisoned ? "randomized" : "fixed",
+    reasonKey: poisoned ? "nightReasonFalseInfo" : "nightReasonRavenkeeperPick",
+  });
+
+  // Notify storyteller in manual mode.
+  if (state.mode === "manual" && state.storytellerId) {
+    try {
+      const stUser = await client.users.fetch(state.storytellerId);
+      const stLang = getLang(state.storytellerId);
+      await stUser.send(
+        t(stLang, "nightRavenkeeperPickStorytellerNotify", {
+          rk: rkPlayer.displayName,
+          target: target.displayName,
+          role: getRoleName(stLang, shownRoleId),
         }),
       );
-    } else {
-      await sendInfoMessages(client, state);
+    } catch {
+      // Ignore DM failure
     }
   }
 
+  session.pendingRavenkeeperPick = null;
+  await proceedAfterResolution(client, state, session);
   return true;
 }
 

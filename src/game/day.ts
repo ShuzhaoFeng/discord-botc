@@ -3,13 +3,12 @@ import {
   ChatInputCommandInteraction,
   TextChannel,
 } from "discord.js";
-import { GameState, NominationRecord, Player } from "./types";
+import { ActiveGameState, GameState, NominationRecord, Player } from "./types";
 import { getLang, getRoleName, t } from "../i18n";
-import { sendPlayerDm } from "../utils/sendPlayerDm";
 import { getGame, updateGame } from "./state";
-import { getScript } from "./roles";
 import { ensureRuntime, getPlayerState, getRole } from "./night";
 import { resolvePlayer, channelLang } from "./utils";
+import { triggerDeathHandlers } from "./death";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
 
@@ -65,7 +64,7 @@ async function checkWinConditions(
   return false;
 }
 
-async function endGame(
+export async function endGame(
   client: Client,
   state: GameState,
   channel: TextChannel,
@@ -97,7 +96,8 @@ async function endGame(
 }
 
 /**
- * Kill a player during the day phase. Handles Scarlet Woman transform.
+ * Kill a player during the day phase. Triggers all registered death handlers
+ * (Scarlet Woman, Saint, etc.) then checks win conditions.
  * Returns true if the game ended.
  */
 export async function killPlayerDuringDay(
@@ -105,6 +105,7 @@ export async function killPlayerDuringDay(
   state: GameState,
   channel: TextChannel,
   playerId: string,
+  byExecution = false,
 ): Promise<boolean> {
   const runtime = ensureRuntime(state);
   const playerState = getPlayerState(runtime, playerId);
@@ -117,49 +118,22 @@ export async function killPlayerDuringDay(
   const name = playerDisplayName(state, playerId);
   await channel.send(t(lang, "dayPlayerDied", { name }));
 
-  // Scarlet Woman check: if the dead player is the Imp and SW is alive with 5+ alive
-  const deadRole = getRole(runtime,playerId);
-  if (deadRole.id === "imp") {
-    const alive = getAlivePlayers(state);
-    const swPlayer = alive.find(
-      (p) => getRole(runtime,p.userId).id === "scarlet_woman",
-    );
-    if (swPlayer && alive.length >= 5) {
-      // SW becomes the new Imp — update runtime (primary source of truth) and draft
-      const impRole = getScript().roles.find((r) => r.id === "imp")!;
-      const swPs = getPlayerState(runtime, swPlayer.userId);
-      if (swPs) { swPs.role = impRole; swPs.effectiveRole = impRole; }
-      if (state.draft) state.draft.assignments.set(swPlayer.userId, impRole);
-      updateGame(state);
+  await triggerDeathHandlers(
+    client,
+    state as ActiveGameState,
+    playerId,
+    "day",
+    byExecution,
+  );
 
-      // Notify SW via DM
-      const swLang = getLang(swPlayer.userId);
-      await sendPlayerDm(
-        client,
-        swPlayer,
-        state,
-        t(swLang, "dayScarletWomanBecomesImp"),
-      );
-
-      // If manual mode, also notify storyteller
-      if (state.mode === "manual" && state.storytellerId) {
-        try {
-          const stUser = await client.users.fetch(state.storytellerId);
-          const stLang = getLang(state.storytellerId);
-          await stUser.send(
-            t(stLang, "dayScarletWomanStorytellerNotify", {
-              player: swPlayer.displayName,
-            }),
-          );
-        } catch {
-          // Ignore DM failure
-        }
-      }
-
-      await channel.send(t(lang, "dayScarletWomanChannelNotify"));
-      // Game does NOT end — Imp role transferred
-      return await checkWinConditions(client, state, channel);
+  const pending = runtime.pendingEndGame;
+  if (pending) {
+    runtime.pendingEndGame = null;
+    if (pending.winner === "good_saint_fail") {
+      await channel.send(t(lang, "daySaintExecuted", { player: name }));
     }
+    await endGame(client, state, channel, pending.winner);
+    return true;
   }
 
   return await checkWinConditions(client, state, channel);
@@ -319,7 +293,6 @@ async function processEndOfDay(
   // Execute the winner
   const executeId = executedNomination.nomineeId;
   const executeName = playerDisplayName(state, executeId);
-  const executeRole = getRole(runtime,executeId);
 
   await channel.send(
     t(lang, "dayExecuted", {
@@ -331,22 +304,12 @@ async function processEndOfDay(
   runtime.lastExecutedPlayerId = executeId;
   updateGame(state);
 
-  // Saint check — must happen before killing so we can reference the role
-  if (executeRole.id === "saint") {
-    await channel.send(t(lang, "daySaintExecuted", { player: executeName }));
-    // Saint is still killed before calling endGame
-    const ps = getPlayerState(ensureRuntime(state), executeId);
-    if (ps) ps.alive = false;
-    updateGame(state);
-    await endGame(client, state, channel, "good_saint_fail");
-    return;
-  }
-
   const gameEnded = await killPlayerDuringDay(
     client,
     state,
     channel,
     executeId,
+    true, // byExecution — triggers Saint death handler if applicable
   );
   if (gameEnded) return;
 
@@ -574,23 +537,12 @@ export async function handleNominate(
       t(lang, "dayVirginTriggered", { nominator: nominator.displayName }),
     );
 
-    // Saint check for the Virgin-trigger execution target (the nominator)
-    if (nominatorRealRole.id === "saint") {
-      const ps = getPlayerState(runtime, i.user.id);
-      if (ps) ps.alive = false;
-      updateGame(state);
-      await channel.send(
-        t(lang, "daySaintExecuted", { player: nominator.displayName }),
-      );
-      await endGame(client, state, channel, "good_saint_fail");
-      return;
-    }
-
     const gameEnded = await killPlayerDuringDay(
       client,
       state,
       channel,
       i.user.id,
+      true, // byExecution — triggers Saint death handler if applicable
     );
     if (!gameEnded) {
       if (checkAllNominated(state) || daySession.endDayThresholdMet) {

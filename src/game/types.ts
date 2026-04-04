@@ -13,6 +13,7 @@ export type GamePhase =
 export type NightSessionStatus =
   | "awaiting_storyteller_action"
   | "awaiting_players"
+  | "awaiting_ravenkeeper_pick"
   | "awaiting_storyteller_info"
   | "completed";
 
@@ -144,6 +145,8 @@ export interface NightSession {
   infoMessages: Map<string, string>;
   infoOutcomeMeta: Map<string, NightOutcomeMeta>;
   infoOutcomeDrafts: Map<string, NightOutcomeDraft>;
+  /** Set to the Ravenkeeper's userId when they died at night and need to pick a player. */
+  pendingRavenkeeperPick: string | null;
 }
 
 export interface RuntimeState {
@@ -154,6 +157,12 @@ export interface RuntimeState {
   lastExecutedPlayerId: string | null;
   nightKillIds: string[]; // kills from last night, consumed at day start
   nightKillIntentId: string | null; // set by Imp's resolve; consumed by core kill resolution; reset each night
+  /**
+   * Set by a death handler to request a specific game-end outcome that cannot
+   * be inferred from state alone (e.g. Saint executed → evil wins).
+   * Consumed and cleared by day.ts immediately after triggerDeathHandlers.
+   */
+  pendingEndGame: { winner: "good" | "evil" | "good_saint_fail" } | null;
 }
 
 export interface GameState {
