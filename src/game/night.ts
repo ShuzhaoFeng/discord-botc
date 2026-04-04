@@ -20,8 +20,7 @@ import { ALL_ROLE_DEFINITIONS } from "../roles/index";
 import type { NightGameCtx } from "../roles/types";
 import { triggerDeathHandlers } from "./death";
 import { ActiveGameState } from "./types";
-import { shuffle, pick, getPlayerState, getRole, isEvil } from "./utils";
-export { shuffle, pick, getPlayerState, getRole, isEvil };
+import { pick, getPlayerState, getRole } from "./utils";
 
 function getHandlers(roleId: string) {
   return ALL_ROLE_DEFINITIONS.find((r) => r.id === roleId)?.nightHandlers;
@@ -51,7 +50,6 @@ export function ensureRuntime(state: GameState): RuntimeState {
   }
   return state.runtime;
 }
-
 
 function makeAckToken(): string {
   const syllables = [
@@ -414,9 +412,7 @@ function renderOutcomeDraft(
   if (draft.templateId === "grimoire") {
     const runtime = ensureRuntime(state);
     const lines = runtime.playerStates.map((ps) => {
-      const roleId = String(
-        draft.fields[ps.player.displayName] ?? ps.role.id,
-      );
+      const roleId = String(draft.fields[ps.player.displayName] ?? ps.role.id);
       const role = getScript().roles.find((r) => r.id === roleId);
       const roleName = role ? roleNameFor(recipientLang, role) : roleId;
       const aliveLabel = ps.alive
@@ -605,7 +601,10 @@ function buildActionSummary(state: GameState, storytellerLang: Lang): string {
   return lines.join("\n");
 }
 
-async function resolveNightOutcomes(client: Client, state: GameState): Promise<void> {
+async function resolveNightOutcomes(
+  client: Client,
+  state: GameState,
+): Promise<void> {
   const runtime = ensureRuntime(state);
   const session = runtime.nightSession;
   if (!session) return;
@@ -643,8 +642,12 @@ async function resolveNightOutcomes(client: Client, state: GameState): Promise<v
   }
 
   // Core kill resolution — runs after all action resolves.
+  // Track whether the Imp killed themselves so we can promote a Minion later if needed.
+  let impKilledSelf = false;
   if (runtime.nightKillIntentId !== null) {
     const targetId = runtime.nightKillIntentId;
+    const impPs = runtime.playerStates.find((ps) => ps.role.id === "imp");
+    impKilledSelf = impPs != null && targetId === impPs.player.userId;
     const targetPs = getPlayerState(runtime, targetId);
 
     if (targetPs?.alive) {
@@ -669,8 +672,15 @@ async function resolveNightOutcomes(client: Client, state: GameState): Promise<v
     runtime.nightKillIntentId = null;
   }
 
-  // Pass 2 — info compute. Info handlers run while alive state is still as at night start.
+  // Apply kills before info compute — a player who dies this night does not receive their information.
+  for (const killedId of runtime.nightKillIds) {
+    const killedPs = getPlayerState(runtime, killedId);
+    if (killedPs) killedPs.alive = false;
+  }
+
+  // Pass 2 — info compute. Runs with post-kill state; dead players are skipped.
   for (const ps of runtime.playerStates) {
+    if (!ps.alive) continue;
     const handlers = getHandlers(ps.effectiveRole.id);
     if (!handlers?.info?.active(session.nightNumber)) continue;
 
@@ -687,8 +697,7 @@ async function resolveNightOutcomes(client: Client, state: GameState): Promise<v
 
     if (draft === null) {
       const msgKey = handlers.info.nullMsgKey ?? "nightNoExecution";
-      const reasonKey =
-        handlers.info.nullReasonKey ?? "nightReasonNoExecution";
+      const reasonKey = handlers.info.nullReasonKey ?? "nightReasonNoExecution";
       session.infoMessages.set(ps.player.userId, t(lang, msgKey));
       session.infoOutcomeDrafts.delete(ps.player.userId);
       session.infoOutcomeMeta.set(ps.player.userId, {
@@ -703,20 +712,68 @@ async function resolveNightOutcomes(client: Client, state: GameState): Promise<v
       );
       session.infoOutcomeMeta.set(ps.player.userId, {
         kind: Object.keys(draft.fieldTypes).length > 0 ? "randomized" : "fixed",
-        reasonKey: ps.role.id === "drunk" || ps.tags.has("poisoned") ? "nightReasonFalseInfo" : draft.reasonKey,
+        reasonKey:
+          ps.role.id === "drunk" || ps.tags.has("poisoned")
+            ? "nightReasonFalseInfo"
+            : draft.reasonKey,
       });
     }
   }
 
-  // Apply kills after info handlers so Pass 2 sees alive state from night start.
+  // Trigger death handlers for every player who died this night.
+  // (Kills were already applied above, before info compute.)
   for (const killedId of runtime.nightKillIds) {
-    const killedPs = getPlayerState(runtime, killedId);
-    if (killedPs) killedPs.alive = false;
+    await triggerDeathHandlers(
+      client,
+      state as ActiveGameState,
+      killedId,
+      "night",
+      false,
+    );
   }
 
-  // Trigger death handlers for every player who died this night.
-  for (const killedId of runtime.nightKillIds) {
-    await triggerDeathHandlers(client, state as ActiveGameState, killedId, "night", false);
+  // Imp self-kill: if the Imp killed themselves and no alive Imp remains (i.e. Scarlet Woman
+  // did not already promote), pick a random alive Minion to become the new Imp.
+  if (impKilledSelf) {
+    const anyAliveImp = runtime.playerStates.some(
+      (ps) => ps.alive && ps.role.id === "imp",
+    );
+    if (!anyAliveImp) {
+      const aliveMinions = runtime.playerStates.filter(
+        (ps) => ps.alive && ps.role.category === "Minion",
+      );
+      if (aliveMinions.length > 0) {
+        const newImpPs = pick(aliveMinions, 1)[0];
+        const impRole = getScript().roles.find((r) => r.id === "imp")!;
+        newImpPs.role = impRole;
+        newImpPs.effectiveRole = impRole;
+        if (state.draft)
+          state.draft.assignments.set(newImpPs.player.userId, impRole);
+        updateGame(state);
+
+        const newImpLang = getLang(newImpPs.player.userId);
+        await sendPlayerDm(
+          client,
+          newImpPs.player,
+          state,
+          t(newImpLang, "nightImpSelfKillNewImp"),
+        );
+
+        if (state.mode === "manual" && state.storytellerId) {
+          try {
+            const stUser = await client.users.fetch(state.storytellerId);
+            const stLang = getLang(state.storytellerId);
+            await stUser.send(
+              t(stLang, "nightImpSelfKillStorytellerNotify", {
+                player: newImpPs.player.displayName,
+              }),
+            );
+          } catch {
+            // Ignore DM failure
+          }
+        }
+      }
+    }
   }
 
   // Confirm choice recorded for action-only players (those without an info handler).

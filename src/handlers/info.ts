@@ -3,7 +3,7 @@ import { getGame, getGameByStoryteller, getGameByPlayer } from "../game/state";
 import { getLang, t } from "../i18n";
 import { getDistribution } from "../game/distribution";
 import { GameState, Lang } from "../game/types";
-import { getPlayerState } from "../game/night";
+import { getPlayerState } from "../game/utils";
 
 function phaseLabel(state: GameState, lang: Lang): string {
   switch (state.phase) {

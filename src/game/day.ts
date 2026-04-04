@@ -1,13 +1,9 @@
-import {
-  Client,
-  ChatInputCommandInteraction,
-  TextChannel,
-} from "discord.js";
+import { Client, ChatInputCommandInteraction, TextChannel } from "discord.js";
 import { ActiveGameState, GameState, NominationRecord, Player } from "./types";
 import { getLang, getRoleName, t } from "../i18n";
 import { getGame, updateGame } from "./state";
-import { ensureRuntime, getPlayerState, getRole } from "./night";
-import { resolvePlayer, channelLang } from "./utils";
+import { ensureRuntime } from "./night";
+import { getPlayerState, getRole, resolvePlayer, channelLang } from "./utils";
 import { triggerDeathHandlers } from "./death";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
@@ -273,7 +269,7 @@ async function processEndOfDay(
     const alive = getAlivePlayers(state);
     if (alive.length === 3) {
       const mayorPlayer = alive.find(
-        (p) => getRole(runtime,p.userId).id === "mayor",
+        (p) => getRole(runtime, p.userId).id === "mayor",
       );
       if (mayorPlayer) {
         await channel.send(
@@ -493,8 +489,8 @@ export async function handleNominate(
   }
 
   // ── Virgin check ──────────────────────────────────────────────────────────
-  const nomineeRole = getRole(runtime,nominee.userId);
-  const nominatorRealRole = getRole(runtime,i.user.id);
+  const nomineeRole = getRole(runtime, nominee.userId);
+  const nominatorRealRole = getRole(runtime, i.user.id);
 
   // Virgin triggers if: nominee is Virgin, not poisoned, never nominated before,
   // and nominator's true role is Townsfolk (not Drunk, not Evil)

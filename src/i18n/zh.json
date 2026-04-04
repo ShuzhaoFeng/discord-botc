@@ -163,6 +163,8 @@
   "dayScarletWomanBecomesImp": "🩸 恶魔已倒下。你现在是 **小恶魔**。游戏继续——请谨慎行事。",
   "dayScarletWomanStorytellerNotify": "⚡ 红衣女触发：**{player}** 现在是小恶魔。",
   "dayScarletWomanChannelNotify": "⚡ 暗影中涌现出黑暗力量……游戏继续。",
+  "nightImpSelfKillNewImp": "🩸 恶魔自我了结。黑暗选择了你——你现在是 **小恶魔** 了。游戏继续，善加利用。",
+  "nightImpSelfKillStorytellerNotify": "⚡ 恶魔自杀：**{player}** 现在是新的小恶魔。",
   "dayVoteClosed": "🗳️ **投票结束** — **{nominee}**：**{count}** 票（需至少 {required} 票才可被处决候选）。",
   "dayAllNominated": "📋 所有存活玩家均已被提名——无法再开始新提名。今天结束。",
   "dayNoExecution": "⚖️ **今日无处决。** 没有玩家获得足够票数（或出现平局）。",

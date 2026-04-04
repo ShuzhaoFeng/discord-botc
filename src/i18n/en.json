@@ -163,6 +163,8 @@
   "dayScarletWomanBecomesImp": "🩸 The Demon has fallen. You are now the **Imp**. The game continues — act wisely.",
   "dayScarletWomanStorytellerNotify": "⚡ Scarlet Woman triggered: **{player}** is now the Imp.",
   "dayScarletWomanChannelNotify": "⚡ A dark power stirs in the shadows… the game continues.",
+  "nightImpSelfKillNewImp": "🩸 The Demon has turned on themselves. The darkness chooses you — you are now the **Imp**. The game continues. Act wisely.",
+  "nightImpSelfKillStorytellerNotify": "⚡ Imp self-killed: **{player}** is now the new Imp.",
   "dayVoteClosed": "🗳️ **Vote closed** for **{nominee}**: **{count}** vote(s) (need ≥{required} to qualify for execution).",
   "dayAllNominated": "📋 All living players have been nominated — no further nominations are possible. The day ends.",
   "dayNoExecution": "⚖️ **No execution today.** No player received enough votes (or there was a tie).",
