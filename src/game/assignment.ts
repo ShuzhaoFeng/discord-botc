@@ -33,15 +33,24 @@ export function generateDraft(players: Player[]): Draft {
   let dist = getDistribution(count);
 
   // 1. Pick minions first; check for Baron.
-  const minions = pick(script.roles.filter((r) => r.category === "Minion"), dist.minions);
+  const minions = pick(
+    script.roles.filter((r) => r.category === "Minion"),
+    dist.minions,
+  );
   const baronInPlay = minions.some((r) => r.id === "baron");
   if (baronInPlay) {
     dist = applyBaronAdjustment(dist);
   }
 
   // 2. Pick townsfolk and outsiders using (adjusted) counts.
-  const townsfolk = pick(script.roles.filter((r) => r.category === "Townsfolk"), dist.townsfolk);
-  const outsiders = pick(script.roles.filter((r) => r.category === "Outsider"), dist.outsiders);
+  const townsfolk = pick(
+    script.roles.filter((r) => r.category === "Townsfolk"),
+    dist.townsfolk,
+  );
+  const outsiders = pick(
+    script.roles.filter((r) => r.category === "Outsider"),
+    dist.outsiders,
+  );
   const demon = script.roles.find((r) => r.category === "Demon")!; // Only the Imp in Trouble Brewing
 
   // 3. Combine all roles and shuffle; assign to players in order.
@@ -54,14 +63,13 @@ export function generateDraft(players: Player[]): Draft {
   const assignments = new Map<string, Role>();
   players.forEach((p, i) => assignments.set(p.userId, allRoles[i]));
 
-  // 4. Drunk: pick a fake Townsfolk not already in real assignments.
+  // 4. Drunk: pick any fake Townsfolk (can duplicate a real Townsfolk in play).
   const drunkPlayer = players.find(
     (p) => assignments.get(p.userId)?.id === "drunk",
   );
   let drunkFakeRole: Role | null = null;
   if (drunkPlayer) {
-    const usedIds = new Set([...assignments.values()].map((r) => r.id));
-    const eligible = script.roles.filter((r) => r.category === "Townsfolk" && !usedIds.has(r.id));
+    const eligible = script.roles.filter((r) => r.category === "Townsfolk");
     drunkFakeRole = pick(eligible, 1)[0];
   }
 
@@ -73,7 +81,9 @@ export function generateDraft(players: Player[]): Draft {
     const usedIds = new Set([...assignments.values()].map((r) => r.id));
     // Remove drunk's real role from used; add fake role's id to used so it counts as "in play"
     // Per spec: Drunk's fake role is eligible (i.e., not blocked from bluffs).
-    const eligible = script.roles.filter((r) => r.category === "Townsfolk" && !usedIds.has(r.id));
+    const eligible = script.roles.filter(
+      (r) => r.category === "Townsfolk" && !usedIds.has(r.id),
+    );
     // If drunkFakeRole exists, it might already be excluded as a real assignment? No —
     // drunkFakeRole.id is NOT in assignments (that's how it was chosen). So it's already in `eligible`.
     const chosen = pick(eligible, 3);
@@ -176,15 +186,9 @@ export function validateDraft(
     return { key: "validErrDrunkNoFake" };
   }
   if (drunkInPlay && draft.drunkFakeRole) {
-    // Fake role must be Townsfolk and not in real assignments.
+    // Fake role must be Townsfolk.
     if (draft.drunkFakeRole.category !== "Townsfolk") {
       return { key: "validErrDrunkFakeMustBeTownsfolk" };
-    }
-    if (uniqueIds.has(draft.drunkFakeRole.id)) {
-      return {
-        key: "validErrDrunkFakeAssigned",
-        params: { role: roleParam(draft.drunkFakeRole.id) },
-      };
     }
   }
 
@@ -343,10 +347,9 @@ export function reconcileDraftDependencies(
   }
   if (drunkInPlay) {
     const fake = draft.drunkFakeRole;
-    const fakeValid =
-      !!fake && fake.category === "Townsfolk" && !usedIds.has(fake.id);
+    const fakeValid = !!fake && fake.category === "Townsfolk";
     if (!fakeValid) {
-      const eligible = script.roles.filter((r) => r.category === "Townsfolk" && !usedIds.has(r.id));
+      const eligible = script.roles.filter((r) => r.category === "Townsfolk");
       if (eligible.length > 0) {
         const picked = pick(eligible, 1)[0];
         draft.drunkFakeRole = picked;
@@ -403,7 +406,9 @@ export function reconcileDraftDependencies(
           script.roles.some((r) => r.id === b.id),
       );
     if (!bluffValid) {
-      const eligible = script.roles.filter((r) => r.category === "Townsfolk" && !usedIds.has(r.id));
+      const eligible = script.roles.filter(
+        (r) => r.category === "Townsfolk" && !usedIds.has(r.id),
+      );
       if (eligible.length >= 3) {
         const picked = pick(eligible, 3);
         draft.impBluffs = [picked[0], picked[1], picked[2]];
@@ -429,7 +434,9 @@ function autoAdjustForBaronAdded(
   const tfPlayers = players.filter(
     (p) => draft.assignments.get(p.userId)?.category === "Townsfolk",
   );
-  const availableOutsiders = script.roles.filter((r) => r.category === "Outsider" && !usedIds.has(r.id));
+  const availableOutsiders = script.roles.filter(
+    (r) => r.category === "Outsider" && !usedIds.has(r.id),
+  );
 
   const chosen = pick(tfPlayers, Math.min(2, tfPlayers.length));
   const newOutsiders = pick(
@@ -467,7 +474,9 @@ function autoAdjustForBaronRemoved(
   const osPlayers = players.filter(
     (p) => draft.assignments.get(p.userId)?.category === "Outsider",
   );
-  const availableTf = script.roles.filter((r) => r.category === "Townsfolk" && !usedIds.has(r.id));
+  const availableTf = script.roles.filter(
+    (r) => r.category === "Townsfolk" && !usedIds.has(r.id),
+  );
 
   const chosen = pick(osPlayers, Math.min(2, osPlayers.length));
   const newTf = pick(availableTf, Math.min(2, availableTf.length));

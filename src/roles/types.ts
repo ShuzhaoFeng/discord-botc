@@ -16,6 +16,7 @@ import {
   Message,
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  TextChannel,
 } from "discord.js";
 
 /** Fields specific to a night-phase handler invocation. */
@@ -27,9 +28,17 @@ export interface NightPhaseCtx {
   scriptRoles: readonly Role[];
 }
 
-/** Fields specific to a day-phase handler invocation. Reserved; currently empty. */
+/** Fields specific to a day-phase handler invocation. */
 export interface DayPhaseCtx {
-  // Reserved for future day-specific fields.
+  killPlayerDuringDay: (
+    channel: TextChannel,
+    playerId: string,
+    byExecution?: boolean,
+  ) => Promise<boolean>;
+  cancelActiveNomination: (
+    channel: TextChannel,
+    killedPlayerId: string,
+  ) => Promise<void>;
 }
 
 /**
@@ -41,6 +50,8 @@ export interface DayPhaseCtx {
 export interface GameCtx {
   state: ActiveGameState;
   client: Client;
+  playerDisplayName: (userId: string) => string;
+  notifyStoryteller: (content: string) => void;
   night?: NightPhaseCtx;
   day?: DayPhaseCtx;
 }

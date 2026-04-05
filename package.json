@@ -4,17 +4,28 @@
   "description": "Discord bot for Blood on the Clocktower: Trouble Brewing",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "build": "tsc && next build src/ui/web",
+    "start": "NODE_ENV=production node dist/index.js",
     "dev": "ts-node src/index.ts",
     "deploy": "ts-node src/deploy-commands.ts"
   },
   "dependencies": {
     "discord.js": "^14.25.1",
-    "dotenv": "^16.6.1"
+    "dotenv": "^16.6.1",
+    "express": "^5.2.1",
+    "next": "^16.2.2",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.19.13",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

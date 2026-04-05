@@ -9,14 +9,11 @@
   "errorNotStoryteller": "❌ Only the storyteller can send commands in DM during role assignment.",
   "errorNoActiveGame": "❌ No active game found for your current storyteller session.",
   "errorAlreadyConfirmed": "❌ The draft has already been confirmed. No further changes are accepted.",
-
   "gameCreating": "Shadows gather for {players}… Conjuring the chamber.",
   "gameChannelReady": "🏰 **The fate of {gameId} will be revealed.**\n\nThe souls have assembled: {players}\n\nWho will guide them through the night?",
   "chooseStoryteller": "Step forward as the Storyteller with `/iam`, or surrender the night to fate with `/youare`.",
-
   "iamAccepted": "🎭 **{username}** takes the Storyteller's chair. The loom of destiny rests in mortal hands—the ritual runs in **Manual Mode**.\nA version of fate has been whispered to the Storyteller via DM.",
   "youareAccepted": "🌑 The clocktower chimes. **Automated Mode** activated. The Storyteller has been chosen by fate itself.",
-
   "rolesDistributed": "✅ The roles are cast. Each soul now carries a secret—the night draws close.",
   "roleDmHeader": "🕯️ **Your Fate — {gameId}**",
   "roleDmRole": "**{roleName}**  ·  *{category}*",
@@ -27,61 +24,15 @@
   "roleDmImpMinions": "👥 **Your servants in shadow**: {minions}",
   "roleDmMinionDemon": "🩸 **The master you serve**: {demon}",
   "roleDmMinionPeers": "👥 **Your kin in shadow**: {peers}",
-
-  "draftHeader": "📜 **Role Assignment Draft** — {gameId}",
-  "draftColPlayer": "Player",
-  "draftColRole": "Role",
-  "draftColType": "Type",
-  "draftDrunkFake": "fake: {role}",
-  "draftRedHerring": "🔮 Red Herring (Fortune Teller): {playerName}",
-  "draftImpBluffs": "🃏 Imp Bluffs: {r1}, {r2}, {r3}",
-  "draftCommands": "Commands (one per line), end with CONFIRM:\n• `SWAP <p1> <p2>`               — exchange two players' roles\n• `ROLE <player> <new-role>`     — replace a player's role (same category; Baron rules apply)\n• `HERRING <player>`             — change the Fortune Teller's red herring\n• `DRUNK <role>`                 — change the Drunk's fake role\n• `BLUFF <role1>, <role2>, <role3>` — change the Imp's bluff roles\n• `ASSIGN` (block)               — replace the entire assignment (list every player: role, end with CONFIRM)\n• `CONFIRM`                       — finalize and send roles to all players",
-  "draftAdjusted": "⚙️ {note}",
-
-  "draftCmdUnknownPlayer": "❌ Unknown player: \"{name}\".",
-  "draftCmdUnknownRole": "❌ Unknown role: \"{name}\".",
-  "draftCmdAmbiguousPlayer": "❌ Ambiguous player name: \"{name}\". Please use the full username.",
-  "draftCmdSwapUsage": "❌ Usage: `SWAP <player1> <player2>`",
-  "draftCmdRoleUsage": "❌ Usage: `ROLE <player> <new-role>`",
-  "draftCmdHerringUsage": "❌ Usage: `HERRING <player>`",
-  "draftCmdDrunkUsage": "❌ Usage: `DRUNK <role>`",
-  "draftCmdBluffUsage": "❌ Usage: `BLUFF <role1>, <role2>, <role3>`",
-  "draftCmdAssignUsage": "❌ Usage: `ASSIGN` followed by one `<player>: <role>` per line, then `CONFIRM`.",
-  "draftCmdRoleError": "❌ {msg}",
-  "draftCmdValidationError": "❌ Validation error: {msg}",
-  "draftCmdHerringNotGood": "❌ Red Herring must be a non-Demon Good player.",
-  "draftCmdHerringNoFT": "❌ Fortune Teller is not in play — HERRING command is not applicable.",
-  "draftCmdDrunkNotInPlay": "❌ Drunk is not in play — DRUNK command is not applicable.",
-  "draftCmdDrunkNotTownsfolk": "❌ \"{name}\" is not a Townsfolk role.",
-  "draftCmdDrunkAlreadyAssigned": "❌ \"{name}\" is already assigned to a real player.",
-  "draftCmdBluffNoImp": "❌ Imp is not in play — BLUFF command is not applicable.",
-  "draftCmdBluffNotTownsfolk": "❌ \"{name}\" is not a Townsfolk role.",
-  "draftCmdBluffAlreadyAssigned": "❌ \"{name}\" is already assigned to a real player.",
-  "draftCmdBluffDuplicate": "❌ All three bluff roles must be distinct.",
-  "draftCmdAssignParseError": "❌ Cannot parse assignment line: \"{line}\". Expected format: `<player>: <role>`",
-  "draftCmdAssignPlayerCount": "❌ ASSIGN block has {got} player assignment(s) but the game has {want} players.",
-  "draftCmdAssignBluffCount": "❌ BLUFF requires exactly 3 roles.",
-  "draftCmdAssignBluffNotFound": "❌ One or more bluff roles not found.",
-  "draftConfirmed": "✅ The seal is set. Fates sent into the night…",
-  "draftCmdSwapSuccess": "✅ Fates exchanged: {p1} ↔ {p2} ({r2} ↔ {r1})",
-  "draftCmdRoleSuccess": "✅ {player} now walks as the {role}.",
-  "draftCmdHerringSuccess": "✅ The Fortune Teller's Red Herring is {player}.",
-  "draftCmdDrunkSuccess": "✅ The Drunk thinks they are the {role}.",
-  "draftCmdBluffSuccess": "✅ The Demon's bluff roles are: {roles}.",
-  "draftCmdUnknownCommand": "❌ Unknown command: \"{cmd}\".",
-
   "langSet": "✅ Language set to **{lang}**.",
   "langUnknown": "❌ Unknown language: \"{lang}\". Available: `en`, `zh`.",
-
   "rulebookListTitle": "📖 **Trouble Brewing — Role List**  |  Use `/rulebook role:<name>` for a detailed rules reminder",
   "rulebookListFooter": "Role names in English or Chinese are both accepted.",
   "rulebookRoleNotFound": "❌ Unknown role: \"{name}\". Use `/rulebook` (no argument) to see all roles.",
-
   "categoryTownsfolk": "Townsfolk",
   "categoryOutsider": "Outsider",
   "categoryMinion": "Minion",
   "categoryDemon": "Demon",
-
   "validErrCount": "Expected {expected} role assignments, got {actual}.",
   "validErrDuplicate": "Duplicate roles detected.",
   "validErrDemonCount": "There must be exactly 1 Demon.",
@@ -102,7 +53,6 @@
   "validErrBaronNotMinion": "Cannot assign Baron to a non-Minion slot (current role: {role}).",
   "validErrCategoryMismatch": "Cannot change {current} [{currentCat}] to {new} [{newCat}] — different categories.",
   "validErrRoleAssigned": "{role} is already assigned to another player.",
-
   "noteBaronAdded": "Auto-adjusted for Baron (+2 Outsiders): {desc}",
   "noteBaronRemoved": "Auto-adjusted for Baron removal (-2 Outsiders): {desc}",
   "noteClearedDrunkFake": "Auto-cleared Drunk fake role (Drunk not in play).",
@@ -111,19 +61,12 @@
   "noteAutoSetRedHerring": "Auto-set Red Herring: {player}",
   "noteClearedImpBluffs": "Auto-cleared Imp bluffs (Imp not in play).",
   "noteAutoSetImpBluffs": "Auto-set Imp bluffs: {roles}",
-
   "clocktowerServerOnly": "This command can only be used in a server.",
   "clocktowerFetchError": "❌ Could not fetch user <@{id}>. Make sure they are in the server.",
   "clocktowerChannelCreated": "✅ A chamber stirs: <#{channelId}>",
   "ctestGameChannelReady": "🧪 **[TEST MODE]** {gameHeader}\nAll DMs for fake players will be redirected to <@{ownerId}>.",
   "ctestChannelCreated": "✅ Created test game channel <#{channelId}>!",
-
-  "iamDmFailed": "⚠️ The whisper could not reach you. Please enable DMs from server members.",
-
-  "dmNotStoryteller": "❌ `{name}` is not the current storyteller.",
-
   "roleSenderDmFailed": "⚠️ Fate's message could not reach {ref}. Please ensure your DMs are open for this server.",
-
   "infoNoActiveGame": "❌ No active game found. Use this command inside a game channel, or have an active game as a player or Storyteller.",
   "infoHeader": "📖 **{gameId} — Game Info**",
   "infoPhaseLabel": "**Phase:** {phase}",
@@ -143,13 +86,11 @@
   "infoPlayersHeader": "**Players ({count}):**",
   "infoAlive": "alive",
   "infoDead": "dead",
-
   "whosleftNoNomination": "📋 No nomination vote is currently in progress.",
   "whosleftNone": "(none yet)",
   "whosleftNominated": "🗳️ **{nominator}** nominated **{nominee}**\nVoted ({count}): {voters}",
   "whosleftNoPending": "✅ No pending player responses for the current night step.",
   "whosleftPending": "⏳ Players still pending: {players}",
-
   "dayAlive": "alive",
   "dayDead": "dead",
   "dayPlayerDied": "⚰️ **{name}** has died.",
@@ -230,7 +171,6 @@
   "daySlayConfirmedNothing": "✅ Slay outcome confirmed: NOTHING.",
   "daySlayConfirmKillAnnounce": "💀 **{target}** is slain by **{slayer}**!",
   "daySlayRecluseNoPending": "No pending Recluse slay to resolve.",
-  
   "nightAlive": "Alive",
   "nightDead": "Dead",
   "nightPoisoned": "Poisoned",
@@ -245,7 +185,7 @@
   "nightMonkPrompt": "🌙 Night falls. Choose one player to protect tonight (cannot be yourself). Reply with one name.",
   "nightImpPrompt": "🌙 Night falls. Choose one player to kill tonight. Reply with one name.",
   "nightPoisonerPrompt": "🌙 Night falls. Choose one player to poison tonight and tomorrow day. Reply with one name.",
-  "nightAckPrompt": "🌙 Night falls. Your information is being prepared. Reply with `{token}` when you are ready.",
+  "nightInfoPrompt": "🌙 Night falls. Your information is being prepared. Reply with anything when you are ready.",
   "nightJokePrompt": "🌙 {joke}\n\nWhat do you think about this joke? Reply with one word.",
   "nightActionPreview": "🕯️ Night {n} — Step 1 preview (potential random-event timing).\nReply `SEND` to confirm and send these prompts to players:\n{preview}",
   "nightBegins": "🌙 **Night {n}** has begun. Check your DMs and respond to the bot.",
@@ -288,7 +228,6 @@
   "nightInfoSending": "✅ Sending Step 3 messages.",
   "nightBoolYes": "YES",
   "nightBoolNo": "NO",
-  "nightExpectedToken": "Expected token: {token}",
   "nightPleaseSendReply": "Please send a reply.",
   "nightExpectedPlayerNames": "Expected {count} player name(s).",
   "nightUnknownPlayerGeneric": "Unknown player: {name}",
@@ -300,7 +239,6 @@
   "nightUnknownRole": "Unknown role: {name}",
   "nightInvalidNumber": "Invalid number: {value}",
   "nightInvalidBoolean": "Invalid boolean value: {value}",
-
   "nightReasonDeterministic": "deterministic role resolution",
   "nightReasonJokeInteraction": "no night ability (joke interaction)",
   "nightReasonFalseInfo": "poisoned/drunk false information",
@@ -317,7 +255,6 @@
   "nightReasonRavenkeeperPick": "ravenkeeper night-death pick",
   "nightReasonStorytellerSet": "storyteller set {field}",
   "nightReasonStorytellerOverride": "storyteller override",
-
   "impersonateUsage": "❌ Usage: `!as <player> <command>`",
   "impersonateUnknownPlayer": "❌ No fake player named \"{name}\" in this game."
 }

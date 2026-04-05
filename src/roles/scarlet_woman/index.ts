@@ -3,7 +3,6 @@ import { getRole } from "../../game/utils";
 import { getLang, t } from "../../i18n";
 import { sendPlayerDm } from "../../utils/sendPlayerDm";
 import { updateGame } from "../../game/state";
-import { getScript } from "../../game/roles";
 import { TextChannel } from "discord.js";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
@@ -31,10 +30,9 @@ export const definition: RoleDefinition = {
       if (aliveCount < 5) return;
 
       // SW becomes the Imp
-      const impRole = getScript().roles.find((r) => r.id === "imp")!;
-      swPs.role = impRole;
-      swPs.effectiveRole = impRole;
-      if (state.draft) state.draft.assignments.set(swPs.player.userId, impRole);
+      swPs.role = deadRole;
+      swPs.effectiveRole = deadRole;
+      if (state.draft) state.draft.assignments.set(swPs.player.userId, deadRole);
       updateGame(state);
 
       // Notify SW via DM

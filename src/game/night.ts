@@ -21,6 +21,7 @@ import type { NightGameCtx } from "../roles/types";
 import { triggerDeathHandlers } from "./death";
 import { ActiveGameState } from "./types";
 import { pick, getPlayerState, getRole } from "./utils";
+import { logBotMessage, logPlayerMessage } from "../utils/chat-log";
 
 function getHandlers(roleId: string) {
   return ALL_ROLE_DEFINITIONS.find((r) => r.id === roleId)?.nightHandlers;
@@ -49,22 +50,6 @@ export function ensureRuntime(state: GameState): RuntimeState {
     };
   }
   return state.runtime;
-}
-
-function makeAckToken(): string {
-  const syllables = [
-    "ta",
-    "ko",
-    "mi",
-    "ra",
-    "shi",
-    "lu",
-    "zen",
-    "fi",
-    "nar",
-    "bo",
-  ];
-  return `${pick(syllables, 2).join("")}${Math.floor(Math.random() * 90 + 10)}`;
 }
 
 function parsePlayerInput(raw: string): string[] {
@@ -100,6 +85,22 @@ function getAlivePlayers(state: GameState): Player[] {
   return runtime.playerStates.filter((ps) => ps.alive).map((ps) => ps.player);
 }
 
+function playerDisplayName(state: GameState, userId: string): string {
+  return state.players.find((p) => p.userId === userId)?.displayName ?? userId;
+}
+
+function notifyStoryteller(
+  client: Client,
+  state: GameState,
+  content: string,
+): void {
+  if (!state.storytellerId) return;
+  client.users
+    .fetch(state.storytellerId)
+    .then((u) => u.send(content))
+    .catch(() => {});
+}
+
 function buildCtx(
   state: GameState,
   client: Client,
@@ -111,6 +112,8 @@ function buildCtx(
   return {
     state: state as ActiveGameState,
     client,
+    playerDisplayName: (userId) => playerDisplayName(state, userId),
+    notifyStoryteller: (content) => notifyStoryteller(client, state, content),
     night: {
       player: ps.player,
       nightNumber,
@@ -190,15 +193,13 @@ export async function startNightPhase(
       };
       message = t(lang, nightPromptKey(ps.effectiveRole.id));
     } else if (handlers?.info?.active(nightNumber)) {
-      const ackToken = makeAckToken();
       prompt = {
         kind: "info",
         inputs: [],
-        ackToken,
         playerId: p.userId,
         effectiveRoleId: ps.effectiveRole.id,
       };
-      message = t(lang, "nightAckPrompt", { token: ackToken });
+      message = t(lang, "nightInfoPrompt");
     } else {
       prompt = {
         kind: "joke",
@@ -292,12 +293,8 @@ function validatePromptResponse(
   const lang = getLang(fromPlayer.userId);
 
   if (prompt.kind === "info") {
-    if (content.trim() !== prompt.ackToken) {
-      return {
-        ok: false,
-        error: t(lang, "nightExpectedToken", { token: prompt.ackToken ?? "" }),
-      };
-    }
+    if (!content.trim())
+      return { ok: false, error: t(lang, "nightPleaseSendReply") };
     return { ok: true, values: [] };
   }
 
@@ -846,6 +843,7 @@ export async function handleNightPlayerDm(
   if (!isParticipant) return false;
 
   const player = state.players.find((p) => p.userId === message.author.id)!;
+  logPlayerMessage(state.channelId, player.userId, message.content.trim());
 
   // Ravenkeeper pick phase — the RK died this night and is choosing a player.
   if (session.status === "awaiting_ravenkeeper_pick") {
@@ -870,9 +868,11 @@ export async function handleNightPlayerDm(
   );
   const lang = getLang(player.userId);
   if (!validation.ok) {
-    await message.reply(
-      t(lang, "nightInvalidInput", { error: validation.error ?? "" }),
-    );
+    const errorReply = t(lang, "nightInvalidInput", {
+      error: validation.error ?? "",
+    });
+    await message.reply(errorReply);
+    logBotMessage(state.channelId, player.userId, errorReply);
     return true;
   }
   session.responses.set(player.userId, validation.values ?? []);
@@ -881,7 +881,9 @@ export async function handleNightPlayerDm(
   );
   updateGame(state);
 
-  await message.reply(t(lang, "nightResponseRecorded"));
+  const recordedReply = t(lang, "nightResponseRecorded");
+  await message.reply(recordedReply);
+  logBotMessage(state.channelId, player.userId, recordedReply);
 
   if (session.pendingPlayerIds.length === 0) {
     await resolveNightOutcomes(client, state);
@@ -944,11 +946,11 @@ async function processRavenkeeperPickDm(
 
   const target = resolvePlayerName(message.content.trim(), state.players);
   if (!target) {
-    await message.reply(
-      t(lang, "nightRavenkeeperPickInvalidPlayer", {
-        name: message.content.trim(),
-      }),
-    );
+    const invalidReply = t(lang, "nightRavenkeeperPickInvalidPlayer", {
+      name: message.content.trim(),
+    });
+    await message.reply(invalidReply);
+    logBotMessage(state.channelId, rkPlayer.userId, invalidReply);
     return true;
   }
 
@@ -971,6 +973,7 @@ async function processRavenkeeperPickDm(
     role: getRoleName(lang, shownRoleId),
   });
   await message.reply(result);
+  logBotMessage(state.channelId, rkPlayer.userId, result);
 
   // Record in the session so the storyteller sees it in the info preview.
   session.infoMessages.set(rkPlayer.userId, result);

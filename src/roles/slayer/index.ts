@@ -1,13 +1,21 @@
-import type { RoleDefinition, RoleCommandDefinition, DayGameCtx } from "../types";
-import { SlashCommandBuilder, Message, ChatInputCommandInteraction, TextChannel } from "discord.js";
-import { getLang, t } from "../../i18n";
-import { getPlayerState, getRole, resolvePlayer, channelLang } from "../../game/utils";
+import type {
+  RoleDefinition,
+  RoleCommandDefinition,
+  DayGameCtx,
+} from "../types";
 import {
-  killPlayerDuringDay,
-  playerDisplayName,
-  cancelActiveNomination,
-  notifyStoryteller,
-} from "../../game/day";
+  SlashCommandBuilder,
+  Message,
+  ChatInputCommandInteraction,
+  TextChannel,
+} from "discord.js";
+import { getLang, t } from "../../i18n";
+import {
+  getPlayerState,
+  getRole,
+  resolvePlayer,
+  channelLang,
+} from "../../game/utils";
 import { updateGame } from "../../game/state";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
@@ -111,10 +119,11 @@ const slayCommand: RoleCommandDefinition = {
         };
         updateGame(state);
         await channel.send(t(lang, "daySlayPending"));
-        const stLang = state.storytellerId ? getLang(state.storytellerId) : lang;
+        const stLang = state.storytellerId
+          ? getLang(state.storytellerId)
+          : lang;
         notifyStoryteller(
-          ctx.client,
-          state,
+          ctx,
           t(stLang, "daySlayBluffStNotify", {
             slayer: player.displayName,
             target: target.displayName,
@@ -123,8 +132,7 @@ const slayCommand: RoleCommandDefinition = {
       } else {
         await channel.send(t(lang, "dayNothingHappens"));
         notifyStoryteller(
-          ctx.client,
-          state,
+          ctx,
           t(lang, "daySlayBluffStLog", {
             slayer: player.displayName,
             target: target.displayName,
@@ -144,10 +152,11 @@ const slayCommand: RoleCommandDefinition = {
         };
         updateGame(state);
         await channel.send(t(lang, "daySlayPending"));
-        const stLang = state.storytellerId ? getLang(state.storytellerId) : lang;
+        const stLang = state.storytellerId
+          ? getLang(state.storytellerId)
+          : lang;
         notifyStoryteller(
-          ctx.client,
-          state,
+          ctx,
           t(stLang, "daySlayPoisonedStNotify", {
             slayer: player.displayName,
             target: target.displayName,
@@ -156,8 +165,7 @@ const slayCommand: RoleCommandDefinition = {
       } else {
         await channel.send(t(lang, "dayNothingHappens"));
         notifyStoryteller(
-          ctx.client,
-          state,
+          ctx,
           t(lang, "daySlayPoisonedStLog", {
             slayer: player.displayName,
             target: target.displayName,
@@ -177,10 +185,11 @@ const slayCommand: RoleCommandDefinition = {
         };
         updateGame(state);
         await channel.send(t(lang, "daySlayPending"));
-        const stLang = state.storytellerId ? getLang(state.storytellerId) : lang;
+        const stLang = state.storytellerId
+          ? getLang(state.storytellerId)
+          : lang;
         notifyStoryteller(
-          ctx.client,
-          state,
+          ctx,
           t(stLang, "daySlayUsedStNotify", {
             slayer: player.displayName,
             target: target.displayName,
@@ -189,8 +198,7 @@ const slayCommand: RoleCommandDefinition = {
       } else {
         await channel.send(t(lang, "dayNothingHappens"));
         notifyStoryteller(
-          ctx.client,
-          state,
+          ctx,
           t(lang, "daySlayUsedStLog", {
             slayer: player.displayName,
             target: target.displayName,
@@ -214,19 +222,13 @@ const slayCommand: RoleCommandDefinition = {
             t(lang, "daySlayRecluseKill", { target: target.displayName }),
           );
           const gameEnded = await killPlayerDuringDay(
-            ctx.client,
-            state,
+            ctx,
             channel,
             target.userId,
           );
           if (!gameEnded && daySession.activeNomination) {
             if (daySession.activeNomination.nomineeId === target.userId) {
-              await cancelActiveNomination(
-                ctx.client,
-                state,
-                channel,
-                target.userId,
-              );
+              await cancelActiveNomination(ctx, channel, target.userId);
             }
           }
         } else {
@@ -243,13 +245,14 @@ const slayCommand: RoleCommandDefinition = {
 
         await channel.send(t(lang, "daySlayPending"));
 
-        const stLang = state.storytellerId ? getLang(state.storytellerId) : lang;
+        const stLang = state.storytellerId
+          ? getLang(state.storytellerId)
+          : lang;
         const proposal = proposedKill
           ? t(stLang, "daySlayRecluseProposalKill")
           : t(stLang, "daySlayRecluseProposalNothing");
         notifyStoryteller(
-          ctx.client,
-          state,
+          ctx,
           t(stLang, "daySlayRecluseStNotify", {
             slayer: player.displayName,
             target: target.displayName,
@@ -271,10 +274,11 @@ const slayCommand: RoleCommandDefinition = {
         };
         updateGame(state);
         await channel.send(t(lang, "daySlayPending"));
-        const stLang = state.storytellerId ? getLang(state.storytellerId) : lang;
+        const stLang = state.storytellerId
+          ? getLang(state.storytellerId)
+          : lang;
         notifyStoryteller(
-          ctx.client,
-          state,
+          ctx,
           t(stLang, "daySlayDemonStNotify", {
             slayer: player.displayName,
             target: target.displayName,
@@ -285,27 +289,20 @@ const slayCommand: RoleCommandDefinition = {
           t(lang, "daySlayDemonDies", { target: target.displayName }),
         );
         notifyStoryteller(
-          ctx.client,
-          state,
+          ctx,
           t(lang, "daySlayDemonStLog", {
             slayer: player.displayName,
             target: target.displayName,
           }),
         );
         const gameEnded = await killPlayerDuringDay(
-          ctx.client,
-          state,
+          ctx,
           channel,
           target.userId,
         );
         if (!gameEnded) {
           if (daySession.activeNomination?.nomineeId === target.userId) {
-            await cancelActiveNomination(
-              ctx.client,
-              state,
-              channel,
-              target.userId,
-            );
+            await cancelActiveNomination(ctx, channel, target.userId);
           }
         }
       }
@@ -319,10 +316,11 @@ const slayCommand: RoleCommandDefinition = {
         };
         updateGame(state);
         await channel.send(t(lang, "daySlayPending"));
-        const stLang = state.storytellerId ? getLang(state.storytellerId) : lang;
+        const stLang = state.storytellerId
+          ? getLang(state.storytellerId)
+          : lang;
         notifyStoryteller(
-          ctx.client,
-          state,
+          ctx,
           t(stLang, "daySlayNotDemonStNotify", {
             slayer: player.displayName,
             target: target.displayName,
@@ -331,8 +329,7 @@ const slayCommand: RoleCommandDefinition = {
       } else {
         await channel.send(t(lang, "dayNothingHappens"));
         notifyStoryteller(
-          ctx.client,
-          state,
+          ctx,
           t(lang, "daySlayNotDemonStLog", {
             slayer: player.displayName,
             target: target.displayName,
@@ -365,8 +362,8 @@ async function handleStorytellerDm(
       return true;
     }
 
-    const slayerName = playerDisplayName(state, pending.slayerId);
-    const targetName = playerDisplayName(state, pending.targetId);
+    const slayerName = ctx.playerDisplayName(pending.slayerId);
+    const targetName = ctx.playerDisplayName(pending.targetId);
 
     daySession.pendingSlayFixed = null;
     updateGame(state);
@@ -385,8 +382,7 @@ async function handleStorytellerDm(
         }),
       );
       const gameEnded = await killPlayerDuringDay(
-        client,
-        state,
+        ctx,
         channel,
         pending.targetId,
       );
@@ -394,7 +390,7 @@ async function handleStorytellerDm(
         !gameEnded &&
         daySession.activeNomination?.nomineeId === pending.targetId
       ) {
-        await cancelActiveNomination(client, state, channel, pending.targetId);
+        await cancelActiveNomination(ctx, channel, pending.targetId);
       }
     } else {
       await channel.send(t(lang, "dayNothingHappens"));
@@ -414,8 +410,8 @@ async function handleStorytellerDm(
     daySession.pendingSlayRecluse = null;
     updateGame(state);
 
-    const slayerName = playerDisplayName(state, pending.slayerId);
-    const targetName = playerDisplayName(state, pending.targetId);
+    const slayerName = ctx.playerDisplayName(pending.slayerId);
+    const targetName = ctx.playerDisplayName(pending.targetId);
 
     await message.reply(
       kill
@@ -431,8 +427,7 @@ async function handleStorytellerDm(
         }),
       );
       const gameEnded = await killPlayerDuringDay(
-        client,
-        state,
+        ctx,
         channel,
         pending.targetId,
       );
@@ -440,7 +435,7 @@ async function handleStorytellerDm(
         !gameEnded &&
         daySession.activeNomination?.nomineeId === pending.targetId
       ) {
-        await cancelActiveNomination(client, state, channel, pending.targetId);
+        await cancelActiveNomination(ctx, channel, pending.targetId);
       }
     } else {
       await channel.send(t(lang, "daySlayRecluseNothing"));
@@ -449,6 +444,27 @@ async function handleStorytellerDm(
   }
 
   return false;
+}
+
+function notifyStoryteller(ctx: DayGameCtx, content: string): void {
+  ctx.notifyStoryteller(content);
+}
+
+async function killPlayerDuringDay(
+  ctx: DayGameCtx,
+  channel: TextChannel,
+  playerId: string,
+  byExecution = false,
+): Promise<boolean> {
+  return await ctx.day.killPlayerDuringDay(channel, playerId, byExecution);
+}
+
+async function cancelActiveNomination(
+  ctx: DayGameCtx,
+  channel: TextChannel,
+  killedPlayerId: string,
+): Promise<void> {
+  await ctx.day.cancelActiveNomination(channel, killedPlayerId);
 }
 
 export const definition: RoleDefinition = {

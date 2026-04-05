@@ -9,6 +9,12 @@ import { ALL_ROLE_DEFINITIONS } from "../roles/index";
 import { getGame } from "./state";
 import type { ActiveGameState, GameState } from "./types";
 import type { DayGameCtx } from "../roles/types";
+import {
+  cancelActiveNomination,
+  killPlayerDuringDay,
+  notifyStoryteller,
+  playerDisplayName,
+} from "./day";
 
 export function getRoleCommandBuilders(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
   return ALL_ROLE_DEFINITIONS.flatMap((d) => d.commands ?? []).map((cmd) =>
@@ -31,11 +37,17 @@ export async function handleRoleCommand(
   const isGuild = i.guildId !== null;
 
   if (cmd.allowedChannel === "public" && isDm) {
-    await i.reply({ content: "This command can only be used in a server channel.", ephemeral: true });
+    await i.reply({
+      content: "This command can only be used in a server channel.",
+      ephemeral: true,
+    });
     return true;
   }
   if (cmd.allowedChannel === "dm" && isGuild) {
-    await i.reply({ content: "This command can only be used in a DM.", ephemeral: true });
+    await i.reply({
+      content: "This command can only be used in a DM.",
+      ephemeral: true,
+    });
     return true;
   }
 
@@ -43,35 +55,61 @@ export async function handleRoleCommand(
   const channelId = i.channelId;
   const state = getGame(channelId);
   if (!state) {
-    await i.reply({ content: "No active game in this channel.", ephemeral: true });
+    await i.reply({
+      content: "No active game in this channel.",
+      ephemeral: true,
+    });
     return true;
   }
 
   // 4. Check state.phase === "in_progress".
   if (state.phase !== "in_progress") {
-    await i.reply({ content: "No active game in this channel.", ephemeral: true });
+    await i.reply({
+      content: "No active game in this channel.",
+      ephemeral: true,
+    });
     return true;
   }
 
   // 5. Use state.runtime directly (do NOT call ensureRuntime).
   const runtime = state.runtime;
   if (!runtime) {
-    await i.reply({ content: "No active game in this channel.", ephemeral: true });
+    await i.reply({
+      content: "No active game in this channel.",
+      ephemeral: true,
+    });
     return true;
   }
 
   // 6. Validate phase.
   if (cmd.allowedPhase === "day" && runtime.daySession?.status !== "open") {
-    await i.reply({ content: "This command can only be used during the day phase.", ephemeral: true });
+    await i.reply({
+      content: "This command can only be used during the day phase.",
+      ephemeral: true,
+    });
     return true;
   }
   if (cmd.allowedPhase === "night" && runtime.nightSession === null) {
-    await i.reply({ content: "This command can only be used during the night phase.", ephemeral: true });
+    await i.reply({
+      content: "This command can only be used during the night phase.",
+      ephemeral: true,
+    });
     return true;
   }
 
   // 7. Build DayGameCtx.
-  const ctx: DayGameCtx = { state: state as ActiveGameState, client, day: {} };
+  const ctx: DayGameCtx = {
+    state: state as ActiveGameState,
+    client,
+    playerDisplayName: (userId) => playerDisplayName(state, userId),
+    notifyStoryteller: (content) => notifyStoryteller(client, state, content),
+    day: {
+      killPlayerDuringDay: (channel, playerId, byExecution) =>
+        killPlayerDuringDay(client, state, channel, playerId, byExecution),
+      cancelActiveNomination: (channel, killedPlayerId) =>
+        cancelActiveNomination(client, state, channel, killedPlayerId),
+    },
+  };
 
   // 8. Dispatch.
   await cmd.execute(i, ctx);
@@ -88,7 +126,18 @@ export async function handleRoleStorytellerDm(
   const assignedRoleIds = new Set(
     [...state.draft!.assignments.values()].map((r) => r.id),
   );
-  const ctx: DayGameCtx = { state: state as ActiveGameState, client, day: {} };
+  const ctx: DayGameCtx = {
+    state: state as ActiveGameState,
+    client,
+    playerDisplayName: (userId) => playerDisplayName(state, userId),
+    notifyStoryteller: (content) => notifyStoryteller(client, state, content),
+    day: {
+      killPlayerDuringDay: (channel, playerId, byExecution) =>
+        killPlayerDuringDay(client, state, channel, playerId, byExecution),
+      cancelActiveNomination: (channel, killedPlayerId) =>
+        cancelActiveNomination(client, state, channel, killedPlayerId),
+    },
+  };
   for (const def of ALL_ROLE_DEFINITIONS) {
     if (!assignedRoleIds.has(def.id)) continue;
     if (def.handleStorytellerDm) {

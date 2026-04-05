@@ -9,14 +9,11 @@
   "errorNotStoryteller": "❌ 只有说书人才能在角色分配阶段通过私信发送命令。",
   "errorNoActiveGame": "❌ 未找到与您当前说书人会话对应的活跃游戏。",
   "errorAlreadyConfirmed": "❌ 草稿已确认，不接受任何进一步修改。",
-
   "gameCreating": "阴云为 {players} 汇聚……命运之地即将开启。",
   "gameChannelReady": "🏰 **{gameId} 的命运即将揭晓。**\n\n灵魂已齐聚：{players}\n\n谁将引领他们穿越长夜？",
   "chooseStoryteller": "以 `/iam` 挺身担任说书人，或以 `/youare` 将命运交付时钟塔。",
-
   "iamAccepted": "🎭 **{username}** 落座说书人之椅。命运的织机握于凡人之手——游戏以**手动模式**降临。\n命运草稿已低语至说书人的私信。",
   "youareAccepted": "🌑 时钟塔钟声响起。**自动模式**已启动。说书人由命运亲自降临。",
-
   "rolesDistributed": "✅ 命运已铸定。每个灵魂都怀揣秘密——长夜将近。",
   "roleDmHeader": "🕯️ **你的命运 — {gameId}**",
   "roleDmRole": "**{roleName}**  ·  *{category}*",
@@ -27,61 +24,15 @@
   "roleDmImpMinions": "👥 **俯首听命的爪牙**：{minions}",
   "roleDmMinionDemon": "🩸 **你所效忠的主宰**：{demon}",
   "roleDmMinionPeers": "👥 **与你同行暗夜的同袍**：{peers}",
-
-  "draftHeader": "📜 **角色分配草稿** — {gameId}",
-  "draftColPlayer": "玩家",
-  "draftColRole": "角色",
-  "draftColType": "类型",
-  "draftDrunkFake": "虚假：{role}",
-  "draftRedHerring": "🔮 红鲱鱼（占卜师）：{playerName}",
-  "draftImpBluffs": "🃏 小恶魔的伪装角色：{r1}、{r2}、{r3}",
-  "draftCommands": "命令（每行一条），以 CONFIRM 结束：\n• `SWAP <玩家1> <玩家2>`                    — 交换两名玩家的角色\n• `ROLE <玩家> <新角色>`                    — 替换玩家角色（需同类别；男爵规则见说明）\n• `HERRING <玩家>`                          — 更改占卜师的红鲱鱼\n• `DRUNK <角色>`                            — 更改酒鬼的虚假身份\n• `BLUFF <角色1>, <角色2>, <角色3>`         — 更改小恶魔的虚张声势角色\n• `ASSIGN`（块）                            — 重新分配全部角色（每行格式：玩家: 角色，以 CONFIRM 结束）\n• `CONFIRM`                                 — 确认并向所有玩家发送角色",
-  "draftAdjusted": "⚙️ {note}",
-
-  "draftCmdUnknownPlayer": "❌ 未知玩家：\"{name}\"。",
-  "draftCmdUnknownRole": "❌ 未知角色：\"{name}\"。",
-  "draftCmdAmbiguousPlayer": "❌ 玩家名称不明确：\"{name}\"，请使用完整用户名。",
-  "draftCmdSwapUsage": "❌ 用法：`SWAP <玩家1> <玩家2>`",
-  "draftCmdRoleUsage": "❌ 用法：`ROLE <玩家> <新角色>`",
-  "draftCmdHerringUsage": "❌ 用法：`HERRING <玩家>`",
-  "draftCmdDrunkUsage": "❌ 用法：`DRUNK <角色>`",
-  "draftCmdBluffUsage": "❌ 用法：`BLUFF <角色1>, <角色2>, <角色3>`",
-  "draftCmdAssignUsage": "❌ 用法：`ASSIGN` 后接每行一个 `<玩家>: <角色>`，最后以 `CONFIRM` 结束。",
-  "draftCmdRoleError": "❌ {msg}",
-  "draftCmdValidationError": "❌ 验证错误：{msg}",
-  "draftCmdHerringNotGood": "❌ 红鲱鱼必须是非恶魔的善良玩家。",
-  "draftCmdHerringNoFT": "❌ 占卜师不在局中——HERRING 命令不适用。",
-  "draftCmdDrunkNotInPlay": "❌ 酒鬼不在局中——DRUNK 命令不适用。",
-  "draftCmdDrunkNotTownsfolk": "❌ \"{name}\" 不是镇民角色。",
-  "draftCmdDrunkAlreadyAssigned": "❌ \"{name}\" 已被分配给真实玩家。",
-  "draftCmdBluffNoImp": "❌ 小恶魔不在局中——BLUFF 命令不适用。",
-  "draftCmdBluffNotTownsfolk": "❌ \"{name}\" 不是镇民角色。",
-  "draftCmdBluffAlreadyAssigned": "❌ \"{name}\" 已被分配给真实玩家。",
-  "draftCmdBluffDuplicate": "❌ 三个虚张声势角色必须各不相同。",
-  "draftCmdAssignParseError": "❌ 无法解析分配行：\"{line}\"。格式应为：`<玩家>: <角色>`",
-  "draftCmdAssignPlayerCount": "❌ ASSIGN 块包含 {got} 条玩家分配，但游戏共有 {want} 名玩家。",
-  "draftCmdAssignBluffCount": "❌ BLUFF 需要恰好3个角色。",
-  "draftCmdAssignBluffNotFound": "❌ 一个或多个虚张声势角色未找到。",
-  "draftConfirmed": "✅ 封印已落。命运已散入长夜……",
-  "draftCmdSwapSuccess": "✅ 命运已交换：{p1} ↔ {p2}（{r2} ↔ {r1}）",
-  "draftCmdRoleSuccess": "✅ {player} 将以 {role} 之身降临。",
-  "draftCmdHerringSuccess": "✅ 占卜师的红鲱鱼是 {player}。",
-  "draftCmdDrunkSuccess": "✅ 酒鬼以为自己是 {role}。",
-  "draftCmdBluffSuccess": "✅ 恶魔的伪装是：{roles}。",
-  "draftCmdUnknownCommand": "❌ 未知命令：\"{cmd}\"。",
-
   "langSet": "✅ 语言已设置为 **{lang}**。",
   "langUnknown": "❌ 未知语言：\"{lang}\"。可用选项：`en`、`zh`。",
-
   "rulebookListTitle": "📖 **暗流涌动 — 角色列表**  |  使用 `/rulebook role:<角色名>` 查看详细规则提示",
   "rulebookListFooter": "角色名称可使用中文或英文。",
   "rulebookRoleNotFound": "❌ 未知角色：\"{name}\"。不带参数使用 `/rulebook` 可查看全部角色。",
-
   "categoryTownsfolk": "镇民",
   "categoryOutsider": "外来者",
   "categoryMinion": "爪牙",
   "categoryDemon": "恶魔",
-
   "validErrCount": "应有 {expected} 个角色分配，实际有 {actual} 个。",
   "validErrDuplicate": "检测到重复角色。",
   "validErrDemonCount": "必须恰好有1个恶魔。",
@@ -102,7 +53,6 @@
   "validErrBaronNotMinion": "不能将男爵分配给非爪牙位置（当前角色：{role}）。",
   "validErrCategoryMismatch": "不能将 {current}【{currentCat}】改为 {new}【{newCat}】——类别不同。",
   "validErrRoleAssigned": "{role} 已被分配给其他玩家。",
-
   "noteBaronAdded": "男爵自动调整（+2外来者）：{desc}",
   "noteBaronRemoved": "男爵移除自动调整（-2外来者）：{desc}",
   "noteClearedDrunkFake": "已自动清除酒鬼虚假身份（酒鬼不在局中）。",
@@ -111,19 +61,12 @@
   "noteAutoSetRedHerring": "已自动设置红鲱鱼：{player}",
   "noteClearedImpBluffs": "已自动清除小恶魔虚张声势角色（小恶魔不在局中）。",
   "noteAutoSetImpBluffs": "已自动设置小恶魔虚张声势角色：{roles}",
-
   "clocktowerServerOnly": "此命令只能在服务器中使用。",
   "clocktowerFetchError": "❌ 无法获取用户 <@{id}>。请确认他们在服务器中。",
   "clocktowerChannelCreated": "✅ 命运之室已开启：<#{channelId}>",
   "ctestGameChannelReady": "🧪 **[测试模式]** {gameHeader}\n所有测试玩家的私信将转发给 <@{ownerId}>。",
   "ctestChannelCreated": "✅ 已创建测试游戏频道 <#{channelId}>！",
-
-  "iamDmFailed": "⚠️ 低语未能触达你。请启用来自服务器成员的私信。",
-
-  "dmNotStoryteller": "❌ `{name}` 不是当前说书人。",
-
   "roleSenderDmFailed": "⚠️ 命运的信息未能触达 {ref}。请确保你已开放此服务器的私信权限。",
-
   "infoNoActiveGame": "❌ 未找到与你相关的进行中游戏。请在游戏频道中使用此命令。",
   "infoHeader": "📖 **{gameId} — 游戏信息**",
   "infoPhaseLabel": "**当前阶段：** {phase}",
@@ -143,7 +86,6 @@
   "infoPlayersHeader": "**玩家（{count} 人）：**",
   "infoAlive": "存活",
   "infoDead": "已死亡",
-
   "whosleftNoNomination": "📋 当前没有进行中的提名投票。",
   "whosleftNone": "（无）",
   "whosleftNominated": "🗳️ **{nominator}** 提名了 **{nominee}**\n已投票（{count}）：{voters}",
@@ -230,7 +172,6 @@
   "daySlayConfirmedNothing": "✅ 屠杀结果已确认：无事发生。",
   "daySlayConfirmKillAnnounce": "💀 **{target}** 被 **{slayer}** 击杀！",
   "daySlayRecluseNoPending": "当前没有待确认的隐士屠杀。",
-
   "nightAlive": "存活",
   "nightDead": "死亡",
   "nightPoisoned": "中毒",
@@ -245,7 +186,7 @@
   "nightMonkPrompt": "🌙 夜幕降临。请选择一名今晚要保护的玩家（不能是你自己）。请回复一个名字。",
   "nightImpPrompt": "🌙 夜幕降临。请选择一名今晚要击杀的玩家。请回复一个名字。",
   "nightPoisonerPrompt": "🌙 夜幕降临。请选择一名玩家进行投毒（今晚与明天白天）。请回复一个名字。",
-  "nightAckPrompt": "🌙 夜幕降临。你的夜间信息正在准备。准备好后请回复 `{token}`。",
+  "nightInfoPrompt": "🌙 夜幕降临。你的夜间信息正在准备。准备好后请回复任意内容。",
   "nightJokePrompt": "🌙 {joke}\n\n你觉得这个笑话怎么样？请用一个词回复。",
   "nightActionPreview": "🕯️ 第 {n} 夜——第1步预览（潜在随机事件时机）。\n回复 `SEND` 以确认并向玩家发送这些提示：\n{preview}",
   "nightBegins": "🌙 **第 {n} 夜** 开始。请查看私信并回复机器人。",
@@ -288,7 +229,6 @@
   "nightInfoSending": "✅ 正在发送第3步消息。",
   "nightBoolYes": "是",
   "nightBoolNo": "否",
-  "nightExpectedToken": "应回复指令：{token}",
   "nightPleaseSendReply": "请发送一条回复。",
   "nightExpectedPlayerNames": "应提供 {count} 个玩家名。",
   "nightUnknownPlayerGeneric": "未知玩家：{name}",
@@ -300,7 +240,6 @@
   "nightUnknownRole": "未知角色：{name}",
   "nightInvalidNumber": "无效数字：{value}",
   "nightInvalidBoolean": "无效是/否：{value}",
-
   "nightReasonDeterministic": "确定性角色结算",
   "nightReasonJokeInteraction": "该夜无能力（笑话互动）",
   "nightReasonFalseInfo": "中毒/酒鬼导致虚假信息",
@@ -317,7 +256,6 @@
   "nightReasonRavenkeeperPick": "守鸦人夜晚死亡后选人",
   "nightReasonStorytellerSet": "说书人字段覆盖 {field}",
   "nightReasonStorytellerOverride": "说书人覆盖",
-
   "impersonateUsage": "❌ 用法：`!as <玩家> <命令>`",
   "impersonateUnknownPlayer": "❌ 此游戏中没有名为 \"{name}\" 的测试玩家。"
 }

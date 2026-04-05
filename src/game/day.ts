@@ -1,5 +1,12 @@
 import { Client, ChatInputCommandInteraction, TextChannel } from "discord.js";
-import { ActiveGameState, GameState, NominationRecord, Player } from "./types";
+import {
+  ActiveGameState,
+  DayExtraAnnouncementKey,
+  DayWinMessageKey,
+  GameState,
+  NominationRecord,
+  Player,
+} from "./types";
 import { getLang, getRoleName, t } from "../i18n";
 import { getGame, updateGame } from "./state";
 import { ensureRuntime } from "./night";
@@ -47,13 +54,13 @@ async function checkWinConditions(
 
   // Evil wins: 2 or fewer players alive
   if (aliveCount <= 2) {
-    await endGame(client, state, channel, "evil");
+    await endGame(client, state, channel, "dayEvilWinsAlive");
     return true;
   }
 
   // Good wins: Imp is dead (Scarlet Woman already handled in killPlayer)
   if (!impAlive) {
-    await endGame(client, state, channel, "good");
+    await endGame(client, state, channel, "dayGoodWins");
     return true;
   }
 
@@ -64,7 +71,7 @@ export async function endGame(
   client: Client,
   state: GameState,
   channel: TextChannel,
-  winner: "good" | "evil" | "good_saint_fail",
+  winMessageKey: DayWinMessageKey,
 ): Promise<void> {
   const runtime = ensureRuntime(state);
   const lang = channelLang(state);
@@ -74,13 +81,7 @@ export async function endGame(
   cancelNominationTimer(state.channelId);
   updateGame(state);
 
-  if (winner === "good") {
-    await channel.send(t(lang, "dayGoodWins"));
-  } else if (winner === "evil") {
-    await channel.send(t(lang, "dayEvilWinsAlive"));
-  } else {
-    await channel.send(t(lang, "dayEvilWinsSaint"));
-  }
+  await channel.send(t(lang, winMessageKey));
 
   // Role reveal
   const lines = runtime.playerStates.map((ps) => {
@@ -125,10 +126,15 @@ export async function killPlayerDuringDay(
   const pending = runtime.pendingEndGame;
   if (pending) {
     runtime.pendingEndGame = null;
-    if (pending.winner === "good_saint_fail") {
-      await channel.send(t(lang, "daySaintExecuted", { player: name }));
+    if (pending.extraAnnouncementKey) {
+      await sendEndGameExtraAnnouncement(
+        channel,
+        lang,
+        pending.extraAnnouncementKey,
+        name,
+      );
     }
-    await endGame(client, state, channel, pending.winner);
+    await endGame(client, state, channel, pending.winMessageKey);
     return true;
   }
 
@@ -275,7 +281,7 @@ async function processEndOfDay(
         await channel.send(
           t(lang, "dayMayorWin", { player: mayorPlayer.displayName }),
         );
-        await endGame(client, state, channel, "good");
+        await endGame(client, state, channel, "dayGoodWins");
         return;
       }
     }
@@ -820,4 +826,13 @@ export function getActiveNominationInfo(
     voterNames: [...nomination.votes].map((id) => playerDisplayName(state, id)),
     voteCount: nomination.votes.size,
   };
+}
+
+async function sendEndGameExtraAnnouncement(
+  channel: TextChannel,
+  lang: "en" | "zh",
+  key: DayExtraAnnouncementKey,
+  player: string,
+): Promise<void> {
+  await channel.send(t(lang, key, { player }));
 }

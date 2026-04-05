@@ -1,5 +1,6 @@
 import { Client } from 'discord.js';
 import { Player, GameState } from '../game/types';
+import { logBotMessage } from './chat-log';
 
 /**
  * Sends a DM to a player.
@@ -23,4 +24,5 @@ export async function sendPlayerDm(
     const user = await client.users.fetch(player.userId);
     await user.send(content);
   }
+  logBotMessage(state.channelId, player.userId, content);
 }

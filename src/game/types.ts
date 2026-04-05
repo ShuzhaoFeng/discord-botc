@@ -5,6 +5,11 @@ export type Lang = "en" | "zh";
 export const FAKE_PLAYER_ID_PREFIX = "fake_7d3f9c2a_";
 export type RoleCategory = "Townsfolk" | "Outsider" | "Minion" | "Demon";
 export type GameMode = "automated" | "manual" | "pending";
+export type DayWinMessageKey =
+  | "dayGoodWins"
+  | "dayEvilWinsAlive"
+  | "dayEvilWinsSaint";
+export type DayExtraAnnouncementKey = "daySaintExecuted";
 export type GamePhase =
   | "pending_storyteller"
   | "role_assignment"
@@ -16,6 +21,10 @@ export type NightSessionStatus =
   | "awaiting_ravenkeeper_pick"
   | "awaiting_storyteller_info"
   | "completed";
+export type DaySessionStatus = "open" | "ended";
+export type NominationStatus = "active" | "completed" | "cancelled";
+export type SlayOutcome = "nothing" | "kill";
+export type NightPromptKind = "action" | "info" | "joke";
 
 export interface InputSpec {
   type: "player"; // extensible union for future input types
@@ -66,7 +75,7 @@ export interface NominationRecord {
   finalVoteCount: number; // resolved vote count after Butler adjustment
   aliveThenCount: number; // alive count when window closed
   windowClosedAt: number; // timestamp
-  status: "active" | "completed" | "cancelled";
+  status: NominationStatus;
 }
 
 export interface PendingSlayRecluse {
@@ -78,7 +87,7 @@ export interface PendingSlayRecluse {
 export interface PendingSlayFixed {
   slayerId: string;
   targetId: string;
-  outcome: "nothing" | "kill"; // fixed outcome, storyteller must confirm via SLAY CONFIRM
+  outcome: SlayOutcome; // fixed outcome, storyteller must confirm via SLAY CONFIRM
 }
 
 export interface DaySession {
@@ -90,7 +99,7 @@ export interface DaySession {
   endDayVotes: Set<string>; // alive players who used /endday
   endDayThresholdMet: boolean; // majority /endday reached
   dayEndsAfterNomination: boolean; // any end condition triggered; wait for active window to close
-  status: "open" | "ended";
+  status: DaySessionStatus;
   nightKillIds: string[]; // players who died last night (announced at day start)
   pendingSlayRecluse: PendingSlayRecluse | null; // manual mode pending Recluse slay (Scenario 4)
   pendingSlayFixed: PendingSlayFixed | null; // manual mode pending confirmation for Scenarios 1-3
@@ -99,9 +108,8 @@ export interface DaySession {
 export interface NightPrompt {
   playerId: string;
   effectiveRoleId: string;
-  kind: "action" | "info" | "joke";
+  kind: NightPromptKind;
   inputs: InputSpec[]; // non-empty only when kind === "action"
-  ackToken?: string; // only when kind === "info"
 }
 
 export interface NightOutcomeMeta {
@@ -162,7 +170,10 @@ export interface RuntimeState {
    * be inferred from state alone (e.g. Saint executed → evil wins).
    * Consumed and cleared by day.ts immediately after triggerDeathHandlers.
    */
-  pendingEndGame: { winner: "good" | "evil" | "good_saint_fail" } | null;
+  pendingEndGame: {
+    winMessageKey: DayWinMessageKey;
+    extraAnnouncementKey?: DayExtraAnnouncementKey;
+  } | null;
 }
 
 export interface GameState {

@@ -6,6 +6,17 @@ const games = new Map<string, GameState>();
 /** Map from storyteller userId → channelId (for routing DMs). */
 const storytellerChannel = new Map<string, string>();
 
+/** Optional hook called whenever a game is updated; used by the admin UI. */
+let updateHook: ((state: GameState) => void) | null = null;
+
+export function setUpdateHook(fn: (state: GameState) => void): void {
+  updateHook = fn;
+}
+
+export function getAllGames(): GameState[] {
+  return [...games.values()];
+}
+
 /** Monotonically increasing game counter for readable game IDs. */
 let gameCounter = 0;
 
@@ -52,6 +63,7 @@ export function removeStoryteller(userId: string): void {
 
 export function updateGame(state: GameState): void {
   games.set(state.channelId, state);
+  updateHook?.(state);
 }
 
 export function deleteGame(channelId: string): void {

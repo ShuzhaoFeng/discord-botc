@@ -17,7 +17,6 @@ import {
 } from "./handlers/impersonate";
 import { handleIam } from "./handlers/iam";
 import { handleYouare } from "./handlers/youare";
-import { handleStorytelllerDm } from "./handlers/dm";
 import { handleNightDm } from "./handlers/night_dm";
 import { handleLang } from "./handlers/lang";
 import { handleRulebook } from "./handlers/rulebook";
@@ -27,6 +26,7 @@ import { handleYeCommand } from "./handlers/ye";
 import { handleRoleCommand } from "./game/roleCommands";
 import { handleEnddayCommand } from "./handlers/endday";
 import { handleInfo } from "./handlers/info";
+import { startUiServer } from "./ui/server";
 
 const client = new Client({
   intents: [
@@ -105,13 +105,12 @@ client.on(Events.MessageCreate, async (message) => {
   // Ignore bots.
   if (message.author.bot) return;
 
-  // DM messages → route to storyteller handler.
+  // DM messages → route to night handler.
   if (!message.guild) {
     try {
-      await handleStorytelllerDm(message, client);
       await handleNightDm(message, client);
     } catch (err) {
-      console.error("Error handling storyteller DM:", err);
+      console.error("Error handling DM:", err);
     }
     return;
   }
@@ -155,3 +154,8 @@ if (!token) {
 }
 
 client.login(token);
+
+const uiPort = parseInt(process.env.UI_PORT ?? "3000", 10);
+startUiServer(client, uiPort).catch((err) => {
+  console.error("❌ Failed to start Admin UI server:", err);
+});

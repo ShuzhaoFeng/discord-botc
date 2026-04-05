@@ -108,9 +108,9 @@ export async function handleImpersonate(message: Message, client: Client): Promi
   /**
    * Command table — all supported slash commands, including iam/youare.
    *
-   * iam passes testOwnerId as dmRecipientId so that the draft DM and
-   * storyteller DM routing target a real Discord account rather than the fake
-   * player's synthetic ID.
+   * iam passes testOwnerId as storytellerRoutingId so that storyteller DM
+   * routing targets a real Discord account rather than the fake player's
+   * synthetic ID.
    *
    * To support a new command, add one entry here — no other changes needed.
    */

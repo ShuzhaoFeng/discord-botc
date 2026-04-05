@@ -19,7 +19,10 @@ export const definition: RoleDefinition = {
 
       // Signal day.ts to end the game with the Saint loss condition.
       // day.ts reads and clears this after triggerDeathHandlers returns.
-      state.runtime.pendingEndGame = { winner: "good_saint_fail" };
+      state.runtime.pendingEndGame = {
+        winMessageKey: "dayEvilWinsSaint",
+        extraAnnouncementKey: "daySaintExecuted",
+      };
     },
   },
 };
