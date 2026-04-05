@@ -1,6 +1,11 @@
 import type { RoleDefinition } from "../types";
 import { Night } from "../types";
-import { getRole, getPlayerState, shuffle, pick } from "../../game/utils";
+import {
+  getPlayerState,
+  shuffle,
+  pick,
+  registersAsOutsiderForDetection,
+} from "../../game/utils";
 import type { NightOutcomeFieldType } from "../../game/types";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
@@ -18,44 +23,75 @@ export const definition: RoleDefinition = {
         const { runtime } = ctx.state;
         const { player } = ctx.night;
         const ps = getPlayerState(runtime, player.userId);
-        const randomizeInfo = ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
+        const randomizeInfo =
+          ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
         const players = runtime.playerStates.map((ps) => ps.player);
-        const outsiders = players.filter(
-          (p) => getRole(runtime, p.userId).category === "Outsider",
+        const outsiderRoles = ctx.night.scriptRoles.filter(
+          (r) => r.category === "Outsider",
         );
-        if (!randomizeInfo && outsiders.length === 0) return null;
+        const outsiderCandidates = runtime.playerStates.flatMap(
+          (candidatePs) => {
+            if (candidatePs.role.category === "Outsider") {
+              return [
+                { player: candidatePs.player, roleId: candidatePs.role.id },
+              ];
+            }
+            if (
+              candidatePs.role.id === "spy" &&
+              registersAsOutsiderForDetection(candidatePs.role)
+            ) {
+              const fakeOutsider = pick(outsiderRoles, 1)[0];
+              if (!fakeOutsider) return [];
+              return [{ player: candidatePs.player, roleId: fakeOutsider.id }];
+            }
+            return [];
+          },
+        );
+        if (!randomizeInfo && outsiderCandidates.length === 0) return null;
         const otherPlayers = randomizeInfo
           ? players.filter((p) => p.userId !== player.userId)
           : players;
-        const osTarget = randomizeInfo
+        const osTarget = pick(outsiderCandidates, 1)[0];
+        const targetPlayer = randomizeInfo
           ? pick(otherPlayers, 1)[0]
-          : pick(outsiders, 1)[0];
-        const osRole = randomizeInfo
-          ? (pick(
-              ctx.night.scriptRoles.filter((r) => r.category === "Outsider"),
-              1,
-            )[0] ?? runtime.playerStates.find((ps) => ps.player.userId === player.userId)!.effectiveRole)
+          : osTarget?.player;
+        const osRoleId = randomizeInfo
+          ? (pick(outsiderRoles, 1)[0]?.id ??
+            runtime.playerStates.find(
+              (ps) => ps.player.userId === player.userId,
+            )!.effectiveRole.id)
           : osTarget
-            ? getRole(runtime, osTarget.userId)
-            : runtime.playerStates.find((ps) => ps.player.userId === player.userId)!.effectiveRole;
+            ? osTarget.roleId
+            : runtime.playerStates.find(
+                (ps) => ps.player.userId === player.userId,
+              )!.effectiveRole.id;
         const decoy = pick(
-          otherPlayers.filter((p) => p.userId !== osTarget?.userId),
+          otherPlayers.filter((p) => p.userId !== targetPlayer?.userId),
           1,
         )[0];
-        const two = shuffle([osTarget, decoy].filter((x): x is typeof osTarget & {} => !!x));
+        const two = shuffle(
+          [targetPlayer, decoy].filter(
+            (x): x is Exclude<typeof x, undefined> => !!x,
+          ),
+        );
         return {
           templateId: "pair_role_info",
           fields: {
             p1: two[0]?.userId ?? player.userId,
             p2: two[1]?.userId ?? player.userId,
-            role: osRole.id,
+            role: osRoleId,
           },
           fieldTypes: (randomizeInfo
             ? { p1: "player", p2: "player", role: "role" }
-            : { p1: "player", p2: "player" }) as Record<string, NightOutcomeFieldType>,
+            : { p1: "player", p2: "player" }) as Record<
+            string,
+            NightOutcomeFieldType
+          >,
           constraints: { pairCategory: "Outsider" },
           allowArbitraryOverride: randomizeInfo,
-          reasonKey: randomizeInfo ? "nightReasonFalseInfo" : "nightReasonDecoyPair",
+          reasonKey: randomizeInfo
+            ? "nightReasonFalseInfo"
+            : "nightReasonDecoyPair",
         };
       },
     },

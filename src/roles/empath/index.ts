@@ -1,7 +1,11 @@
 import type { RoleDefinition } from "../types";
 import { Night } from "../types";
-import { getPlayerState, isEvil } from "../../game/utils";
-import type { NightOutcomeFieldType, Player, RuntimeState } from "../../game/types";
+import { getPlayerState, registersAsEvilForDetection } from "../../game/utils";
+import type {
+  NightOutcomeFieldType,
+  Player,
+  RuntimeState,
+} from "../../game/types";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
 
@@ -22,13 +26,23 @@ function findAliveNeighborInDirection(
 function computeEmpathCount(runtime: RuntimeState, empathId: string): number {
   const empathPs = getPlayerState(runtime, empathId);
   if (!empathPs) return 0;
-  const left = findAliveNeighborInDirection(runtime, empathPs.player.seatIndex, -1);
-  const right = findAliveNeighborInDirection(runtime, empathPs.player.seatIndex, 1);
-  const neighborIds = [left?.userId, right?.userId].filter((x): x is string => !!x);
+  const left = findAliveNeighborInDirection(
+    runtime,
+    empathPs.player.seatIndex,
+    -1,
+  );
+  const right = findAliveNeighborInDirection(
+    runtime,
+    empathPs.player.seatIndex,
+    1,
+  );
+  const neighborIds = [left?.userId, right?.userId].filter(
+    (x): x is string => !!x,
+  );
   let count = 0;
   for (const uid of neighborIds) {
     const neighborPs = getPlayerState(runtime, uid);
-    if (neighborPs && isEvil(neighborPs.role)) count += 1;
+    if (neighborPs && registersAsEvilForDetection(neighborPs.role)) count += 1;
   }
   return count;
 }
@@ -44,9 +58,18 @@ export const definition: RoleDefinition = {
         const { runtime } = ctx.state;
         const { player } = ctx.night;
         const ps = getPlayerState(runtime, player.userId);
-        const randomizeInfo = ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
-        const leftNeighbor = findAliveNeighborInDirection(runtime, player.seatIndex, -1);
-        const rightNeighbor = findAliveNeighborInDirection(runtime, player.seatIndex, 1);
+        const randomizeInfo =
+          ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
+        const leftNeighbor = findAliveNeighborInDirection(
+          runtime,
+          player.seatIndex,
+          -1,
+        );
+        const rightNeighbor = findAliveNeighborInDirection(
+          runtime,
+          player.seatIndex,
+          1,
+        );
         const fixedValue = computeEmpathCount(runtime, player.userId);
         const randomizedValue = Math.floor(Math.random() * 3);
         const selectedValue = randomizeInfo ? randomizedValue : fixedValue;
@@ -62,7 +85,9 @@ export const definition: RoleDefinition = {
           },
           fieldTypes,
           allowArbitraryOverride: randomizeInfo,
-          reasonKey: randomizeInfo ? "nightReasonFalseInfo" : "nightReasonEmpathNeighbors",
+          reasonKey: randomizeInfo
+            ? "nightReasonFalseInfo"
+            : "nightReasonEmpathNeighbors",
         };
       },
     },

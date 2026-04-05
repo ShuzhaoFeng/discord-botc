@@ -1,6 +1,10 @@
 import type { RoleDefinition } from "../types";
 import { Night } from "../types";
-import { getRole, getPlayerState } from "../../game/utils";
+import {
+  getRole,
+  getPlayerState,
+  registersAsDemonForDetection,
+} from "../../game/utils";
 import type { NightOutcomeFieldType } from "../../game/types";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
@@ -26,15 +30,16 @@ export const definition: RoleDefinition = {
         const { runtime } = ctx.state;
         const { player, responses } = ctx.night;
         const ps = getPlayerState(runtime, player.userId);
-        const randomizeInfo = ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
+        const randomizeInfo =
+          ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
         const choices = (responses.get(player.userId) ?? []).filter(
           (v): v is string => v !== null,
         );
-        const hasDemon = choices.some(
-          (uid) => getRole(runtime, uid)?.category === "Demon",
+        const hasDemon = choices.some((uid) =>
+          registersAsDemonForDetection(getRole(runtime, uid)),
         );
-        const hasHerring = choices.some(
-          (uid) => getPlayerState(runtime, uid)?.tags.has("red_herring"),
+        const hasHerring = choices.some((uid) =>
+          getPlayerState(runtime, uid)?.tags.has("red_herring"),
         );
         const fixedYes = hasDemon || hasHerring;
         const randomizedYes = Math.random() < 0.5;
@@ -47,7 +52,9 @@ export const definition: RoleDefinition = {
           fields: { yes: selectedYes },
           fieldTypes,
           allowArbitraryOverride: randomizeInfo,
-          reasonKey: randomizeInfo ? "nightReasonFalseInfo" : "nightReasonFortuneCheck",
+          reasonKey: randomizeInfo
+            ? "nightReasonFalseInfo"
+            : "nightReasonFortuneCheck",
         };
       },
     },

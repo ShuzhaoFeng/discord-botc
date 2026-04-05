@@ -1,6 +1,11 @@
 import type { RoleDefinition } from "../types";
 import { Night } from "../types";
-import { getRole, getPlayerState, shuffle, pick } from "../../game/utils";
+import {
+  getPlayerState,
+  shuffle,
+  pick,
+  registersAsTownsfolkForDetection,
+} from "../../game/utils";
 import type { NightOutcomeFieldType } from "../../game/types";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
@@ -16,43 +21,74 @@ export const definition: RoleDefinition = {
         const { runtime } = ctx.state;
         const { player } = ctx.night;
         const ps = getPlayerState(runtime, player.userId);
-        const randomizeInfo = ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
+        const randomizeInfo =
+          ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
         const players = runtime.playerStates.map((ps) => ps.player);
-        const townsfolk = players.filter(
-          (p) => getRole(runtime, p.userId).category === "Townsfolk",
+        const townsfolkRoles = ctx.night.scriptRoles.filter(
+          (r) => r.category === "Townsfolk",
+        );
+        const townsfolkCandidates = runtime.playerStates.flatMap(
+          (candidatePs) => {
+            if (candidatePs.role.category === "Townsfolk") {
+              return [
+                { player: candidatePs.player, roleId: candidatePs.role.id },
+              ];
+            }
+            if (
+              candidatePs.role.id === "spy" &&
+              registersAsTownsfolkForDetection(candidatePs.role)
+            ) {
+              const fakeTownsfolk = pick(townsfolkRoles, 1)[0];
+              if (!fakeTownsfolk) return [];
+              return [{ player: candidatePs.player, roleId: fakeTownsfolk.id }];
+            }
+            return [];
+          },
         );
         const otherPlayers = randomizeInfo
           ? players.filter((p) => p.userId !== player.userId)
           : players;
-        const tfTarget = randomizeInfo
+        const tfTarget = pick(townsfolkCandidates, 1)[0];
+        const targetPlayer = randomizeInfo
           ? pick(otherPlayers, 1)[0]
-          : pick(townsfolk, 1)[0];
-        const role = randomizeInfo
-          ? (pick(
-              ctx.night.scriptRoles.filter((r) => r.category === "Townsfolk"),
-              1,
-            )[0] ?? runtime.playerStates.find((ps) => ps.player.userId === player.userId)!.effectiveRole)
+          : tfTarget?.player;
+        const roleId = randomizeInfo
+          ? (pick(townsfolkRoles, 1)[0]?.id ??
+            runtime.playerStates.find(
+              (ps) => ps.player.userId === player.userId,
+            )!.effectiveRole.id)
           : tfTarget
-            ? getRole(runtime, tfTarget.userId)
-            : runtime.playerStates.find((ps) => ps.player.userId === player.userId)!.effectiveRole;
+            ? tfTarget.roleId
+            : runtime.playerStates.find(
+                (ps) => ps.player.userId === player.userId,
+              )!.effectiveRole.id;
         const decoy = pick(
-          otherPlayers.filter((p) => p.userId !== tfTarget?.userId),
+          otherPlayers.filter((p) => p.userId !== targetPlayer?.userId),
           1,
         )[0];
-        const two = shuffle([tfTarget, decoy].filter((x): x is typeof tfTarget & {} => !!x));
+        const two = shuffle(
+          [targetPlayer, decoy].filter(
+            (x): x is Exclude<typeof x, undefined> => !!x,
+          ),
+        );
         return {
           templateId: "pair_role_info",
           fields: {
             p1: two[0]?.userId ?? player.userId,
             p2: two[1]?.userId ?? player.userId,
-            role: role.id,
+            role: roleId,
           },
           fieldTypes: (randomizeInfo
             ? { p1: "player", p2: "player", role: "role" }
-            : { p1: "player", p2: "player" }) as Record<string, NightOutcomeFieldType>,
+            : { p1: "player", p2: "player" }) as Record<
+            string,
+            NightOutcomeFieldType
+          >,
           constraints: { pairCategory: "Townsfolk" },
           allowArbitraryOverride: randomizeInfo,
-          reasonKey: randomizeInfo ? "nightReasonFalseInfo" : "nightReasonDecoyPair",
+          reasonKey: randomizeInfo
+            ? "nightReasonFalseInfo"
+            : "nightReasonDecoyPair",
         };
       },
     },

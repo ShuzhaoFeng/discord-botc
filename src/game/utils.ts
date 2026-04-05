@@ -42,6 +42,39 @@ export function isEvil(role: Role): boolean {
   return role.category === "Minion" || role.category === "Demon";
 }
 
+/** True if this role registers as Townsfolk to Townsfolk-detection abilities. */
+export function registersAsTownsfolkForDetection(role: Role): boolean {
+  if (role.id === "spy") return Math.random() < 0.5;
+  return role.category === "Townsfolk";
+}
+
+/** True if this role registers as Outsider to Outsider-detection abilities. */
+export function registersAsOutsiderForDetection(role: Role): boolean {
+  if (role.id === "recluse") return Math.random() < 0.5;
+  if (role.id === "spy") return Math.random() < 0.5;
+  return role.category === "Outsider";
+}
+
+/** True if this role registers as Minion to Minion-detection abilities. */
+export function registersAsMinionForDetection(role: Role): boolean {
+  if (role.id === "recluse") return Math.random() < 0.5;
+  if (role.id === "spy") return Math.random() < 0.5;
+  return role.category === "Minion";
+}
+
+/** True if this role registers as evil to alignment-detection abilities. */
+export function registersAsEvilForDetection(role: Role): boolean {
+  if (role.id === "recluse") return Math.random() < 0.5;
+  if (role.id === "spy") return Math.random() < 0.5;
+  return role.category === "Minion" || role.category === "Demon";
+}
+
+/** True if this role registers as Demon to Demon-detection abilities. */
+export function registersAsDemonForDetection(role: Role): boolean {
+  if (role.id === "recluse") return Math.random() < 0.5;
+  return role.category === "Demon";
+}
+
 export function resolvePlayer(
   name: string,
   players: Player[],

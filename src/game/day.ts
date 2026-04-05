@@ -10,7 +10,13 @@ import {
 import { getLang, getRoleName, t } from "../i18n";
 import { getGame, updateGame } from "./state";
 import { ensureRuntime } from "./night";
-import { getPlayerState, getRole, resolvePlayer, channelLang } from "./utils";
+import {
+  getPlayerState,
+  getRole,
+  resolvePlayer,
+  channelLang,
+  registersAsTownsfolkForDetection,
+} from "./utils";
 import { triggerDeathHandlers } from "./death";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
@@ -497,6 +503,10 @@ export async function handleNominate(
   // ── Virgin check ──────────────────────────────────────────────────────────
   const nomineeRole = getRole(runtime, nominee.userId);
   const nominatorRealRole = getRole(runtime, i.user.id);
+  const nominatorRegistersAsTownsfolk =
+    nominatorRealRole.id === "spy"
+      ? registersAsTownsfolkForDetection(nominatorRealRole)
+      : nominatorRealRole.category === "Townsfolk";
 
   // Virgin triggers if: nominee is Virgin, not poisoned, never nominated before,
   // and nominator's true role is Townsfolk (not Drunk, not Evil)
@@ -504,7 +514,7 @@ export async function handleNominate(
     nomineeRole.id === "virgin" &&
     !(getPlayerState(runtime, nominee.userId)?.tags.has("poisoned") ?? false) &&
     nominatorRealRole.id !== "drunk" &&
-    nominatorRealRole.category === "Townsfolk";
+    nominatorRegistersAsTownsfolk;
 
   // Mark as nominated/nominator (before any early returns)
   daySession.nominatorIds.add(i.user.id);
