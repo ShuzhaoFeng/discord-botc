@@ -38,7 +38,7 @@ const slayCommand: RoleCommandDefinition = {
   execute: async (i: ChatInputCommandInteraction, ctx: DayGameCtx) => {
     const { state } = ctx;
     const runtime = state.runtime;
-    const lang = getLang(i.user.id);
+    const lang = getLang(i.user.id, state.guildId);
 
     // Storyteller cannot use /slay
     if (state.storytellerId === i.user.id) {
@@ -120,7 +120,7 @@ const slayCommand: RoleCommandDefinition = {
         updateGame(state);
         await channel.send(t(lang, "daySlayPending"));
         const stLang = state.storytellerId
-          ? getLang(state.storytellerId)
+          ? getLang(state.storytellerId, state.guildId)
           : lang;
         notifyStoryteller(
           ctx,
@@ -153,7 +153,7 @@ const slayCommand: RoleCommandDefinition = {
         updateGame(state);
         await channel.send(t(lang, "daySlayPending"));
         const stLang = state.storytellerId
-          ? getLang(state.storytellerId)
+          ? getLang(state.storytellerId, state.guildId)
           : lang;
         notifyStoryteller(
           ctx,
@@ -186,7 +186,7 @@ const slayCommand: RoleCommandDefinition = {
         updateGame(state);
         await channel.send(t(lang, "daySlayPending"));
         const stLang = state.storytellerId
-          ? getLang(state.storytellerId)
+          ? getLang(state.storytellerId, state.guildId)
           : lang;
         notifyStoryteller(
           ctx,
@@ -246,7 +246,7 @@ const slayCommand: RoleCommandDefinition = {
         await channel.send(t(lang, "daySlayPending"));
 
         const stLang = state.storytellerId
-          ? getLang(state.storytellerId)
+          ? getLang(state.storytellerId, state.guildId)
           : lang;
         const proposal = proposedKill
           ? t(stLang, "daySlayRecluseProposalKill")
@@ -275,7 +275,7 @@ const slayCommand: RoleCommandDefinition = {
         updateGame(state);
         await channel.send(t(lang, "daySlayPending"));
         const stLang = state.storytellerId
-          ? getLang(state.storytellerId)
+          ? getLang(state.storytellerId, state.guildId)
           : lang;
         notifyStoryteller(
           ctx,
@@ -317,7 +317,7 @@ const slayCommand: RoleCommandDefinition = {
         updateGame(state);
         await channel.send(t(lang, "daySlayPending"));
         const stLang = state.storytellerId
-          ? getLang(state.storytellerId)
+          ? getLang(state.storytellerId, state.guildId)
           : lang;
         notifyStoryteller(
           ctx,
@@ -349,7 +349,7 @@ async function handleStorytellerDm(
   const daySession = runtime.daySession;
   if (!daySession || daySession.status !== "open") return false;
 
-  const stLang = getLang(message.author.id);
+  const stLang = getLang(message.author.id, state.guildId);
   const content = message.content.trim().toUpperCase();
   const channel = (await client.channels.fetch(state.channelId)) as TextChannel;
   const lang = channelLang(state);

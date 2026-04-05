@@ -13,7 +13,7 @@ export async function handleYouare(
   interaction: ChatInputCommandInteraction,
   client: Client,
 ): Promise<void> {
-  const lang = getLang(interaction.user.id);
+  const lang = getLang(interaction.user.id, interaction.guildId);
   const channelId = interaction.channelId;
   const state = getGame(channelId);
 

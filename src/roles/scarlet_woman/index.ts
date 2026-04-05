@@ -32,11 +32,12 @@ export const definition: RoleDefinition = {
       // SW becomes the Imp
       swPs.role = deadRole;
       swPs.effectiveRole = deadRole;
-      if (state.draft) state.draft.assignments.set(swPs.player.userId, deadRole);
+      if (state.draft)
+        state.draft.assignments.set(swPs.player.userId, deadRole);
       updateGame(state);
 
       // Notify SW via DM
-      const swLang = getLang(swPs.player.userId);
+      const swLang = getLang(swPs.player.userId, state.guildId);
       await sendPlayerDm(
         client,
         swPs.player,
@@ -48,7 +49,7 @@ export const definition: RoleDefinition = {
       if (state.mode === "manual" && state.storytellerId) {
         try {
           const stUser = await client.users.fetch(state.storytellerId);
-          const stLang = getLang(state.storytellerId);
+          const stLang = getLang(state.storytellerId, state.guildId);
           await stUser.send(
             t(stLang, "dayScarletWomanStorytellerNotify", {
               player: swPs.player.displayName,
@@ -63,7 +64,10 @@ export const definition: RoleDefinition = {
       const channel = (await client.channels.fetch(
         state.channelId,
       )) as TextChannel;
-      const channelLang = getLang(state.players[0]?.userId ?? "");
+      const channelLang = getLang(
+        state.players[0]?.userId ?? "",
+        state.guildId,
+      );
       await channel.send(t(channelLang, "dayScarletWomanChannelNotify"));
     },
   },

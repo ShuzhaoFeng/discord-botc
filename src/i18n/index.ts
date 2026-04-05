@@ -12,13 +12,31 @@ const roleDefById = new Map(ALL_ROLE_DEFINITIONS.map((r) => [r.id, r]));
 
 /** Per-user language preferences (lives for bot session lifetime). */
 const userLang = new Map<string, Lang>();
+/** Per-guild default language preferences (lives for bot session lifetime). */
+const guildDefaultLang = new Map<string, Lang>();
 
-export function getLang(userId: string): Lang {
-  return userLang.get(userId) ?? "en";
+export function getLang(userId: string, guildId?: string | null): Lang {
+  const userSetting = userLang.get(userId);
+  if (userSetting) return userSetting;
+
+  if (guildId) {
+    const guildSetting = guildDefaultLang.get(guildId);
+    if (guildSetting) return guildSetting;
+  }
+
+  return "en";
 }
 
 export function setLang(userId: string, lang: Lang): void {
   userLang.set(userId, lang);
+}
+
+export function getGuildDefaultLang(guildId: string): Lang {
+  return guildDefaultLang.get(guildId) ?? "en";
+}
+
+export function setGuildDefaultLang(guildId: string, lang: Lang): void {
+  guildDefaultLang.set(guildId, lang);
 }
 
 export function getRoleName(lang: Lang, roleId: string): string {

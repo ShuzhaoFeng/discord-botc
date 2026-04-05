@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Settings } from "lucide-react";
 import type { GameSummary } from "@/types";
 
 export default function GamesPage() {
@@ -31,6 +32,17 @@ export default function GamesPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-5xl mx-auto px-6 py-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-slate-300">Games</h2>
+          <Link
+            href="/settings"
+            aria-label="Settings"
+            title="Settings"
+            className="inline-flex items-center justify-center text-slate-400 hover:text-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/80 rounded-sm"
+          >
+            <Settings className="w-5 h-5" aria-hidden="true" />
+          </Link>
+        </div>
         {loading ? (
           <p className="text-slate-400 mt-8">Loading games…</p>
         ) : games.length === 0 ? (

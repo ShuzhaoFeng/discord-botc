@@ -176,7 +176,7 @@ export async function startNightPhase(
   const nightNumber = runtime.nightNumber;
   const promptResults = alivePlayers.map((p) => {
     const ps = getPlayerState(runtime, p.userId)!;
-    const lang = getLang(p.userId);
+    const lang = getLang(p.userId, state.guildId);
     const ctx = buildCtx(state, client, ps, nightNumber, responses, lang);
     const handlers = getHandlers(ps.effectiveRole.id);
 
@@ -227,7 +227,7 @@ export async function startNightPhase(
   // Second pass: assemble actionMessages with pre-fetched jokes.
   for (const { player, prompt, message } of promptResults) {
     if (prompt.kind === "joke") {
-      const lang = getLang(player.userId);
+      const lang = getLang(player.userId, state.guildId);
       const joke = jokeByPlayerId.get(player.userId)!;
       actionMessages.set(player.userId, t(lang, "nightJokePrompt", { joke }));
     } else {
@@ -256,7 +256,7 @@ export async function startNightPhase(
 
   if (state.mode === "manual" && state.storytellerId) {
     const storyteller = await client.users.fetch(state.storytellerId);
-    const lang = getLang(storyteller.id);
+    const lang = getLang(storyteller.id, state.guildId);
     await storyteller.send(
       t(lang, "nightActionPreview", {
         n: session.nightNumber,
@@ -275,7 +275,7 @@ export async function startNightPhase(
     const channel = (await client.channels.fetch(
       state.channelId,
     )) as TextChannel;
-    const channelLang = getLang(state.players[0]?.userId ?? "");
+    const channelLang = getLang(state.players[0]?.userId ?? "", state.guildId);
     await channel.send(
       t(channelLang, "nightBegins", { n: session.nightNumber }),
     );
@@ -290,7 +290,7 @@ function validatePromptResponse(
   state: GameState,
   fromPlayer: Player,
 ): { ok: boolean; values?: (string | null)[]; error?: string } {
-  const lang = getLang(fromPlayer.userId);
+  const lang = getLang(fromPlayer.userId, state.guildId);
 
   if (prompt.kind === "info") {
     if (!content.trim())
@@ -607,7 +607,7 @@ async function resolveNightOutcomes(
   if (!session) return;
 
   for (const p of state.players) {
-    const lang = getLang(p.userId);
+    const lang = getLang(p.userId, state.guildId);
     session.infoMessages.set(p.userId, t(lang, "nightInteractionRecorded"));
     session.infoOutcomeMeta.set(p.userId, {
       kind: "fixed",
@@ -626,7 +626,7 @@ async function resolveNightOutcomes(
     // Drunk experiences the ability prompt but resolve has no effect on game state.
     if (actorPs.role.id === "drunk") continue;
 
-    const lang = getLang(playerId);
+    const lang = getLang(playerId, state.guildId);
     const ctx = buildCtx(
       state,
       client,
@@ -681,7 +681,7 @@ async function resolveNightOutcomes(
     const handlers = getHandlers(ps.effectiveRole.id);
     if (!handlers?.info?.active(session.nightNumber)) continue;
 
-    const lang = getLang(ps.player.userId);
+    const lang = getLang(ps.player.userId, state.guildId);
     const ctx = buildCtx(
       state,
       client,
@@ -748,7 +748,7 @@ async function resolveNightOutcomes(
           state.draft.assignments.set(newImpPs.player.userId, impRole);
         updateGame(state);
 
-        const newImpLang = getLang(newImpPs.player.userId);
+        const newImpLang = getLang(newImpPs.player.userId, state.guildId);
         await sendPlayerDm(
           client,
           newImpPs.player,
@@ -759,7 +759,7 @@ async function resolveNightOutcomes(
         if (state.mode === "manual" && state.storytellerId) {
           try {
             const stUser = await client.users.fetch(state.storytellerId);
-            const stLang = getLang(state.storytellerId);
+            const stLang = getLang(state.storytellerId, state.guildId);
             await stUser.send(
               t(stLang, "nightImpSelfKillStorytellerNotify", {
                 player: newImpPs.player.displayName,
@@ -781,7 +781,7 @@ async function resolveNightOutcomes(
     // Skip if this role also has an info handler — it already got info above.
     if (handlers?.info?.active(session.nightNumber)) continue;
 
-    const lang = getLang(ps.player.userId);
+    const lang = getLang(ps.player.userId, state.guildId);
     session.infoMessages.set(ps.player.userId, t(lang, "nightChoiceRecorded"));
     session.infoOutcomeDrafts.delete(ps.player.userId);
     session.infoOutcomeMeta.set(ps.player.userId, {
@@ -794,7 +794,7 @@ async function resolveNightOutcomes(
   for (const ps of runtime.playerStates) {
     const prompt = session.prompts.get(ps.player.userId);
     if (prompt?.kind !== "joke") continue;
-    const lang = getLang(ps.player.userId);
+    const lang = getLang(ps.player.userId, state.guildId);
     session.infoMessages.set(ps.player.userId, t(lang, "nightJudgeJoke"));
     session.infoOutcomeDrafts.delete(ps.player.userId);
     session.infoOutcomeMeta.set(ps.player.userId, {
@@ -866,7 +866,7 @@ export async function handleNightPlayerDm(
     state,
     player,
   );
-  const lang = getLang(player.userId);
+  const lang = getLang(player.userId, state.guildId);
   if (!validation.ok) {
     const errorReply = t(lang, "nightInvalidInput", {
       error: validation.error ?? "",
@@ -913,7 +913,7 @@ async function proceedAfterResolution(
   if (state.mode === "manual" && state.storytellerId) {
     session.status = "awaiting_storyteller_info";
     const storyteller = await client.users.fetch(state.storytellerId);
-    const stLang = getLang(storyteller.id);
+    const stLang = getLang(storyteller.id, state.guildId);
     const actionSummary = buildActionSummary(state, stLang);
     session.infoPreview = buildInfoPreview(state, stLang);
     updateGame(state);
@@ -942,7 +942,7 @@ async function processRavenkeeperPickDm(
 ): Promise<boolean> {
   const runtime = ensureRuntime(state);
   const session = runtime.nightSession!;
-  const lang = getLang(rkPlayer.userId);
+  const lang = getLang(rkPlayer.userId, state.guildId);
 
   const target = resolvePlayerName(message.content.trim(), state.players);
   if (!target) {
@@ -986,7 +986,7 @@ async function processRavenkeeperPickDm(
   if (state.mode === "manual" && state.storytellerId) {
     try {
       const stUser = await client.users.fetch(state.storytellerId);
-      const stLang = getLang(state.storytellerId);
+      const stLang = getLang(state.storytellerId, state.guildId);
       await stUser.send(
         t(stLang, "nightRavenkeeperPickStorytellerNotify", {
           rk: rkPlayer.displayName,
@@ -1014,7 +1014,7 @@ export async function handleNightStorytellerDm(
   const session = runtime.nightSession;
   if (!session) return false;
 
-  const stLang = getLang(storyteller.id);
+  const stLang = getLang(storyteller.id, state.guildId);
   const cmd = message.content.trim().toUpperCase();
 
   if (session.status === "awaiting_storyteller_action") {
@@ -1094,7 +1094,7 @@ export async function handleNightStorytellerDm(
         }
 
         session.infoOutcomeDrafts.set(target.userId, draft);
-        const targetLang = getLang(target.userId);
+        const targetLang = getLang(target.userId, state.guildId);
         session.infoMessages.set(
           target.userId,
           renderOutcomeDraft(state, targetLang, draft),

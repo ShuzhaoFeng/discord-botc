@@ -398,8 +398,8 @@ export async function handleNominate(
   i: ChatInputCommandInteraction,
   client: Client,
 ): Promise<void> {
-  const lang = getLang(i.user.id);
   const state = getGame(i.channelId);
+  const lang = getLang(i.user.id, state?.guildId ?? i.guildId);
 
   if (!state || state.phase !== "in_progress") {
     await i.reply({ content: t(lang, "dayNoActiveGame"), ephemeral: true });
@@ -589,8 +589,8 @@ export async function handleYe(
   i: ChatInputCommandInteraction,
   client: Client,
 ): Promise<void> {
-  const lang = getLang(i.user.id);
   const state = getGame(i.channelId);
+  const lang = getLang(i.user.id, state?.guildId ?? i.guildId);
 
   if (!state || state.phase !== "in_progress") {
     await i.reply({ content: t(lang, "dayNoActiveGame"), ephemeral: true });
@@ -704,8 +704,8 @@ export async function handleEndDay(
   i: ChatInputCommandInteraction,
   client: Client,
 ): Promise<void> {
-  const lang = getLang(i.user.id);
   const state = getGame(i.channelId);
+  const lang = getLang(i.user.id, state?.guildId ?? i.guildId);
 
   if (!state || state.phase !== "in_progress") {
     await i.reply({ content: t(lang, "dayNoActiveGame"), ephemeral: true });

@@ -31,7 +31,7 @@ export function isCtestCommand(content: string): boolean {
 }
 
 export async function handleCtest(message: Message): Promise<void> {
-  const lang = getLang(message.author.id);
+  const lang = getLang(message.author.id, message.guild?.id);
 
   if (!message.guild) {
     await message.reply(t(lang, "clocktowerServerOnly"));

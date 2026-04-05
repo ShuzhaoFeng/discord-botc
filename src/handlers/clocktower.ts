@@ -28,7 +28,7 @@ export function isClockTowerCommand(content: string): boolean {
 }
 
 export async function handleClockTower(message: Message): Promise<void> {
-  const lang = getLang(message.author.id);
+  const lang = getLang(message.author.id, message.guild?.id);
 
   if (!message.guild) {
     await message.reply(t(lang, "clocktowerServerOnly"));

@@ -3,7 +3,14 @@
  * This file must NOT import from roles/ or scripts/ to avoid circular dependencies.
  */
 
-import { GameState, Lang, Player, PlayerRuntimeState, Role, RuntimeState } from "./types";
+import {
+  GameState,
+  Lang,
+  Player,
+  PlayerRuntimeState,
+  Role,
+  RuntimeState,
+} from "./types";
 import { getLang } from "../i18n";
 
 export function shuffle<T>(arr: T[]): T[] {
@@ -35,7 +42,10 @@ export function isEvil(role: Role): boolean {
   return role.category === "Minion" || role.category === "Demon";
 }
 
-export function resolvePlayer(name: string, players: Player[]): Player | undefined {
+export function resolvePlayer(
+  name: string,
+  players: Player[],
+): Player | undefined {
   const lower = name.toLowerCase().trim();
   const exact = players.filter(
     (p) =>
@@ -54,5 +64,5 @@ export function resolvePlayer(name: string, players: Player[]): Player | undefin
 
 /** Derives the display language from the first player in the game. */
 export function channelLang(state: GameState): Lang {
-  return getLang(state.players[0]?.userId ?? "");
+  return getLang(state.players[0]?.userId ?? "", state.guildId);
 }

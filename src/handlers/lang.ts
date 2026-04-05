@@ -15,20 +15,22 @@ export async function handleLang(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
   const userId = interaction.user.id;
-  const lang = getLang(userId);
-  const input = interaction.options
+  const lang = getLang(userId, interaction.guildId);
+  const rawInput = interaction.options
     .getString("language", true)
     .toLowerCase()
-    .trim() as Lang;
+    .trim();
 
-  if (!VALID_LANGS.includes(input)) {
+  if (!VALID_LANGS.includes(rawInput as Lang)) {
     await interaction.reply({
-      content: t(lang, "langUnknown", { lang: input }),
+      content: t(lang, "langUnknown", { lang: rawInput }),
       ephemeral: true,
     });
     return;
   }
 
+  const input = rawInput as Lang;
+  // Only the calling user's preference is updated.
   setLang(userId, input);
   const newLang = input;
   await interaction.reply({

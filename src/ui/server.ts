@@ -24,7 +24,8 @@ import {
   ValidationError,
 } from "../game/assignment";
 import { distributeRoles } from "../handlers/role_sender";
-import { GameState, Role } from "../game/types";
+import { GameState, Lang, Role } from "../game/types";
+import { getGuildDefaultLang, setGuildDefaultLang } from "../i18n";
 
 // ─── SSE ─────────────────────────────────────────────────────────────────────
 
@@ -114,6 +115,52 @@ export async function startUiServer(
         playerCount: g.players.length,
       }));
     res.json(list);
+  });
+
+  // ── Settings: language defaults ──────────────────────────────────────────
+
+  app.get(
+    "/api/settings/language/guilds",
+    async (_req: Request, res: Response) => {
+      const rows = await Promise.all(
+        client.guilds.cache.map(async (g) => {
+          let name = g.name;
+          try {
+            const full = await g.fetch();
+            name = full.name;
+          } catch {
+            // Keep cache name if fetch fails.
+          }
+          return {
+            guildId: g.id,
+            guildName: name,
+            defaultLang: getGuildDefaultLang(g.id),
+          };
+        }),
+      );
+      rows.sort((a, b) => a.guildName.localeCompare(b.guildName));
+      res.json({ guilds: rows });
+    },
+  );
+
+  app.post("/api/settings/language", (req: Request, res: Response) => {
+    const { guildId, lang } = req.body as {
+      guildId?: string;
+      lang?: string;
+    };
+
+    if (!guildId || typeof guildId !== "string") {
+      return void res.status(400).json({ error: "guildId is required" });
+    }
+    if (!client.guilds.cache.has(guildId)) {
+      return void res.status(404).json({ error: "Guild not found" });
+    }
+    if (lang !== "en" && lang !== "zh") {
+      return void res.status(400).json({ error: "lang must be en or zh" });
+    }
+
+    setGuildDefaultLang(guildId, lang as Lang);
+    res.json({ ok: true, guildId, defaultLang: getGuildDefaultLang(guildId) });
   });
 
   // ── Game detail ───────────────────────────────────────────────────────────

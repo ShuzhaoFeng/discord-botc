@@ -73,3 +73,13 @@ export interface DraftUpdateResponse {
   draft: DraftState;
   validationError: ValidationError | null;
 }
+
+export interface GuildLanguageSetting {
+  guildId: string;
+  guildName: string;
+  defaultLang: "en" | "zh";
+}
+
+export interface GuildLanguageSettingsResponse {
+  guilds: GuildLanguageSetting[];
+}

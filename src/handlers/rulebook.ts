@@ -54,7 +54,7 @@ function buildDetail(lang: Lang, role: Role): string {
 export async function handleRulebook(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  const lang = getLang(interaction.user.id);
+  const lang = getLang(interaction.user.id, interaction.guildId);
   const roleInput = interaction.options.getString("role");
 
   if (!roleInput) {

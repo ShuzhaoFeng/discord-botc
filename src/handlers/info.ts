@@ -79,7 +79,7 @@ function buildInfoMessage(state: GameState, lang: Lang): string {
 export async function handleInfo(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  const lang = getLang(interaction.user.id);
+  const lang = getLang(interaction.user.id, interaction.guildId);
 
   // In a guild channel, look up the game directly; in DM, search by user
   let state = getGame(interaction.channelId);

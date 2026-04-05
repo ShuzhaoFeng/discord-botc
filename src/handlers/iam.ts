@@ -19,7 +19,7 @@ export async function handleIam(
   storytellerRoutingId?: string,
 ): Promise<void> {
   void client;
-  const lang = getLang(interaction.user.id);
+  const lang = getLang(interaction.user.id, interaction.guildId);
   const channelId = interaction.channelId;
   const state = getGame(channelId);
 

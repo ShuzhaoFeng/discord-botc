@@ -19,7 +19,7 @@ export async function distributeRoles(
 
   for (const player of state.players) {
     const trueRole = draft.assignments.get(player.userId)!;
-    const lang = getLang(player.userId);
+    const lang = getLang(player.userId, state.guildId);
     const isDrunk = trueRole.id === "drunk";
 
     // Determine what role to display to the player.
@@ -102,7 +102,7 @@ export async function distributeRoles(
       state.channelId,
     )) as TextChannel;
     // Use the lang of the first player as a fallback for the channel announcement.
-    const channelLang = getLang(state.players[0]?.userId ?? "");
+    const channelLang = getLang(state.players[0]?.userId ?? "", state.guildId);
     await channel.send(t(channelLang, "rolesDistributed"));
   } catch {
     // Ignore channel errors.

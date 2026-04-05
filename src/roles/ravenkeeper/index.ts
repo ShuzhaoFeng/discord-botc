@@ -15,7 +15,8 @@ export const definition: RoleDefinition = {
 
       // Confirm the dead player is this Ravenkeeper
       const rkPs = state.runtime.playerStates.find(
-        (ps) => ps.role.id === "ravenkeeper" && ps.player.userId === deadPlayerId,
+        (ps) =>
+          ps.role.id === "ravenkeeper" && ps.player.userId === deadPlayerId,
       );
       if (!rkPs) return;
 
@@ -26,7 +27,7 @@ export const definition: RoleDefinition = {
       session.pendingRavenkeeperPick = deadPlayerId;
 
       // Prompt the Ravenkeeper via DM
-      const lang = getLang(deadPlayerId);
+      const lang = getLang(deadPlayerId, state.guildId);
       await sendPlayerDm(
         client,
         rkPs.player,

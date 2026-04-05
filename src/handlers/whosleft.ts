@@ -7,7 +7,7 @@ import { getActiveNominationInfo } from "../game/day";
 export async function handleWhosleft(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  const lang = getLang(interaction.user.id);
+  const lang = getLang(interaction.user.id, interaction.guildId);
   const state = getGame(interaction.channelId);
 
   if (!state) {
