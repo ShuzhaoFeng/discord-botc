@@ -13,7 +13,14 @@ import createNext from "next";
 import { Client } from "discord.js";
 import { getAllGames, getGame, updateGame, setUpdateHook } from "../game/state";
 import { getConversations, setChatUpdateHook } from "../utils/chat-log";
-import { ensureRuntime } from "../game/night";
+import {
+  ensureRuntime,
+  applyInfoDraftFieldForUI,
+  sendActionMessagesForUI,
+  sendInfoMessagesForUI,
+  sendDeathNarrativeConfirmationsForUI,
+  applyDeathNarrativeDraftFieldForUI,
+} from "../game/night";
 import { getScript } from "../game/roles";
 import { ALL_ROLE_DEFINITIONS } from "../roles";
 import {
@@ -364,6 +371,119 @@ export async function startUiServer(
       promptKind: session?.prompts.get(ps.player.userId)?.kind ?? null,
     }));
 
+    // Control panel: action messages (phase 1)
+    let actionMessages:
+      | { userId: string; displayName: string; message: string }[]
+      | undefined;
+    if (session?.status === "awaiting_storyteller_action") {
+      actionMessages = runtime.playerStates
+        .filter((ps) => ps.alive)
+        .map((ps) => ({
+          userId: ps.player.userId,
+          displayName: ps.player.displayName,
+          message: session.actionMessages.get(ps.player.userId) ?? "",
+        }));
+    }
+
+    // Control panel: info messages with draft fields (phase 3)
+    let infoMessages:
+      | {
+          userId: string;
+          displayName: string;
+          message: string;
+          metaKind: "randomized" | "fixed";
+          reasonKey?: string;
+          draft?: {
+            templateId: string;
+            fields: Record<string, string | number | boolean>;
+            fieldTypes: Record<string, string>;
+            constraints?: Record<string, string | number | boolean>;
+            allowArbitraryOverride?: boolean;
+          };
+        }[]
+      | undefined;
+    if (session?.status === "awaiting_storyteller_info") {
+      infoMessages = state.players
+        .filter((p) => session.infoMessages.has(p.userId))
+        .map((p) => {
+          const message = session.infoMessages.get(p.userId) ?? "";
+          const meta = session.infoOutcomeMeta.get(p.userId);
+          const draft = session.infoOutcomeDrafts.get(p.userId);
+          return {
+            userId: p.userId,
+            displayName: p.displayName,
+            message,
+            metaKind: meta?.kind ?? "fixed",
+            reasonKey: meta?.reasonKey,
+            draft: draft
+              ? {
+                  templateId: draft.templateId,
+                  fields: { ...draft.fields } as Record<
+                    string,
+                    string | number | boolean
+                  >,
+                  fieldTypes: { ...draft.fieldTypes },
+                  constraints: draft.constraints
+                    ? ({ ...draft.constraints } as Record<
+                        string,
+                        string | number | boolean
+                      >)
+                    : undefined,
+                  allowArbitraryOverride: draft.allowArbitraryOverride,
+                }
+              : undefined,
+          };
+        });
+    }
+
+    // Control panel: death narrative confirmations (phase 4)
+    let deathConfirmEntries:
+      | {
+          userId: string;
+          displayName: string;
+          kind: "simple" | "ravenkeeper";
+          response: string;
+          confirmation: string;
+          draft?: {
+            fields: Record<string, string>;
+            fieldTypes: Record<string, "role" | "player">;
+          };
+        }[]
+      | undefined;
+    if (session?.status === "awaiting_storyteller_death_confirm") {
+      deathConfirmEntries = [];
+      for (const [userId, kind] of session.deathNarrativePlayers.entries()) {
+        const player = state.players.find((p) => p.userId === userId);
+        if (!player) continue;
+        const d = session.deathNarrativeDrafts.get(userId);
+        deathConfirmEntries.push({
+          userId,
+          displayName: player.displayName,
+          kind,
+          response: session.deathNarrativeResponses.get(userId) ?? "",
+          confirmation: session.deathNarrativeConfirmations.get(userId) ?? "",
+          draft: d
+            ? {
+                fields: Object.fromEntries(
+                  Object.keys(d.fieldTypes).map((k) => [k, d.fields[k]]),
+                ),
+                fieldTypes: { ...d.fieldTypes },
+              }
+            : undefined,
+        });
+      }
+    }
+
+    // Always include player/role lists for dropdowns in control panel
+    const allPlayers = state.players.map((p) => ({
+      userId: p.userId,
+      displayName: p.displayName,
+    }));
+    const scriptRoles = getScript().roles.map((r) => {
+      const def = ALL_ROLE_DEFINITIONS.find((d) => d.id === r.id);
+      return { id: r.id, name: def?.name.en ?? r.id };
+    });
+
     res.json({
       channelId: state.channelId,
       gameId: state.gameId,
@@ -372,8 +492,131 @@ export async function startUiServer(
       nightStatus: session?.status ?? null,
       players,
       conversations: getConversations(state.channelId),
+      actionMessages,
+      infoMessages,
+      deathConfirmEntries,
+      allPlayers,
+      scriptRoles,
     });
   });
+
+  // ── Night: set draft field ────────────────────────────────────────────────
+
+  app.post(
+    "/api/night/:channelId/set-draft-field",
+    (req: Request, res: Response) => {
+      const state = getGame(req.params.channelId as string);
+      if (!state || state.mode !== "manual") {
+        return void res.status(404).json({ error: "Game not found" });
+      }
+      const { playerId, field, value } = req.body as {
+        playerId?: string;
+        field?: string;
+        value?: string | number | boolean;
+      };
+      if (!playerId || !field || value === undefined) {
+        return void res
+          .status(400)
+          .json({ error: "playerId, field, and value are required" });
+      }
+      const result = applyInfoDraftFieldForUI(state, playerId, field, value);
+      if ("error" in result) {
+        return void res.status(400).json({ error: result.error });
+      }
+      res.json({ message: result.message });
+    },
+  );
+
+  // ── Night: send action messages ───────────────────────────────────────────
+
+  app.post(
+    "/api/night/:channelId/send-action",
+    async (req: Request, res: Response) => {
+      const state = getGame(req.params.channelId as string);
+      if (!state || state.mode !== "manual") {
+        return void res.status(404).json({ error: "Game not found" });
+      }
+      const { messages } = req.body as { messages?: Record<string, string> };
+      if (!messages || typeof messages !== "object") {
+        return void res
+          .status(400)
+          .json({ error: "messages object is required" });
+      }
+      const result = await sendActionMessagesForUI(client, state, messages);
+      if (!result.ok) {
+        return void res.status(400).json({ error: result.error });
+      }
+      res.json({ ok: true });
+    },
+  );
+
+  // ── Night: send info messages ─────────────────────────────────────────────
+
+  app.post(
+    "/api/night/:channelId/send-info",
+    async (req: Request, res: Response) => {
+      const state = getGame(req.params.channelId as string);
+      if (!state || state.mode !== "manual") {
+        return void res.status(404).json({ error: "Game not found" });
+      }
+      const { messages } = req.body as { messages?: Record<string, string> };
+      if (!messages || typeof messages !== "object") {
+        return void res
+          .status(400)
+          .json({ error: "messages object is required" });
+      }
+      const result = await sendInfoMessagesForUI(client, state, messages);
+      if (!result.ok) {
+        return void res.status(400).json({ error: result.error });
+      }
+      res.json({ ok: true });
+    },
+  );
+
+  // ── Night: update death narrative draft field ─────────────────────────────
+
+  app.post(
+    "/api/night/:channelId/set-death-draft-field",
+    (req: Request, res: Response) => {
+      const state = getGame(req.params.channelId as string);
+      if (!state || state.mode !== "manual") {
+        return void res.status(404).json({ error: "Game not found" });
+      }
+      const { playerId, field, value } = req.body as {
+        playerId?: string;
+        field?: string;
+        value?: string;
+      };
+      if (!playerId || !field || value === undefined) {
+        return void res
+          .status(400)
+          .json({ error: "playerId, field, and value are required" });
+      }
+      const result = applyDeathNarrativeDraftFieldForUI(state, playerId, field, value);
+      if ("error" in result) {
+        return void res.status(400).json({ error: result.error });
+      }
+      res.json({ confirmation: result.confirmation });
+    },
+  );
+
+  // ── Night: send death narrative confirmations ─────────────────────────────
+
+  app.post(
+    "/api/night/:channelId/send-death-confirm",
+    async (req: Request, res: Response) => {
+      const state = getGame(req.params.channelId as string);
+      if (!state || state.mode !== "manual") {
+        return void res.status(404).json({ error: "Game not found" });
+      }
+      const { messages = {} } = req.body as { messages?: Record<string, string> };
+      const result = await sendDeathNarrativeConfirmationsForUI(client, state, messages);
+      if (!result.ok) {
+        return void res.status(400).json({ error: result.error });
+      }
+      res.json({ ok: true });
+    },
+  );
 
   // ── Delegate everything else to Next.js ───────────────────────────────────
 

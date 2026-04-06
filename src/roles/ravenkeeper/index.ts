@@ -1,6 +1,4 @@
 import type { RoleDefinition } from "../types";
-import { getLang, t } from "../../i18n";
-import { sendPlayerDm } from "../../utils/sendPlayerDm";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
 
@@ -9,7 +7,7 @@ export const definition: RoleDefinition = {
   name: { en: en.name, zh: zh.name },
   guide: { en: en.guide, zh: zh.guide },
   deathHandler: {
-    async onDeath({ state, client, deadPlayerId, phase }) {
+    async onDeath({ state, deadPlayerId, phase }) {
       // Ravenkeeper ability only triggers on night death
       if (phase !== "night") return;
 
@@ -23,17 +21,9 @@ export const definition: RoleDefinition = {
       const session = state.runtime.nightSession;
       if (!session) return;
 
-      // Mark that we are waiting for the Ravenkeeper's player pick
-      session.pendingRavenkeeperPick = deadPlayerId;
-
-      // Prompt the Ravenkeeper via DM
-      const lang = getLang(deadPlayerId, state.guildId);
-      await sendPlayerDm(
-        client,
-        rkPs.player,
-        state,
-        t(lang, "nightRavenkeeperPickPrompt"),
-      );
+      // Mark this player as the ravenkeeper kind in the death narrative phase.
+      // The actual prompt will be sent by resolveNightOutcomes as part of step-3 info messages.
+      session.deathNarrativePlayers.set(deadPlayerId, "ravenkeeper");
     },
   },
 };

@@ -1,4 +1,4 @@
-import { Client, Message, TextChannel, User } from "discord.js";
+import { Client, Message, TextChannel } from "discord.js";
 import {
   GameState,
   Lang,
@@ -170,8 +170,6 @@ export async function startNightPhase(
   const infoOutcomeMeta = new Map<string, NightOutcomeMeta>();
   const infoOutcomeDrafts = new Map<string, NightOutcomeDraft>();
 
-  const promptPreviewLines: string[] = [];
-
   // First pass: build all prompts synchronously, identify which players need jokes.
   const nightNumber = runtime.nightNumber;
   const promptResults = alivePlayers.map((p) => {
@@ -211,7 +209,6 @@ export async function startNightPhase(
     }
 
     prompts.set(p.userId, prompt);
-    promptPreviewLines.push(`- ${p.displayName}: ${ps.effectiveRole.id}`);
     return { player: p, prompt, message };
   });
 
@@ -245,25 +242,17 @@ export async function startNightPhase(
     actionMessages,
     responses,
     pendingPlayerIds: alivePlayers.map((p) => p.userId),
-    actionPreview: promptPreviewLines.join("\n"),
     infoMessages,
     infoOutcomeMeta,
     infoOutcomeDrafts,
-    pendingRavenkeeperPick: null,
+    deathNarrativePlayers: new Map(),
+    deathNarrativePendingIds: [],
+    deathNarrativeResponses: new Map(),
+    deathNarrativeConfirmations: new Map(),
+    deathNarrativeDrafts: new Map(),
   };
 
   runtime.nightSession = session;
-
-  if (state.mode === "manual" && state.storytellerId) {
-    const storyteller = await client.users.fetch(state.storytellerId);
-    const lang = getLang(storyteller.id, state.guildId);
-    await storyteller.send(
-      t(lang, "nightActionPreview", {
-        n: session.nightNumber,
-        preview: session.actionPreview ?? "",
-      }),
-    );
-  }
 
   if (state.mode === "automated") {
     for (const p of alivePlayers) {
@@ -426,9 +415,6 @@ function renderOutcomeDraft(
   return t(recipientLang, "nightInteractionRecorded");
 }
 
-function editableFields(draft: NightOutcomeDraft): string[] {
-  return Object.keys(draft.fieldTypes);
-}
 
 function validateAndNormalizeDraft(
   state: GameState,
@@ -464,139 +450,8 @@ function validateAndNormalizeDraft(
   return null;
 }
 
-function applyDraftFieldSet(
-  state: GameState,
-  draft: NightOutcomeDraft,
-  field: string,
-  rawValue: string,
-  lang: Lang,
-): string | null {
-  const fieldType = draft.fieldTypes[field];
-  if (!fieldType) {
-    return t(lang, "nightDraftFieldNotEditable", {
-      field,
-      fields: editableFields(draft).join(", "),
-    });
-  }
 
-  if (fieldType === "player") {
-    const resolved = resolvePlayerName(rawValue, state.players);
-    if (!resolved)
-      return t(lang, "nightUnknownPlayerGeneric", { name: rawValue });
-    draft.fields[field] = resolved.userId;
-    return null;
-  }
 
-  if (fieldType === "role") {
-    const role = findRole(rawValue);
-    if (!role) return t(lang, "nightUnknownRole", { name: rawValue });
-    draft.fields[field] = role.id;
-    return null;
-  }
-
-  if (fieldType === "number") {
-    const n = Number(rawValue);
-    if (!Number.isFinite(n))
-      return t(lang, "nightInvalidNumber", { value: rawValue });
-    draft.fields[field] = Math.trunc(n);
-    return null;
-  }
-
-  const lower = rawValue.trim().toLowerCase();
-  if (["yes", "y", "true", "1", "是"].includes(lower)) {
-    draft.fields[field] = true;
-    return null;
-  }
-  if (["no", "n", "false", "0", "否"].includes(lower)) {
-    draft.fields[field] = false;
-    return null;
-  }
-  return t(lang, "nightInvalidBoolean", { value: rawValue });
-}
-
-function outcomeTag(lang: Lang, meta: NightOutcomeMeta | undefined): string {
-  if (!meta || meta.kind === "fixed") {
-    return t(lang, "nightOutcomeFixed");
-  }
-  return t(lang, "nightOutcomeRandom");
-}
-
-function outcomeReasonTag(
-  lang: Lang,
-  meta: NightOutcomeMeta | undefined,
-): string {
-  if (!meta || !meta.reasonKey) return "";
-  return t(lang, "nightOutcomeReason", {
-    reason: t(lang, meta.reasonKey, meta.reasonParams),
-  });
-}
-
-function buildInfoPreview(state: GameState, storytellerLang: Lang): string {
-  const runtime = ensureRuntime(state);
-  const session = runtime.nightSession;
-  if (!session) return "";
-
-  const previewLines: string[] = [];
-  for (const p of state.players) {
-    const msg = session.infoMessages.get(p.userId);
-    if (!msg) continue;
-    const meta = session.infoOutcomeMeta.get(p.userId);
-    const draft = session.infoOutcomeDrafts.get(p.userId);
-    const editable = draft ? editableFields(draft).join(",") : "";
-    const editHint = draft
-      ? t(storytellerLang, "nightEditableFields", { fields: editable })
-      : "";
-    previewLines.push(
-      `${p.displayName}: ${outcomeTag(storytellerLang, meta)} ${outcomeReasonTag(storytellerLang, meta)} ${msg}${editHint}`,
-    );
-  }
-  return previewLines.join("\n");
-}
-
-function humanizeRoleId(roleId: string): string {
-  return roleId
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function buildActionSummary(state: GameState, storytellerLang: Lang): string {
-  const runtime = ensureRuntime(state);
-  const session = runtime.nightSession;
-  if (!session) return "";
-
-  const lines: string[] = [];
-  for (const p of state.players) {
-    const prompt = session.prompts.get(p.userId);
-    if (!prompt) continue;
-
-    const roleLabel = humanizeRoleId(prompt.effectiveRoleId);
-    const values = session.responses.get(p.userId) ?? [];
-    let detail = "";
-
-    if (prompt.kind === "info") {
-      detail = t(storytellerLang, "nightReadinessAck");
-    } else if (prompt.kind === "joke") {
-      const reply =
-        (values.find((v) => v !== null) as string | undefined) ??
-        t(storytellerLang, "nightNoText");
-      detail = t(storytellerLang, "nightJokeReply", { reply });
-    } else {
-      const names = values
-        .filter((v): v is string => v !== null)
-        .map((uid) => playerName(state, uid));
-      const sep = storytellerLang === "zh" ? "、" : ", ";
-      detail =
-        names.length > 0
-          ? t(storytellerLang, "nightChose", { players: names.join(sep) })
-          : t(storytellerLang, "nightNoTargets");
-    }
-
-    lines.push(`${p.displayName} (${roleLabel}): ${detail}`);
-  }
-
-  return lines.join("\n");
-}
 
 async function resolveNightOutcomes(
   client: Client,
@@ -729,8 +584,34 @@ async function resolveNightOutcomes(
     );
   }
 
+  // Death narrative setup — for every killed player, replace their info message
+  // with a death prompt and register them in the death narrative phase.
+  for (const killedId of runtime.nightKillIds) {
+    const killedPlayer = state.players.find((p) => p.userId === killedId);
+    if (!killedPlayer) continue;
+    const lang = getLang(killedId, state.guildId);
+    // Ravenkeeper kind may have been set by the death handler; default to "simple".
+    const kind = session.deathNarrativePlayers.get(killedId) ?? "simple";
+    session.deathNarrativePlayers.set(killedId, kind);
+    session.deathNarrativePendingIds.push(killedId);
+    const promptKey =
+      kind === "ravenkeeper"
+        ? "nightRavenkeeperDeathPrompt"
+        : "nightDeathNarrativePrompt";
+    session.infoMessages.set(killedId, t(lang, promptKey));
+    session.infoOutcomeDrafts.delete(killedId);
+    session.infoOutcomeMeta.set(killedId, {
+      kind: "fixed",
+      reasonKey:
+        kind === "ravenkeeper"
+          ? "nightReasonRavenkeeperDeath"
+          : "nightReasonDeathNarrative",
+    });
+  }
+
   // Imp self-kill: if the Imp killed themselves and no alive Imp remains (i.e. Scarlet Woman
   // did not already promote), pick a random alive Minion to become the new Imp.
+  let newImpPlayerId: string | null = null;
   if (impKilledSelf) {
     const anyAliveImp = runtime.playerStates.some(
       (ps) => ps.alive && ps.role.id === "imp",
@@ -747,34 +628,15 @@ async function resolveNightOutcomes(
         if (state.draft)
           state.draft.assignments.set(newImpPs.player.userId, impRole);
         updateGame(state);
+        newImpPlayerId = newImpPs.player.userId;
 
-        const newImpLang = getLang(newImpPs.player.userId, state.guildId);
-        await sendPlayerDm(
-          client,
-          newImpPs.player,
-          state,
-          t(newImpLang, "nightImpSelfKillNewImp"),
-        );
-
-        if (state.mode === "manual" && state.storytellerId) {
-          try {
-            const stUser = await client.users.fetch(state.storytellerId);
-            const stLang = getLang(state.storytellerId, state.guildId);
-            await stUser.send(
-              t(stLang, "nightImpSelfKillStorytellerNotify", {
-                player: newImpPs.player.displayName,
-              }),
-            );
-          } catch {
-            // Ignore DM failure
-          }
-        }
       }
     }
   }
 
   // Confirm choice recorded for action-only players (those without an info handler).
   for (const ps of runtime.playerStates) {
+    if (!ps.alive) continue;
     const prompt = session.prompts.get(ps.player.userId);
     if (prompt?.kind !== "action") continue;
     const handlers = getHandlers(ps.effectiveRole.id);
@@ -792,6 +654,7 @@ async function resolveNightOutcomes(
 
   // Joke players get a response to their joke reply.
   for (const ps of runtime.playerStates) {
+    if (!ps.alive) continue;
     const prompt = session.prompts.get(ps.player.userId);
     if (prompt?.kind !== "joke") continue;
     const lang = getLang(ps.player.userId, state.guildId);
@@ -801,6 +664,17 @@ async function resolveNightOutcomes(
       kind: "fixed",
       reasonKey: "nightReasonJokeInteraction",
     });
+  }
+
+  // Append the Imp promotion notice to the new Imp's info message (after all other
+  // messages are finalized, so it always appears as a postscript regardless of role).
+  if (newImpPlayerId !== null) {
+    const lang = getLang(newImpPlayerId, state.guildId);
+    const existing = session.infoMessages.get(newImpPlayerId) ?? "";
+    session.infoMessages.set(
+      newImpPlayerId,
+      existing + "\n\n" + t(lang, "nightImpSelfKillNewImp"),
+    );
   }
 }
 
@@ -816,6 +690,13 @@ async function sendInfoMessages(
     const content = session.infoMessages.get(player.userId);
     if (!content) continue;
     await sendPlayerDm(client, player, state, content);
+  }
+
+  // If any killed players need to respond with death narratives, pause here.
+  if (session.deathNarrativePendingIds.length > 0) {
+    session.status = "awaiting_death_narrative";
+    updateGame(state);
+    return;
   }
 
   session.status = "completed";
@@ -845,10 +726,10 @@ export async function handleNightPlayerDm(
   const player = state.players.find((p) => p.userId === message.author.id)!;
   logPlayerMessage(state.channelId, player.userId, message.content.trim());
 
-  // Ravenkeeper pick phase — the RK died this night and is choosing a player.
-  if (session.status === "awaiting_ravenkeeper_pick") {
-    if (session.pendingRavenkeeperPick === player.userId) {
-      return await processRavenkeeperPickDm(message, client, state, player);
+  // Death narrative phase — dead players describe their death.
+  if (session.status === "awaiting_death_narrative") {
+    if (session.deathNarrativePendingIds.includes(player.userId)) {
+      return await handleDeathNarrativeDm(message, client, state, player);
     }
     return false;
   }
@@ -881,20 +762,8 @@ export async function handleNightPlayerDm(
   );
   updateGame(state);
 
-  const recordedReply = t(lang, "nightResponseRecorded");
-  await message.reply(recordedReply);
-  logBotMessage(state.channelId, player.userId, recordedReply);
-
   if (session.pendingPlayerIds.length === 0) {
     await resolveNightOutcomes(client, state);
-
-    if (session.pendingRavenkeeperPick) {
-      // RK died this night — wait for their pick before proceeding.
-      session.status = "awaiting_ravenkeeper_pick";
-      updateGame(state);
-      return true;
-    }
-
     await proceedAfterResolution(client, state, session);
   }
 
@@ -910,273 +779,337 @@ async function proceedAfterResolution(
   state: GameState,
   session: NightSession,
 ): Promise<void> {
-  if (state.mode === "manual" && state.storytellerId) {
+  if (state.mode === "manual") {
     session.status = "awaiting_storyteller_info";
-    const storyteller = await client.users.fetch(state.storytellerId);
-    const stLang = getLang(storyteller.id, state.guildId);
-    const actionSummary = buildActionSummary(state, stLang);
-    session.infoPreview = buildInfoPreview(state, stLang);
     updateGame(state);
-    await storyteller.send(
-      t(stLang, "nightInfoPreview", {
-        n: session.nightNumber,
-        summary: actionSummary,
-        preview: session.infoPreview ?? "",
-      }),
-    );
   } else {
     await sendInfoMessages(client, state);
   }
 }
 
+function renderDeathNarrativeConfirmation(
+  state: GameState,
+  playerId: string,
+  kind: "simple" | "ravenkeeper",
+  draft: { fields: Record<string, string> },
+): string {
+  const lang = getLang(playerId, state.guildId);
+  if (kind === "ravenkeeper") {
+    const target = state.players.find((p) => p.userId === draft.fields.target);
+    return t(lang, "nightRavenkeeperDeathConfirm", {
+      player: target?.displayName ?? draft.fields.target,
+      role: getRoleName(lang, draft.fields.role),
+    });
+  }
+  return t(lang, "nightDeathNarrativeConfirm");
+}
+
 /**
- * Handles the Ravenkeeper's player-pick DM after they died at night.
- * Computes the role result (false info if poisoned), sends it back, then
- * proceeds to the storyteller info phase or sendInfoMessages.
+ * Handles a player's death narrative DM. For simple deaths: stores any non-empty
+ * description. For Ravenkeeper deaths: parses `name, description` format, computes
+ * the RK pick result, and stores the confirmation message.
  */
-async function processRavenkeeperPickDm(
+async function handleDeathNarrativeDm(
   message: Message,
   client: Client,
   state: GameState,
-  rkPlayer: Player,
+  player: Player,
 ): Promise<boolean> {
   const runtime = ensureRuntime(state);
   const session = runtime.nightSession!;
-  const lang = getLang(rkPlayer.userId, state.guildId);
+  const lang = getLang(player.userId, state.guildId);
+  const kind = session.deathNarrativePlayers.get(player.userId) ?? "simple";
 
-  const target = resolvePlayerName(message.content.trim(), state.players);
-  if (!target) {
-    const invalidReply = t(lang, "nightRavenkeeperPickInvalidPlayer", {
-      name: message.content.trim(),
-    });
-    await message.reply(invalidReply);
-    logBotMessage(state.channelId, rkPlayer.userId, invalidReply);
-    return true;
-  }
-
-  const rkPs = getPlayerState(runtime, rkPlayer.userId);
-  const targetPs = getPlayerState(runtime, target.userId);
-  const poisoned = rkPs?.tags.has("poisoned") ?? false;
-
-  let shownRoleId: string;
-  if (poisoned) {
-    // Give a random role from the script that is NOT the target's true role.
-    const trueId = targetPs?.role.id ?? "";
-    const candidates = getScript().roles.filter((r) => r.id !== trueId);
-    shownRoleId = (pick(candidates, 1)[0] ?? getScript().roles[0]).id;
-  } else {
-    shownRoleId = targetPs!.role.id;
-  }
-
-  const result = t(lang, "nightRavenkeeperPickResult", {
-    player: target.displayName,
-    role: getRoleName(lang, shownRoleId),
-  });
-  await message.reply(result);
-  logBotMessage(state.channelId, rkPlayer.userId, result);
-
-  // Record in the session so the storyteller sees it in the info preview.
-  session.infoMessages.set(rkPlayer.userId, result);
-  session.infoOutcomeMeta.set(rkPlayer.userId, {
-    kind: poisoned ? "randomized" : "fixed",
-    reasonKey: poisoned ? "nightReasonFalseInfo" : "nightReasonRavenkeeperPick",
-  });
-
-  // Notify storyteller in manual mode.
-  if (state.mode === "manual" && state.storytellerId) {
-    try {
-      const stUser = await client.users.fetch(state.storytellerId);
-      const stLang = getLang(state.storytellerId, state.guildId);
-      await stUser.send(
-        t(stLang, "nightRavenkeeperPickStorytellerNotify", {
-          rk: rkPlayer.displayName,
-          target: target.displayName,
-          role: getRoleName(stLang, shownRoleId),
-        }),
-      );
-    } catch {
-      // Ignore DM failure
+  if (kind === "ravenkeeper") {
+    const raw = message.content.trim();
+    const commaIdx = raw.indexOf(",");
+    if (commaIdx <= 0) {
+      const err = t(lang, "nightRavenkeeperDeathInvalidFormat");
+      await message.reply(err);
+      logBotMessage(state.channelId, player.userId, err);
+      return true;
     }
+
+    const namePart = raw.slice(0, commaIdx).trim();
+    const description = raw.slice(commaIdx + 1).trim();
+    if (!namePart || !description) {
+      const err = t(lang, "nightRavenkeeperDeathInvalidFormat");
+      await message.reply(err);
+      logBotMessage(state.channelId, player.userId, err);
+      return true;
+    }
+
+    const target = resolvePlayerName(namePart, state.players);
+    if (!target) {
+      const err = t(lang, "nightRavenkeeperDeathInvalidPlayer", {
+        name: namePart,
+      });
+      await message.reply(err);
+      logBotMessage(state.channelId, player.userId, err);
+      return true;
+    }
+
+    const rkPs = getPlayerState(runtime, player.userId);
+    const targetPs = getPlayerState(runtime, target.userId);
+    const poisoned = rkPs?.tags.has("poisoned") ?? false;
+
+    let shownRoleId: string;
+    if (poisoned) {
+      const trueId = targetPs?.role.id ?? "";
+      const candidates = getScript().roles.filter((r) => r.id !== trueId);
+      shownRoleId = (pick(candidates, 1)[0] ?? getScript().roles[0]).id;
+    } else {
+      shownRoleId = targetPs!.role.id;
+    }
+
+    const draft = {
+      fields: { target: target.userId, role: shownRoleId },
+      fieldTypes: poisoned ? ({ role: "role" } as Record<string, "role" | "player">) : {},
+    };
+    session.deathNarrativeDrafts.set(player.userId, draft);
+    const confirmation = renderDeathNarrativeConfirmation(
+      state,
+      player.userId,
+      "ravenkeeper",
+      draft,
+    );
+
+    session.deathNarrativeResponses.set(player.userId, description);
+    session.deathNarrativeConfirmations.set(player.userId, confirmation);
+  } else {
+    const description = message.content.trim();
+    if (!description) {
+      const err = t(lang, "nightDeathNarrativeInvalidFormat");
+      await message.reply(err);
+      logBotMessage(state.channelId, player.userId, err);
+      return true;
+    }
+    session.deathNarrativeResponses.set(player.userId, description);
+    session.deathNarrativeConfirmations.set(
+      player.userId,
+      t(lang, "nightDeathNarrativeConfirm"),
+    );
   }
 
-  session.pendingRavenkeeperPick = null;
-  await proceedAfterResolution(client, state, session);
+  session.deathNarrativePendingIds = session.deathNarrativePendingIds.filter(
+    (id) => id !== player.userId,
+  );
+  updateGame(state);
+
+  if (session.deathNarrativePendingIds.length === 0) {
+    await proceedAfterDeathNarrative(client, state, session);
+  }
+
   return true;
 }
 
-export async function handleNightStorytellerDm(
-  message: Message,
-  _client: Client,
+
+async function proceedAfterDeathNarrative(
+  client: Client,
   state: GameState,
-  storyteller: User,
-): Promise<boolean> {
-  const runtime = ensureRuntime(state);
-  const session = runtime.nightSession;
-  if (!session) return false;
-
-  const stLang = getLang(storyteller.id, state.guildId);
-  const cmd = message.content.trim().toUpperCase();
-
-  if (session.status === "awaiting_storyteller_action") {
-    if (cmd !== "SEND") {
-      await message.reply(t(stLang, "nightActionSendPrompt"));
-      return true;
-    }
-
-    session.status = "awaiting_players";
+  session: NightSession,
+): Promise<void> {
+  if (state.mode === "manual") {
+    session.status = "awaiting_storyteller_death_confirm";
     updateGame(state);
-
-    for (const p of getAlivePlayers(state)) {
-      const action = session.actionMessages.get(p.userId);
-      if (!action) continue;
-      await sendPlayerDm(_client, p, state, action);
-    }
-
-    await message.reply(t(stLang, "nightActionDispatched"));
-    return true;
+  } else {
+    await sendDeathNarrativeConfirmations(client, state, session);
   }
-
-  if (session.status === "awaiting_storyteller_info") {
-    const lines = message.content
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-    let shouldSend = false;
-
-    for (const line of lines) {
-      const upper = line.toUpperCase();
-      if (upper === "SEND") {
-        shouldSend = true;
-        continue;
-      }
-
-      if (upper.startsWith("SET ")) {
-        const parts = line.split(/\s+/);
-        if (parts.length < 4) {
-          await message.reply(t(stLang, "nightSetInvalidFormat"));
-          return true;
-        }
-
-        const name = parts[1];
-        const field = parts[2].toLowerCase();
-        const value = parts.slice(3).join(" ").trim();
-        if (!value) {
-          await message.reply(t(stLang, "nightSetEmptyValue"));
-          return true;
-        }
-
-        const target = resolvePlayerName(name, state.players);
-        if (!target) {
-          await message.reply(t(stLang, "nightSetUnknownPlayer", { name }));
-          return true;
-        }
-
-        const draft = session.infoOutcomeDrafts.get(target.userId);
-        if (!draft) {
-          await message.reply(
-            t(stLang, "nightSetNoTemplate", { player: target.displayName }),
-          );
-          return true;
-        }
-
-        const err = applyDraftFieldSet(state, draft, field, value, stLang);
-        if (err) {
-          await message.reply(t(stLang, "nightSetFailed", { error: err }));
-          return true;
-        }
-
-        const consistencyErr = validateAndNormalizeDraft(state, draft, stLang);
-        if (consistencyErr) {
-          await message.reply(
-            t(stLang, "nightSetRejected", { error: consistencyErr }),
-          );
-          return true;
-        }
-
-        session.infoOutcomeDrafts.set(target.userId, draft);
-        const targetLang = getLang(target.userId, state.guildId);
-        session.infoMessages.set(
-          target.userId,
-          renderOutcomeDraft(state, targetLang, draft),
-        );
-        const prevMeta = session.infoOutcomeMeta.get(target.userId);
-        session.infoOutcomeMeta.set(target.userId, {
-          kind: prevMeta?.kind ?? "fixed",
-          reasonKey: "nightReasonStorytellerSet",
-          reasonParams: { field },
-        });
-        continue;
-      }
-
-      if (upper.startsWith("OVERRIDE ")) {
-        const body = line.slice("OVERRIDE ".length);
-        const colon = body.indexOf(":");
-        if (colon <= 0) {
-          await message.reply(t(stLang, "nightOverrideInvalidFormat"));
-          return true;
-        }
-
-        const name = body.slice(0, colon).trim();
-        const content = body.slice(colon + 1).trim();
-        if (!content) {
-          await message.reply(t(stLang, "nightOverrideEmptyMessage"));
-          return true;
-        }
-
-        const target = resolvePlayerName(name, state.players);
-        if (!target) {
-          await message.reply(
-            t(stLang, "nightOverrideUnknownPlayer", { name }),
-          );
-          return true;
-        }
-
-        const targetDraft = session.infoOutcomeDrafts.get(target.userId);
-        const targetCanArbitrary = targetDraft?.allowArbitraryOverride ?? false;
-        if (!targetCanArbitrary) {
-          await message.reply(
-            t(stLang, "nightOverrideRejected", {
-              player: target.displayName,
-            }),
-          );
-          return true;
-        }
-
-        session.infoMessages.set(target.userId, content);
-        session.infoOutcomeDrafts.delete(target.userId);
-        session.infoOutcomeMeta.set(target.userId, {
-          kind: "fixed",
-          reasonKey: "nightReasonStorytellerOverride",
-        });
-        continue;
-      }
-
-      await message.reply(t(stLang, "nightUnrecognizedInput"));
-      return true;
-    }
-
-    if (!shouldSend) {
-      session.infoPreview = buildInfoPreview(state, stLang);
-      updateGame(state);
-      await message.reply(
-        t(stLang, "nightEditsApplied", {
-          preview: session.infoPreview ?? "",
-        }),
-      );
-      return true;
-    }
-
-    await message.reply(t(stLang, "nightInfoSending"));
-    await sendInfoMessages(_client, state);
-    return true;
-  }
-
-  return false;
 }
+
+async function sendDeathNarrativeConfirmations(
+  client: Client,
+  state: GameState,
+  session: NightSession,
+): Promise<void> {
+  for (const [
+    playerId,
+    confirmation,
+  ] of session.deathNarrativeConfirmations.entries()) {
+    const player = state.players.find((p) => p.userId === playerId);
+    if (!player) continue;
+    await sendPlayerDm(client, player, state, confirmation);
+  }
+
+  session.status = "completed";
+  updateGame(state);
+
+  const { startDayPhase } = (await import("./day")) as {
+    startDayPhase: (client: Client, state: GameState) => Promise<void>;
+  };
+  await startDayPhase(client, state);
+}
+
 
 export function getNightPendingPlayerNames(state: GameState): string[] {
   const runtime = ensureRuntime(state);
   const session = runtime.nightSession;
   if (!session || session.status !== "awaiting_players") return [];
   return session.pendingPlayerIds.map((id) => playerName(state, id));
+}
+
+// ─── UI helpers ──────────────────────────────────────────────────────────────
+
+/**
+ * Apply a draft field update from the storyteller UI.
+ * Accepts pre-resolved values (userId for player, roleId for role, number, boolean).
+ */
+export function applyInfoDraftFieldForUI(
+  state: GameState,
+  playerId: string,
+  field: string,
+  resolvedValue: string | number | boolean,
+): { message: string } | { error: string } {
+  const runtime = ensureRuntime(state);
+  const session = runtime.nightSession;
+  if (!session) return { error: "No active night session" };
+
+  const draft = session.infoOutcomeDrafts.get(playerId);
+  if (!draft) return { error: "No editable draft for this player" };
+
+  const fieldType = draft.fieldTypes[field];
+  if (!fieldType) return { error: `Field "${field}" is not editable` };
+
+  const originalValue = draft.fields[field];
+
+  if (fieldType === "player") {
+    const exists = state.players.find(
+      (p) => p.userId === String(resolvedValue),
+    );
+    if (!exists) return { error: `Unknown player: ${resolvedValue}` };
+    draft.fields[field] = String(resolvedValue);
+  } else if (fieldType === "role") {
+    const role = findRole(String(resolvedValue));
+    if (!role) return { error: `Unknown role: ${resolvedValue}` };
+    draft.fields[field] = role.id;
+  } else if (fieldType === "number") {
+    const n = Number(resolvedValue);
+    if (!Number.isFinite(n))
+      return { error: `Invalid number: ${resolvedValue}` };
+    draft.fields[field] = Math.trunc(n);
+  } else {
+    draft.fields[field] = Boolean(resolvedValue);
+  }
+
+  const stLang: Lang = "en";
+  const err = validateAndNormalizeDraft(state, draft, stLang);
+  if (err) {
+    draft.fields[field] = originalValue;
+    return { error: err };
+  }
+
+  session.infoOutcomeDrafts.set(playerId, draft);
+  const player = state.players.find((p) => p.userId === playerId);
+  if (!player) return { error: "Player not found" };
+
+  const targetLang = getLang(player.userId, state.guildId);
+  const message = renderOutcomeDraft(state, targetLang, draft);
+  session.infoMessages.set(playerId, message);
+  const prevMeta = session.infoOutcomeMeta.get(playerId);
+  session.infoOutcomeMeta.set(playerId, {
+    kind: prevMeta?.kind ?? "fixed",
+    reasonKey: "nightReasonStorytellerSet",
+    reasonParams: { field },
+  });
+  updateGame(state);
+  return { message };
+}
+
+/** Send customized action messages to all alive players and transition to awaiting_players. */
+export async function sendActionMessagesForUI(
+  client: Client,
+  state: GameState,
+  customMessages: Record<string, string>,
+): Promise<{ ok: boolean; error?: string }> {
+  const runtime = ensureRuntime(state);
+  const session = runtime.nightSession;
+  if (!session || session.status !== "awaiting_storyteller_action") {
+    return { ok: false, error: "Not awaiting storyteller action" };
+  }
+
+  session.status = "awaiting_players";
+  updateGame(state);
+
+  for (const p of getAlivePlayers(state)) {
+    const msg =
+      customMessages[p.userId] ?? session.actionMessages.get(p.userId) ?? "";
+    if (!msg) continue;
+    session.actionMessages.set(p.userId, msg);
+    await sendPlayerDm(client, p, state, msg);
+  }
+
+  updateGame(state);
+  return { ok: true };
+}
+
+/** Override info messages with custom texts, then send them and transition to day phase. */
+export async function sendInfoMessagesForUI(
+  client: Client,
+  state: GameState,
+  customMessages: Record<string, string>,
+): Promise<{ ok: boolean; error?: string }> {
+  const runtime = ensureRuntime(state);
+  const session = runtime.nightSession;
+  if (!session || session.status !== "awaiting_storyteller_info") {
+    return { ok: false, error: "Not awaiting storyteller info" };
+  }
+
+  for (const [userId, text] of Object.entries(customMessages)) {
+    session.infoMessages.set(userId, text);
+  }
+
+  await sendInfoMessages(client, state);
+  return { ok: true };
+}
+
+/** Send all death narrative confirmations and transition to day phase. */
+export async function sendDeathNarrativeConfirmationsForUI(
+  client: Client,
+  state: GameState,
+  customMessages: Record<string, string>,
+): Promise<{ ok: boolean; error?: string }> {
+  const runtime = ensureRuntime(state);
+  const session = runtime.nightSession;
+  if (!session || session.status !== "awaiting_storyteller_death_confirm") {
+    return { ok: false, error: "Not awaiting storyteller death confirm" };
+  }
+  for (const [userId, text] of Object.entries(customMessages)) {
+    session.deathNarrativeConfirmations.set(userId, text);
+  }
+  await sendDeathNarrativeConfirmations(client, state, session);
+  return { ok: true };
+}
+
+/** Update an editable field in a death narrative draft and recompute the confirmation. */
+export function applyDeathNarrativeDraftFieldForUI(
+  state: GameState,
+  playerId: string,
+  field: string,
+  value: string,
+): { confirmation: string } | { error: string } {
+  const runtime = ensureRuntime(state);
+  const session = runtime.nightSession;
+  if (!session) return { error: "No active night session" };
+
+  const draft = session.deathNarrativeDrafts.get(playerId);
+  if (!draft) return { error: "No draft for this player" };
+
+  const fieldType = draft.fieldTypes[field];
+  if (!fieldType) return { error: `Field "${field}" is not editable` };
+
+  if (fieldType === "role") {
+    const role = findRole(value);
+    if (!role) return { error: `Unknown role: ${value}` };
+    draft.fields[field] = role.id;
+  } else {
+    const player = state.players.find((p) => p.userId === value);
+    if (!player) return { error: `Unknown player: ${value}` };
+    draft.fields[field] = value;
+  }
+
+  const kind = session.deathNarrativePlayers.get(playerId) ?? "simple";
+  const confirmation = renderDeathNarrativeConfirmation(state, playerId, kind, draft);
+  session.deathNarrativeConfirmations.set(playerId, confirmation);
+  updateGame(state);
+  return { confirmation };
 }

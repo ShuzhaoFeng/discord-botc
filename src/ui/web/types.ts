@@ -59,6 +59,51 @@ export interface NightPlayerInfo {
   promptKind: NightPromptKind | null;
 }
 
+export interface NightMessageDraft {
+  templateId: string;
+  fields: Record<string, string | number | boolean>;
+  fieldTypes: Record<string, "player" | "role" | "number" | "boolean">;
+  constraints?: Record<string, string | number | boolean>;
+  allowArbitraryOverride?: boolean;
+}
+
+export interface NightActionEntry {
+  userId: string;
+  displayName: string;
+  message: string;
+}
+
+export interface NightInfoEntry {
+  userId: string;
+  displayName: string;
+  message: string;
+  metaKind: "randomized" | "fixed";
+  reasonKey?: string;
+  draft?: NightMessageDraft;
+}
+
+export interface PlayerBasic {
+  userId: string;
+  displayName: string;
+}
+
+export interface RoleBasic {
+  id: string;
+  name: string;
+}
+
+export interface NightDeathConfirmEntry {
+  userId: string;
+  displayName: string;
+  kind: "simple" | "ravenkeeper";
+  response: string;
+  confirmation: string;
+  draft?: {
+    fields: Record<string, string>;
+    fieldTypes: Record<string, "role" | "player">;
+  };
+}
+
 export interface NightDetail {
   channelId: string;
   gameId: string;
@@ -67,6 +112,12 @@ export interface NightDetail {
   nightStatus: string | null;
   players: NightPlayerInfo[];
   conversations: Record<string, ChatMessage[]>;
+  // Control panel data
+  actionMessages?: NightActionEntry[];
+  infoMessages?: NightInfoEntry[];
+  deathConfirmEntries?: NightDeathConfirmEntry[];
+  allPlayers?: PlayerBasic[];
+  scriptRoles?: RoleBasic[];
 }
 
 export interface DraftUpdateResponse {

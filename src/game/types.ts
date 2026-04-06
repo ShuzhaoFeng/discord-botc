@@ -18,8 +18,9 @@ export type GamePhase =
 export type NightSessionStatus =
   | "awaiting_storyteller_action"
   | "awaiting_players"
-  | "awaiting_ravenkeeper_pick"
   | "awaiting_storyteller_info"
+  | "awaiting_death_narrative"
+  | "awaiting_storyteller_death_confirm"
   | "completed";
 export type DaySessionStatus = "open" | "ended";
 export type NominationStatus = "active" | "completed" | "cancelled";
@@ -124,7 +125,8 @@ export type NightOutcomeTemplateId =
   | "chef_count"
   | "fortune_result"
   | "undertaker_role"
-  | "grimoire";
+  | "grimoire"
+  | "death_narrative";
 
 export type NightOutcomeFieldType = "player" | "role" | "number" | "boolean";
 
@@ -148,13 +150,19 @@ export interface NightSession {
   actionMessages: Map<string, string>;
   responses: Map<string, (string | null)[]>;
   pendingPlayerIds: string[];
-  actionPreview?: string;
-  infoPreview?: string;
   infoMessages: Map<string, string>;
   infoOutcomeMeta: Map<string, NightOutcomeMeta>;
   infoOutcomeDrafts: Map<string, NightOutcomeDraft>;
-  /** Set to the Ravenkeeper's userId when they died at night and need to pick a player. */
-  pendingRavenkeeperPick: string | null;
+  /** Death narrative phase fields. */
+  deathNarrativePlayers: Map<string, "simple" | "ravenkeeper">;
+  deathNarrativePendingIds: string[];
+  deathNarrativeResponses: Map<string, string>;
+  deathNarrativeConfirmations: Map<string, string>;
+  /** Editable drafts for death narrative confirmations (e.g. poisoned Ravenkeeper pick). */
+  deathNarrativeDrafts: Map<string, {
+    fields: Record<string, string>;
+    fieldTypes: Record<string, "role" | "player">;
+  }>;
 }
 
 export interface RuntimeState {

@@ -52,9 +52,8 @@ async function checkWinConditions(
 ): Promise<boolean> {
   const runtime = ensureRuntime(state);
 
-  // Find the current Imp (may have shifted to Scarlet Woman)
-  const impPs = runtime.playerStates.find((ps) => ps.role.id === "imp");
-  const impAlive = impPs?.alive ?? false;
+  // Check if any Imp is alive (role may have shifted to Scarlet Woman or a promoted Minion)
+  const impAlive = runtime.playerStates.some((ps) => ps.role.id === "imp" && ps.alive);
 
   const aliveCount = getAlivePlayers(state).length;
 

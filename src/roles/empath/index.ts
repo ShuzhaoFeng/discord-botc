@@ -74,7 +74,7 @@ export const definition: RoleDefinition = {
         const randomizedValue = Math.floor(Math.random() * 3);
         const selectedValue = randomizeInfo ? randomizedValue : fixedValue;
         const fieldTypes: Record<string, NightOutcomeFieldType> = randomizeInfo
-          ? { left: "player", right: "player", count: "number" }
+          ? { count: "number" }
           : {};
         return {
           templateId: "empath_count",

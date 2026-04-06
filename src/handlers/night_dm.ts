@@ -5,7 +5,7 @@ import {
   getGamesByTestOwner,
   updateGame,
 } from "../game/state";
-import { handleNightPlayerDm, handleNightStorytellerDm } from "../game/night";
+import { handleNightPlayerDm } from "../game/night";
 import { handleRoleStorytellerDm } from "../game/roleCommands";
 import { Player } from "../game/types";
 
@@ -86,18 +86,6 @@ export async function handleNightDm(
       return true;
     }
 
-    // Night-phase storyteller commands (SEND, SET, OVERRIDE)
-    const storyteller = await client.users.fetch(message.author.id);
-    const handled = await handleNightStorytellerDm(
-      message,
-      client,
-      stState,
-      storyteller,
-    );
-    if (handled) {
-      updateGame(stState);
-      return true;
-    }
   }
 
   // Real player night responses.
