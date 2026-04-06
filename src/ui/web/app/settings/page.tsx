@@ -11,6 +11,7 @@ export default function SettingsPage() {
   const [guilds, setGuilds] = useState<GuildLanguageSetting[]>([]);
   const [selectedGuildId, setSelectedGuildId] = useState<string>("");
   const [selectedLang, setSelectedLang] = useState<"en" | "zh">("en");
+  const [drunkOverlap, setDrunkOverlap] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string>("");
@@ -27,6 +28,7 @@ export default function SettingsPage() {
         const first = data.guilds[0];
         setSelectedGuildId((prev) => prev || first.guildId);
         setSelectedLang(first.defaultLang);
+        setDrunkOverlap(first.drunkOverlap);
       } else {
         setSelectedGuildId("");
       }
@@ -53,26 +55,43 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!selectedGuild) return;
     setSelectedLang(selectedGuild.defaultLang);
+    setDrunkOverlap(selectedGuild.drunkOverlap);
   }, [selectedGuild]);
 
-  async function saveDefaultLanguage() {
+  async function saveSettings() {
     if (!selectedGuildId) return;
     setSaving(true);
     setMessage("");
 
     try {
-      const res = await fetch("/api/settings/language", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guildId: selectedGuildId, lang: selectedLang }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Failed to save settings");
+      const [langRes, drunkRes] = await Promise.all([
+        fetch("/api/settings/language", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guildId: selectedGuildId, lang: selectedLang }),
+        }),
+        fetch("/api/settings/drunk-overlap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            guildId: selectedGuildId,
+            drunkOverlap,
+          }),
+        }),
+      ]);
+
+      const langData = (await langRes.json()) as { error?: string };
+      if (!langRes.ok)
+        throw new Error(langData.error ?? "Failed to save language setting");
+
+      const drunkData = (await drunkRes.json()) as { error?: string };
+      if (!drunkRes.ok)
+        throw new Error(drunkData.error ?? "Failed to save drunk overlap setting");
 
       setGuilds((prev) =>
         prev.map((g) =>
           g.guildId === selectedGuildId
-            ? { ...g, defaultLang: selectedLang }
+            ? { ...g, defaultLang: selectedLang, drunkOverlap }
             : g,
         ),
       );
@@ -147,10 +166,23 @@ export default function SettingsPage() {
                 </select>
               </label>
 
+              <label className="flex items-center gap-3 text-sm text-slate-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded accent-indigo-500"
+                  checked={drunkOverlap}
+                  onChange={(e) => setDrunkOverlap(e.target.checked)}
+                />
+                <span>
+                  Allow Drunk&apos;s fake role to overlap with a Townsfolk
+                  already in play
+                </span>
+              </label>
+
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={saveDefaultLanguage}
+                  onClick={saveSettings}
                   disabled={saving || !selectedGuildId}
                   className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 disabled:text-slate-300 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors"
                 >

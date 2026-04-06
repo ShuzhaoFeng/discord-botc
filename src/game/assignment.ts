@@ -26,8 +26,12 @@ function pick<T>(pool: T[], n: number): T[] {
 /**
  * Randomly generate a complete Draft for the given players.
  * Implements the algorithm from AGENTS.md §Assignment Algorithm.
+ *
+ * @param drunkCanOverlap - When true, the Drunk's fake Townsfolk role may be
+ *   one already assigned to a real player. When false (default), it must be
+ *   a Townsfolk not currently in play.
  */
-export function generateDraft(players: Player[]): Draft {
+export function generateDraft(players: Player[], drunkCanOverlap = false): Draft {
   const script = getScript();
   const count = players.length;
   let dist = getDistribution(count);
@@ -63,13 +67,23 @@ export function generateDraft(players: Player[]): Draft {
   const assignments = new Map<string, Role>();
   players.forEach((p, i) => assignments.set(p.userId, allRoles[i]));
 
-  // 4. Drunk: pick any fake Townsfolk (can duplicate a real Townsfolk in play).
+  // 4. Drunk: pick a fake Townsfolk. When drunkCanOverlap is false (default),
+  //    the fake role must not be a Townsfolk already assigned to a real player.
   const drunkPlayer = players.find(
     (p) => assignments.get(p.userId)?.id === "drunk",
   );
   let drunkFakeRole: Role | null = null;
   if (drunkPlayer) {
-    const eligible = script.roles.filter((r) => r.category === "Townsfolk");
+    const assignedTfIds = new Set(
+      [...assignments.values()]
+        .filter((r) => r.category === "Townsfolk")
+        .map((r) => r.id),
+    );
+    const eligible = script.roles.filter(
+      (r) =>
+        r.category === "Townsfolk" &&
+        (drunkCanOverlap || !assignedTfIds.has(r.id)),
+    );
     drunkFakeRole = pick(eligible, 1)[0];
   }
 
@@ -120,10 +134,15 @@ export interface DraftReconcileResult {
 /**
  * Validate a Draft against distribution rules.
  * Returns null if valid, or a ValidationError describing the problem.
+ *
+ * @param drunkCanOverlap - Must match the guild setting used when generating
+ *   the draft; when false, the Drunk's fake role must not be a role already
+ *   assigned to a real player.
  */
 export function validateDraft(
   draft: Draft,
   players: Player[],
+  drunkCanOverlap = false,
 ): ValidationError | null {
   const roles = [...draft.assignments.values()];
   const count = players.length;
@@ -189,6 +208,10 @@ export function validateDraft(
     // Fake role must be Townsfolk.
     if (draft.drunkFakeRole.category !== "Townsfolk") {
       return { key: "validErrDrunkFakeMustBeTownsfolk" };
+    }
+    // When overlap is not allowed, fake role must not be a real assignment.
+    if (!drunkCanOverlap && uniqueIds.has(draft.drunkFakeRole.id)) {
+      return { key: "validErrDrunkFakeOverlap" };
     }
   }
 
@@ -327,10 +350,14 @@ export function setRole(
 /**
  * Reconcile derived draft fields after role mutations.
  * Auto-fixes Red Herring, Drunk fake role, and Imp bluffs when they become invalid.
+ *
+ * @param drunkCanOverlap - Guild setting; when false, a Drunk fake role that
+ *   overlaps with a real assignment is treated as invalid and re-rolled.
  */
 export function reconcileDraftDependencies(
   draft: Draft,
   players: Player[],
+  drunkCanOverlap = false,
 ): DraftReconcileResult {
   const script = getScript();
   const notes: Array<{
@@ -347,9 +374,16 @@ export function reconcileDraftDependencies(
   }
   if (drunkInPlay) {
     const fake = draft.drunkFakeRole;
-    const fakeValid = !!fake && fake.category === "Townsfolk";
+    const fakeValid =
+      !!fake &&
+      fake.category === "Townsfolk" &&
+      (drunkCanOverlap || !usedIds.has(fake.id));
     if (!fakeValid) {
-      const eligible = script.roles.filter((r) => r.category === "Townsfolk");
+      const eligible = script.roles.filter(
+        (r) =>
+          r.category === "Townsfolk" &&
+          (drunkCanOverlap || !usedIds.has(r.id)),
+      );
       if (eligible.length > 0) {
         const picked = pick(eligible, 1)[0];
         draft.drunkFakeRole = picked;

@@ -34,6 +34,7 @@
   "validErrOutsiderCount": "外来者数量应为 {expected}，实际为 {actual}。",
   "validErrDrunkNoFake": "酒鬼在局中但未分配虚假身份。",
   "validErrDrunkFakeMustBeTownsfolk": "酒鬼的虚假身份必须是镇民。",
+  "validErrDrunkFakeOverlap": "酒鬼的虚假身份不能与已在局中的镇民重复。",
   "validErrFtNoHerring": "占卜师在局中但未指定红鲱鱼。",
   "validErrHerringNotGood": "红鲱鱼必须是非恶魔的善良玩家。",
   "validErrImpNoBluffs": "小恶魔在局中但未设置虚张声势角色。",

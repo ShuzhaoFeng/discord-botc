@@ -14,6 +14,8 @@ const roleDefById = new Map(ALL_ROLE_DEFINITIONS.map((r) => [r.id, r]));
 const userLang = new Map<string, Lang>();
 /** Per-guild default language preferences (lives for bot session lifetime). */
 const guildDefaultLang = new Map<string, Lang>();
+/** Per-guild setting: whether Drunk's fake role may overlap with a real Townsfolk in play. */
+const guildDrunkOverlap = new Map<string, boolean>();
 
 export function getLang(userId: string, guildId?: string | null): Lang {
   const userSetting = userLang.get(userId);
@@ -37,6 +39,14 @@ export function getGuildDefaultLang(guildId: string): Lang {
 
 export function setGuildDefaultLang(guildId: string, lang: Lang): void {
   guildDefaultLang.set(guildId, lang);
+}
+
+export function getGuildDrunkOverlap(guildId: string): boolean {
+  return guildDrunkOverlap.get(guildId) ?? false;
+}
+
+export function setGuildDrunkOverlap(guildId: string, allowed: boolean): void {
+  guildDrunkOverlap.set(guildId, allowed);
 }
 
 export function getRoleName(lang: Lang, roleId: string): string {

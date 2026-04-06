@@ -129,6 +129,7 @@ export interface GuildLanguageSetting {
   guildId: string;
   guildName: string;
   defaultLang: "en" | "zh";
+  drunkOverlap: boolean;
 }
 
 export interface GuildLanguageSettingsResponse {

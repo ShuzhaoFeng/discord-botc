@@ -32,7 +32,12 @@ import {
 } from "../game/assignment";
 import { distributeRoles } from "../handlers/role_sender";
 import { GameState, Lang, Role } from "../game/types";
-import { getGuildDefaultLang, setGuildDefaultLang } from "../i18n";
+import {
+  getGuildDefaultLang,
+  setGuildDefaultLang,
+  getGuildDrunkOverlap,
+  setGuildDrunkOverlap,
+} from "../i18n";
 
 // ─── SSE ─────────────────────────────────────────────────────────────────────
 
@@ -142,6 +147,7 @@ export async function startUiServer(
             guildId: g.id,
             guildName: name,
             defaultLang: getGuildDefaultLang(g.id),
+            drunkOverlap: getGuildDrunkOverlap(g.id),
           };
         }),
       );
@@ -170,6 +176,28 @@ export async function startUiServer(
     res.json({ ok: true, guildId, defaultLang: getGuildDefaultLang(guildId) });
   });
 
+  app.post("/api/settings/drunk-overlap", (req: Request, res: Response) => {
+    const { guildId, drunkOverlap } = req.body as {
+      guildId?: string;
+      drunkOverlap?: unknown;
+    };
+
+    if (!guildId || typeof guildId !== "string") {
+      return void res.status(400).json({ error: "guildId is required" });
+    }
+    if (!client.guilds.cache.has(guildId)) {
+      return void res.status(404).json({ error: "Guild not found" });
+    }
+    if (typeof drunkOverlap !== "boolean") {
+      return void res
+        .status(400)
+        .json({ error: "drunkOverlap must be a boolean" });
+    }
+
+    setGuildDrunkOverlap(guildId, drunkOverlap);
+    res.json({ ok: true, guildId, drunkOverlap: getGuildDrunkOverlap(guildId) });
+  });
+
   // ── Game detail ───────────────────────────────────────────────────────────
 
   app.get("/api/games/:channelId", (req: Request, res: Response) => {
@@ -186,7 +214,7 @@ export async function startUiServer(
       draft: serializeDraft(state),
       allRoles: getAllRoles(),
       validationError: state.draft
-        ? validateDraft(state.draft, state.players)
+        ? validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId))
         : null,
     });
   });
@@ -202,11 +230,11 @@ export async function startUiServer(
       userId2: string;
     };
     swapRoles(state.draft, userId1, userId2);
-    reconcileDraftDependencies(state.draft, state.players);
+    reconcileDraftDependencies(state.draft, state.players, getGuildDrunkOverlap(state.guildId));
     updateGame(state);
     res.json({
       draft: serializeDraft(state),
-      validationError: validateDraft(state.draft, state.players),
+      validationError: validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId)),
     });
   });
 
@@ -227,11 +255,11 @@ export async function startUiServer(
         .status(400)
         .json({ error: ve.key, params: ve.params, userFacing: true });
     }
-    reconcileDraftDependencies(state.draft, state.players);
+    reconcileDraftDependencies(state.draft, state.players, getGuildDrunkOverlap(state.guildId));
     updateGame(state);
     res.json({
       draft: serializeDraft(state),
-      validationError: validateDraft(state.draft, state.players),
+      validationError: validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId)),
     });
   });
 
@@ -253,7 +281,7 @@ export async function startUiServer(
     updateGame(state);
     res.json({
       draft: serializeDraft(state),
-      validationError: validateDraft(state.draft, state.players),
+      validationError: validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId)),
     });
   });
 
@@ -274,7 +302,7 @@ export async function startUiServer(
     updateGame(state);
     res.json({
       draft: serializeDraft(state),
-      validationError: validateDraft(state.draft, state.players),
+      validationError: validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId)),
     });
   });
 
@@ -317,7 +345,7 @@ export async function startUiServer(
     updateGame(state);
     res.json({
       draft: serializeDraft(state),
-      validationError: validateDraft(state.draft, state.players),
+      validationError: validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId)),
     });
   });
 
@@ -333,7 +361,7 @@ export async function startUiServer(
         return void res
           .status(400)
           .json({ error: "Only manual mode games can be confirmed here" });
-      const validErr = validateDraft(state.draft, state.players);
+      const validErr = validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId));
       if (validErr)
         return void res
           .status(400)

@@ -5,7 +5,7 @@
 
 import { ChatInputCommandInteraction, Client } from 'discord.js';
 import { getGame, updateGame } from '../game/state';
-import { getLang, t } from '../i18n';
+import { getLang, t, getGuildDrunkOverlap } from '../i18n';
 import { generateDraft } from '../game/assignment';
 import { distributeRoles } from './role_sender';
 
@@ -39,7 +39,7 @@ export async function handleYouare(
   state.storytellerId = null;
   state.mode = 'automated';
   state.phase = 'role_assignment';
-  state.draft = generateDraft(state.players);
+  state.draft = generateDraft(state.players, getGuildDrunkOverlap(state.guildId));
 
   updateGame(state);
 

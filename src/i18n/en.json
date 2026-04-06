@@ -34,6 +34,7 @@
   "validErrOutsiderCount": "Expected {expected} Outsider(s), got {actual}.",
   "validErrDrunkNoFake": "Drunk is in play but has no fake role assigned.",
   "validErrDrunkFakeMustBeTownsfolk": "Drunk's fake role must be a Townsfolk.",
+  "validErrDrunkFakeOverlap": "Drunk's fake role must not be a Townsfolk already in play.",
   "validErrFtNoHerring": "Fortune Teller is in play but no Red Herring is designated.",
   "validErrHerringNotGood": "Red Herring must be a non-Demon Good player.",
   "validErrImpNoBluffs": "Imp is in play but no bluff roles are set.",
