@@ -125,6 +125,11 @@ export interface DraftUpdateResponse {
   validationError: ValidationError | null;
 }
 
+export interface ConfirmResponse {
+  ok: true;
+  clocktowerJson: object;
+}
+
 export interface GuildLanguageSetting {
   guildId: string;
   guildName: string;

@@ -50,6 +50,82 @@ function broadcastUpdate(channelId: string): void {
   }
 }
 
+// ─── Clocktower ID mapping ───────────────────────────────────────────────────
+
+/** Maps bot role IDs to clocktower.live role IDs where they differ. */
+const CLOCKTOWER_ROLE_IDS: Record<string, string> = {
+  fortune_teller: "fortuneteller",
+  scarlet_woman: "scarletwoman",
+};
+
+function toClockTowerId(roleId: string): string {
+  return CLOCKTOWER_ROLE_IDS[roleId] ?? roleId;
+}
+
+function categoryToTeam(
+  cat: string,
+): "townsfolk" | "outsider" | "minion" | "demon" {
+  switch (cat) {
+    case "Townsfolk":
+      return "townsfolk";
+    case "Outsider":
+      return "outsider";
+    case "Minion":
+      return "minion";
+    case "Demon":
+      return "demon";
+    default:
+      return "townsfolk";
+  }
+}
+
+function buildClockTowerJson(state: GameState): object {
+  const draft = state.draft!;
+  const players = state.players.map((p) => {
+    const trueRole = draft.assignments.get(p.userId)!;
+    const isDrunk = trueRole.id === "drunk";
+    const displayRole =
+      isDrunk && draft.drunkFakeRole ? draft.drunkFakeRole : trueRole;
+
+    const reminders: object[] = [];
+    if (isDrunk) {
+      reminders.push({
+        role: "drunk",
+        team: "outsider",
+        edition: "tb",
+        name: "Is The Drunk",
+      });
+    }
+
+    return {
+      name: p.displayName,
+      id: "",
+      connected: false,
+      role: toClockTowerId(displayRole.id),
+      isDead: false,
+      isVoteless: false,
+      hasTwoVotes: false,
+      handRaised: false,
+      pronouns: "",
+      alignmentIndex: 0,
+      reminders,
+      hasResponded: {},
+    };
+  });
+
+  const bluffs: string[] = draft.impBluffs
+    ? draft.impBluffs.map((r) => toClockTowerId(r.id))
+    : ["", "", ""];
+
+  return {
+    bluffs,
+    edition: { id: "tb" },
+    roles: "",
+    npcs: [{ id: "gardener" }],
+    players,
+  };
+}
+
 // ─── Serialization ────────────────────────────────────────────────────────────
 
 function serializeDraft(state: GameState) {
@@ -349,10 +425,32 @@ export async function startUiServer(
     });
   });
 
-  // ── Confirm draft ─────────────────────────────────────────────────────────
+  // ── Confirm draft (returns clocktower JSON, does NOT start night) ─────────
 
   app.post(
     "/api/games/:channelId/confirm",
+    (req: Request, res: Response) => {
+      const state = getGame(req.params.channelId as string);
+      if (!state?.draft)
+        return void res.status(404).json({ error: "Game not found" });
+      if (state.mode !== "manual")
+        return void res
+          .status(400)
+          .json({ error: "Only manual mode games can be confirmed here" });
+      const validErr = validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId));
+      if (validErr)
+        return void res
+          .status(400)
+          .json({ error: validErr.key, params: validErr.params });
+      const clocktowerJson = buildClockTowerJson(state);
+      res.json({ ok: true, clocktowerJson });
+    },
+  );
+
+  // ── Start night (distributes roles and begins first night) ────────────────
+
+  app.post(
+    "/api/games/:channelId/start-night",
     async (req: Request, res: Response) => {
       const state = getGame(req.params.channelId as string);
       if (!state?.draft)
@@ -370,7 +468,7 @@ export async function startUiServer(
         await distributeRoles(client, state);
         res.json({ ok: true });
       } catch (err) {
-        console.error("[UI] Error distributing roles:", err);
+        console.error("[UI] Error starting night:", err);
         res.status(500).json({ error: "Failed to distribute roles" });
       }
     },

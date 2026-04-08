@@ -29,7 +29,7 @@ export default function ConfirmBar({
         disabled={!isValid || isLoading}
         className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:cursor-not-allowed text-sm"
       >
-        {isLoading ? "Sending…" : "Confirm & Send Roles"}
+        {isLoading ? "Generating…" : "Confirm Roles"}
       </button>
     </div>
   );

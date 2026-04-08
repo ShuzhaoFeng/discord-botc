@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import PlayerTable from "@/components/PlayerTable";
 import DerivedFields from "@/components/DerivedFields";
 import ConfirmBar from "@/components/ConfirmBar";
-import type { DraftUpdateResponse, GameDetail } from "@/types";
+import ClockTowerPanel from "@/components/ClockTowerPanel";
+import type { ConfirmResponse, DraftUpdateResponse, GameDetail } from "@/types";
 
 export default function GamePage() {
   const { channelId } = useParams<{ channelId: string }>();
@@ -14,6 +15,8 @@ export default function GamePage() {
   const [game, setGame] = useState<GameDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [startNightLoading, setStartNightLoading] = useState(false);
+  const [clocktowerJson, setClocktowerJson] = useState<object | null>(null);
   const [error, setError] = useState<string | null>(null);
   const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -116,13 +119,31 @@ export default function GamePage() {
         headers: { "Content-Type": "application/json" },
         body: "{}",
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to confirm");
-      router.push("/games");
+      const data = (await res.json()) as ConfirmResponse;
+      if (!res.ok) throw new Error((data as unknown as { error?: string }).error ?? "Failed to confirm");
+      setClocktowerJson(data.clocktowerJson);
     } catch (e: unknown) {
       showError(e instanceof Error ? e.message : String(e));
     } finally {
       setConfirmLoading(false);
+    }
+  }, [channelId]);
+
+  const handleStartNight = useCallback(async () => {
+    setStartNightLoading(true);
+    try {
+      const res = await fetch(`/api/games/${channelId}/start-night`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to start night");
+      router.push("/games");
+    } catch (e: unknown) {
+      showError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStartNightLoading(false);
     }
   }, [channelId, router]);
 
@@ -180,6 +201,28 @@ export default function GamePage() {
         >
           ← Back to games
         </button>
+      </div>
+    );
+  }
+
+  if (clocktowerJson) {
+    return (
+      <div className="h-full flex flex-col">
+        <div className="shrink-0 flex items-center gap-4 px-4 py-2 border-b border-slate-700">
+          <span className="font-semibold text-slate-200">{game.gameId}</span>
+          <span className="text-emerald-400 text-sm">Roles Confirmed</span>
+          <span className="text-xs text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
+            {game.draft.assignments.length} players
+          </span>
+        </div>
+        <div className="flex-1 min-h-0">
+          <ClockTowerPanel
+            clocktowerJson={clocktowerJson}
+            onStartNight={handleStartNight}
+            isStartNightLoading={startNightLoading}
+            error={error}
+          />
+        </div>
       </div>
     );
   }
