@@ -3,15 +3,21 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type {
-  GuildLanguageSetting,
-  GuildLanguageSettingsResponse,
+  GuildSettingsData,
+  GuildSettingsEntry,
+  GuildSettingsResponse,
 } from "@/types";
 
+const DEFAULT_TOWNSQUARE_URL = "https://clocktower.live";
+
 export default function SettingsPage() {
-  const [guilds, setGuilds] = useState<GuildLanguageSetting[]>([]);
+  const [guilds, setGuilds] = useState<GuildSettingsEntry[]>([]);
   const [selectedGuildId, setSelectedGuildId] = useState<string>("");
-  const [selectedLang, setSelectedLang] = useState<"en" | "zh">("en");
-  const [drunkOverlap, setDrunkOverlap] = useState<boolean>(false);
+  const [draft, setDraft] = useState<GuildSettingsData>({
+    defaultLang: "en",
+    drunkOverlap: false,
+    townsquareUrl: null,
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string>("");
@@ -20,15 +26,14 @@ export default function SettingsPage() {
     setLoading(true);
     setMessage("");
     try {
-      const res = await fetch("/api/settings/language/guilds");
+      const res = await fetch("/api/settings/guilds");
       if (!res.ok) throw new Error("Failed to load settings");
-      const data = (await res.json()) as GuildLanguageSettingsResponse;
+      const data = (await res.json()) as GuildSettingsResponse;
       setGuilds(data.guilds);
       if (data.guilds.length > 0) {
         const first = data.guilds[0];
         setSelectedGuildId((prev) => prev || first.guildId);
-        setSelectedLang(first.defaultLang);
-        setDrunkOverlap(first.drunkOverlap);
+        setDraft(first.settings);
       } else {
         setSelectedGuildId("");
       }
@@ -54,8 +59,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!selectedGuild) return;
-    setSelectedLang(selectedGuild.defaultLang);
-    setDrunkOverlap(selectedGuild.drunkOverlap);
+    setDraft(selectedGuild.settings);
   }, [selectedGuild]);
 
   async function saveSettings() {
@@ -64,34 +68,22 @@ export default function SettingsPage() {
     setMessage("");
 
     try {
-      const [langRes, drunkRes] = await Promise.all([
-        fetch("/api/settings/language", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ guildId: selectedGuildId, lang: selectedLang }),
-        }),
-        fetch("/api/settings/drunk-overlap", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            guildId: selectedGuildId,
-            drunkOverlap,
-          }),
-        }),
-      ]);
+      const res = await fetch("/api/settings/guild", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId: selectedGuildId, settings: draft }),
+      });
 
-      const langData = (await langRes.json()) as { error?: string };
-      if (!langRes.ok)
-        throw new Error(langData.error ?? "Failed to save language setting");
-
-      const drunkData = (await drunkRes.json()) as { error?: string };
-      if (!drunkRes.ok)
-        throw new Error(drunkData.error ?? "Failed to save drunk overlap setting");
+      const data = (await res.json()) as {
+        error?: string;
+        settings?: GuildSettingsData;
+      };
+      if (!res.ok) throw new Error(data.error ?? "Failed to save settings");
 
       setGuilds((prev) =>
         prev.map((g) =>
           g.guildId === selectedGuildId
-            ? { ...g, defaultLang: selectedLang, drunkOverlap }
+            ? { ...g, settings: data.settings ?? draft }
             : g,
         ),
       );
@@ -104,6 +96,8 @@ export default function SettingsPage() {
       setSaving(false);
     }
   }
+
+  const townsquareEnabled = draft.townsquareUrl !== null;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -118,83 +112,139 @@ export default function SettingsPage() {
           </Link>
         </div>
 
-        <section className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4">
-          <div>
-            <h2 className="text-base font-semibold text-slate-100">
-              Server Default Language
-            </h2>
-            <p className="text-sm text-slate-400 mt-1">
-              New players use this language by default. A player's /lang choice
-              still overrides it.
-            </p>
-          </div>
+        {loading ? (
+          <p className="text-sm text-slate-400">Loading settings...</p>
+        ) : guilds.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            No guilds are currently available.
+          </p>
+        ) : (
+          <>
+            {/* Guild selector */}
+            <label className="block text-sm text-slate-300">
+              Guild
+              <select
+                className="mt-1 w-full bg-slate-900 border border-slate-600 rounded-md px-3 py-2 text-slate-100"
+                value={selectedGuildId}
+                onChange={(e) => setSelectedGuildId(e.target.value)}
+              >
+                {guilds.map((g) => (
+                  <option key={g.guildId} value={g.guildId}>
+                    {g.guildName}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          {loading ? (
-            <p className="text-sm text-slate-400">Loading settings...</p>
-          ) : guilds.length === 0 ? (
-            <p className="text-sm text-slate-400">
-              No guilds are currently available.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              <label className="block text-sm text-slate-300">
-                Guild
-                <select
-                  className="mt-1 w-full bg-slate-900 border border-slate-600 rounded-md px-3 py-2 text-slate-100"
-                  value={selectedGuildId}
-                  onChange={(e) => setSelectedGuildId(e.target.value)}
-                >
-                  {guilds.map((g) => (
-                    <option key={g.guildId} value={g.guildId}>
-                      {g.guildName}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            {/* Guild Settings */}
+            <section className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-100">
+                  Guild Settings
+                </h2>
+              </div>
 
               <label className="block text-sm text-slate-300">
                 Default language
                 <select
                   className="mt-1 w-full bg-slate-900 border border-slate-600 rounded-md px-3 py-2 text-slate-100"
-                  value={selectedLang}
+                  value={draft.defaultLang}
                   onChange={(e) =>
-                    setSelectedLang(e.target.value as "en" | "zh")
+                    setDraft((d) => ({
+                      ...d,
+                      defaultLang: e.target.value as "en" | "zh",
+                    }))
                   }
                 >
                   <option value="en">English</option>
                   <option value="zh">简体中文</option>
                 </select>
               </label>
+            </section>
+
+            {/* Game Logic */}
+            <section className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-100">
+                  Game Logic
+                </h2>
+              </div>
 
               <label className="flex items-center gap-3 text-sm text-slate-300 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   className="w-4 h-4 rounded accent-indigo-500"
-                  checked={drunkOverlap}
-                  onChange={(e) => setDrunkOverlap(e.target.checked)}
+                  checked={draft.drunkOverlap}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, drunkOverlap: e.target.checked }))
+                  }
                 />
                 <span>
                   Allow Drunk&apos;s fake role to overlap with a Townsfolk
                   already in play
                 </span>
               </label>
+            </section>
 
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={saveSettings}
-                  disabled={saving || !selectedGuildId}
-                  className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 disabled:text-slate-300 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-                {message && (
-                  <span className="text-sm text-slate-300">{message}</span>
-                )}
+            {/* Integration */}
+            <section className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-100">
+                  Integration
+                </h2>
               </div>
+
+              <label className="flex items-center gap-3 text-sm text-slate-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded accent-indigo-500"
+                  checked={townsquareEnabled}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      townsquareUrl: e.target.checked
+                        ? DEFAULT_TOWNSQUARE_URL
+                        : null,
+                    }))
+                  }
+                />
+                <span>Use townsquare</span>
+              </label>
+
+              {townsquareEnabled && (
+                <label className="block text-sm text-slate-300">
+                  Townsquare URL
+                  <input
+                    type="url"
+                    className="mt-1 w-full bg-slate-900 border border-slate-600 rounded-md px-3 py-2 text-slate-100"
+                    value={draft.townsquareUrl ?? ""}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        townsquareUrl: e.target.value || DEFAULT_TOWNSQUARE_URL,
+                      }))
+                    }
+                  />
+                </label>
+              )}
+            </section>
+
+            {/* Save */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={saveSettings}
+                disabled={saving || !selectedGuildId}
+                className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 disabled:text-slate-300 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors"
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+              {message && (
+                <span className="text-sm text-slate-300">{message}</span>
+              )}
             </div>
-          )}
-        </section>
+          </>
+        )}
       </div>
     </div>
   );

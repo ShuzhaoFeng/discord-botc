@@ -14,13 +14,13 @@ import { Client } from "discord.js";
 import { getAllGames, getGame, updateGame, setUpdateHook } from "../game/state";
 import { getConversations, setChatUpdateHook } from "../utils/chat-log";
 import {
-  ensureRuntime,
   applyInfoDraftFieldForUI,
   sendActionMessagesForUI,
   sendInfoMessagesForUI,
   sendDeathNarrativeConfirmationsForUI,
   applyDeathNarrativeDraftFieldForUI,
 } from "../game/night";
+import { ensureRuntime } from "../game/utils";
 import { getScript } from "../game/roles";
 import { ALL_ROLE_DEFINITIONS } from "../roles";
 import {
@@ -31,13 +31,14 @@ import {
   ValidationError,
 } from "../game/assignment";
 import { distributeRoles } from "../handlers/role_sender";
-import { GameState, Lang, Role } from "../game/types";
+import { GameState, Role } from "../game/types";
 import {
-  getGuildDefaultLang,
-  setGuildDefaultLang,
+  getGuildSettings,
   getGuildDrunkOverlap,
-  setGuildDrunkOverlap,
-} from "../i18n";
+  updateGuildSettings,
+  GuildSettings,
+} from "../guild-settings";
+import { connectTownsquareSpectator } from "../townsquare";
 
 // ─── SSE ─────────────────────────────────────────────────────────────────────
 
@@ -205,57 +206,33 @@ export async function startUiServer(
     res.json(list);
   });
 
-  // ── Settings: language defaults ──────────────────────────────────────────
+  // ── Settings ────────────────────────────────────────────────────────────
 
-  app.get(
-    "/api/settings/language/guilds",
-    async (_req: Request, res: Response) => {
-      const rows = await Promise.all(
-        client.guilds.cache.map(async (g) => {
-          let name = g.name;
-          try {
-            const full = await g.fetch();
-            name = full.name;
-          } catch {
-            // Keep cache name if fetch fails.
-          }
-          return {
-            guildId: g.id,
-            guildName: name,
-            defaultLang: getGuildDefaultLang(g.id),
-            drunkOverlap: getGuildDrunkOverlap(g.id),
-          };
-        }),
-      );
-      rows.sort((a, b) => a.guildName.localeCompare(b.guildName));
-      res.json({ guilds: rows });
-    },
-  );
-
-  app.post("/api/settings/language", (req: Request, res: Response) => {
-    const { guildId, lang } = req.body as {
-      guildId?: string;
-      lang?: string;
-    };
-
-    if (!guildId || typeof guildId !== "string") {
-      return void res.status(400).json({ error: "guildId is required" });
-    }
-    if (!client.guilds.cache.has(guildId)) {
-      return void res.status(404).json({ error: "Guild not found" });
-    }
-    if (lang !== "en" && lang !== "zh") {
-      return void res.status(400).json({ error: "lang must be en or zh" });
-    }
-
-    setGuildDefaultLang(guildId, lang as Lang);
-    res.json({ ok: true, guildId, defaultLang: getGuildDefaultLang(guildId) });
+  app.get("/api/settings/guilds", async (_req: Request, res: Response) => {
+    const rows = await Promise.all(
+      client.guilds.cache.map(async (g) => {
+        let name = g.name;
+        try {
+          const full = await g.fetch();
+          name = full.name;
+        } catch {
+          // Keep cache name if fetch fails.
+        }
+        return {
+          guildId: g.id,
+          guildName: name,
+          settings: getGuildSettings(g.id),
+        };
+      }),
+    );
+    rows.sort((a, b) => a.guildName.localeCompare(b.guildName));
+    res.json({ guilds: rows });
   });
 
-  app.post("/api/settings/drunk-overlap", (req: Request, res: Response) => {
-    const { guildId, drunkOverlap } = req.body as {
+  app.post("/api/settings/guild", (req: Request, res: Response) => {
+    const { guildId, settings } = req.body as {
       guildId?: string;
-      drunkOverlap?: unknown;
+      settings?: Partial<GuildSettings>;
     };
 
     if (!guildId || typeof guildId !== "string") {
@@ -264,14 +241,42 @@ export async function startUiServer(
     if (!client.guilds.cache.has(guildId)) {
       return void res.status(404).json({ error: "Guild not found" });
     }
-    if (typeof drunkOverlap !== "boolean") {
+    if (!settings || typeof settings !== "object") {
+      return void res
+        .status(400)
+        .json({ error: "settings object is required" });
+    }
+
+    // Validate individual fields if present
+    if (
+      settings.defaultLang !== undefined &&
+      settings.defaultLang !== "en" &&
+      settings.defaultLang !== "zh"
+    ) {
+      return void res
+        .status(400)
+        .json({ error: "defaultLang must be en or zh" });
+    }
+    if (
+      settings.drunkOverlap !== undefined &&
+      typeof settings.drunkOverlap !== "boolean"
+    ) {
       return void res
         .status(400)
         .json({ error: "drunkOverlap must be a boolean" });
     }
+    if (
+      settings.townsquareUrl !== undefined &&
+      settings.townsquareUrl !== null &&
+      typeof settings.townsquareUrl !== "string"
+    ) {
+      return void res
+        .status(400)
+        .json({ error: "townsquareUrl must be a string or null" });
+    }
 
-    setGuildDrunkOverlap(guildId, drunkOverlap);
-    res.json({ ok: true, guildId, drunkOverlap: getGuildDrunkOverlap(guildId) });
+    const updated = updateGuildSettings(guildId, settings);
+    res.json({ ok: true, guildId, settings: updated });
   });
 
   // ── Game detail ───────────────────────────────────────────────────────────
@@ -290,8 +295,13 @@ export async function startUiServer(
       draft: serializeDraft(state),
       allRoles: getAllRoles(),
       validationError: state.draft
-        ? validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId))
+        ? validateDraft(
+            state.draft,
+            state.players,
+            getGuildDrunkOverlap(state.guildId),
+          )
         : null,
+      townsquareUrl: getGuildSettings(state.guildId).townsquareUrl,
     });
   });
 
@@ -306,11 +316,19 @@ export async function startUiServer(
       userId2: string;
     };
     swapRoles(state.draft, userId1, userId2);
-    reconcileDraftDependencies(state.draft, state.players, getGuildDrunkOverlap(state.guildId));
+    reconcileDraftDependencies(
+      state.draft,
+      state.players,
+      getGuildDrunkOverlap(state.guildId),
+    );
     updateGame(state);
     res.json({
       draft: serializeDraft(state),
-      validationError: validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId)),
+      validationError: validateDraft(
+        state.draft,
+        state.players,
+        getGuildDrunkOverlap(state.guildId),
+      ),
     });
   });
 
@@ -331,11 +349,19 @@ export async function startUiServer(
         .status(400)
         .json({ error: ve.key, params: ve.params, userFacing: true });
     }
-    reconcileDraftDependencies(state.draft, state.players, getGuildDrunkOverlap(state.guildId));
+    reconcileDraftDependencies(
+      state.draft,
+      state.players,
+      getGuildDrunkOverlap(state.guildId),
+    );
     updateGame(state);
     res.json({
       draft: serializeDraft(state),
-      validationError: validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId)),
+      validationError: validateDraft(
+        state.draft,
+        state.players,
+        getGuildDrunkOverlap(state.guildId),
+      ),
     });
   });
 
@@ -357,7 +383,11 @@ export async function startUiServer(
     updateGame(state);
     res.json({
       draft: serializeDraft(state),
-      validationError: validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId)),
+      validationError: validateDraft(
+        state.draft,
+        state.players,
+        getGuildDrunkOverlap(state.guildId),
+      ),
     });
   });
 
@@ -378,7 +408,11 @@ export async function startUiServer(
     updateGame(state);
     res.json({
       draft: serializeDraft(state),
-      validationError: validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId)),
+      validationError: validateDraft(
+        state.draft,
+        state.players,
+        getGuildDrunkOverlap(state.guildId),
+      ),
     });
   });
 
@@ -421,31 +455,36 @@ export async function startUiServer(
     updateGame(state);
     res.json({
       draft: serializeDraft(state),
-      validationError: validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId)),
+      validationError: validateDraft(
+        state.draft,
+        state.players,
+        getGuildDrunkOverlap(state.guildId),
+      ),
     });
   });
 
   // ── Confirm draft (returns clocktower JSON, does NOT start night) ─────────
 
-  app.post(
-    "/api/games/:channelId/confirm",
-    (req: Request, res: Response) => {
-      const state = getGame(req.params.channelId as string);
-      if (!state?.draft)
-        return void res.status(404).json({ error: "Game not found" });
-      if (state.mode !== "manual")
-        return void res
-          .status(400)
-          .json({ error: "Only manual mode games can be confirmed here" });
-      const validErr = validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId));
-      if (validErr)
-        return void res
-          .status(400)
-          .json({ error: validErr.key, params: validErr.params });
-      const clocktowerJson = buildClockTowerJson(state);
-      res.json({ ok: true, clocktowerJson });
-    },
-  );
+  app.post("/api/games/:channelId/confirm", (req: Request, res: Response) => {
+    const state = getGame(req.params.channelId as string);
+    if (!state?.draft)
+      return void res.status(404).json({ error: "Game not found" });
+    if (state.mode !== "manual")
+      return void res
+        .status(400)
+        .json({ error: "Only manual mode games can be confirmed here" });
+    const validErr = validateDraft(
+      state.draft,
+      state.players,
+      getGuildDrunkOverlap(state.guildId),
+    );
+    if (validErr)
+      return void res
+        .status(400)
+        .json({ error: validErr.key, params: validErr.params });
+    const clocktowerJson = buildClockTowerJson(state);
+    res.json({ ok: true, clocktowerJson });
+  });
 
   // ── Start night (distributes roles and begins first night) ────────────────
 
@@ -459,13 +498,25 @@ export async function startUiServer(
         return void res
           .status(400)
           .json({ error: "Only manual mode games can be confirmed here" });
-      const validErr = validateDraft(state.draft, state.players, getGuildDrunkOverlap(state.guildId));
+      const validErr = validateDraft(
+        state.draft,
+        state.players,
+        getGuildDrunkOverlap(state.guildId),
+      );
       if (validErr)
         return void res
           .status(400)
           .json({ error: validErr.key, params: validErr.params });
       try {
         await distributeRoles(client, state);
+
+        // Connect to townsquare as spectator if integration is enabled and session name provided
+        const { sessionName } = req.body as { sessionName?: string };
+        const townsquareUrl = getGuildSettings(state.guildId).townsquareUrl;
+        if (townsquareUrl && sessionName) {
+          connectTownsquareSpectator(state, townsquareUrl, sessionName, client);
+        }
+
         res.json({ ok: true });
       } catch (err) {
         console.error("[UI] Error starting night:", err);
@@ -718,7 +769,12 @@ export async function startUiServer(
           .status(400)
           .json({ error: "playerId, field, and value are required" });
       }
-      const result = applyDeathNarrativeDraftFieldForUI(state, playerId, field, value);
+      const result = applyDeathNarrativeDraftFieldForUI(
+        state,
+        playerId,
+        field,
+        value,
+      );
       if ("error" in result) {
         return void res.status(400).json({ error: result.error });
       }
@@ -735,8 +791,14 @@ export async function startUiServer(
       if (!state || state.mode !== "manual") {
         return void res.status(404).json({ error: "Game not found" });
       }
-      const { messages = {} } = req.body as { messages?: Record<string, string> };
-      const result = await sendDeathNarrativeConfirmationsForUI(client, state, messages);
+      const { messages = {} } = req.body as {
+        messages?: Record<string, string>;
+      };
+      const result = await sendDeathNarrativeConfirmationsForUI(
+        client,
+        state,
+        messages,
+      );
       if (!result.ok) {
         return void res.status(400).json({ error: result.error });
       }

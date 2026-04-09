@@ -9,12 +9,8 @@ import { ALL_ROLE_DEFINITIONS } from "../roles/index";
 import { getGame } from "./state";
 import type { ActiveGameState, GameState } from "./types";
 import type { DayGameCtx } from "../roles/types";
-import {
-  cancelActiveNomination,
-  killPlayerDuringDay,
-  notifyStoryteller,
-  playerDisplayName,
-} from "./day";
+import { notifyStoryteller, playerDisplayName } from "./utils";
+import { cancelActiveNomination, killPlayerDuringDay } from "./day";
 
 export function getRoleCommandBuilders(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
   return ALL_ROLE_DEFINITIONS.flatMap((d) => d.commands ?? []).map((cmd) =>

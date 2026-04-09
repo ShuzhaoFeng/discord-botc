@@ -5,13 +5,14 @@ import {
   DayWinMessageKey,
   GameState,
   NominationRecord,
-  Player,
 } from "./types";
 import { getLang, getRoleName, t } from "../i18n";
 import { getGame, updateGame } from "./state";
-import { ensureRuntime } from "./night";
 import {
+  ensureRuntime,
+  getAlivePlayers,
   getPlayerState,
+  playerDisplayName,
   getRole,
   resolvePlayer,
   channelLang,
@@ -20,15 +21,6 @@ import {
 import { triggerDeathHandlers } from "./death";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
-
-export function getAlivePlayers(state: GameState): Player[] {
-  const runtime = ensureRuntime(state);
-  return runtime.playerStates.filter((ps) => ps.alive).map((ps) => ps.player);
-}
-
-export function playerDisplayName(state: GameState, userId: string): string {
-  return state.players.find((p) => p.userId === userId)?.displayName ?? userId;
-}
 
 // ── Nomination timer storage ──────────────────────────────────────────────────
 
@@ -53,7 +45,9 @@ async function checkWinConditions(
   const runtime = ensureRuntime(state);
 
   // Check if any Imp is alive (role may have shifted to Scarlet Woman or a promoted Minion)
-  const impAlive = runtime.playerStates.some((ps) => ps.role.id === "imp" && ps.alive);
+  const impAlive = runtime.playerStates.some(
+    (ps) => ps.role.id === "imp" && ps.alive,
+  );
 
   const aliveCount = getAlivePlayers(state).length;
 
@@ -238,7 +232,7 @@ function checkAllNominated(state: GameState): boolean {
 
 // ── End-of-day processing ─────────────────────────────────────────────────────
 
-async function processEndOfDay(
+export async function processEndOfDay(
   client: Client,
   state: GameState,
   channel: TextChannel,
@@ -692,19 +686,6 @@ export async function cancelActiveNomination(
   if (daySession.dayEndsAfterNomination) {
     await processEndOfDay(client, state, channel);
   }
-}
-
-/** Send a DM notification to the storyteller (non-blocking, best-effort). */
-export function notifyStoryteller(
-  client: Client,
-  state: GameState,
-  content: string,
-): void {
-  if (!state.storytellerId) return;
-  client.users
-    .fetch(state.storytellerId)
-    .then((u) => u.send(content))
-    .catch(() => {});
 }
 
 // ── /endday command handler ───────────────────────────────────────────────────

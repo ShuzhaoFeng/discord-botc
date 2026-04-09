@@ -35,6 +35,7 @@ export interface GameDetail {
   draft: DraftState;
   allRoles: RoleInfo[];
   validationError: ValidationError | null;
+  townsquareUrl: string | null;
 }
 
 export interface GameSummary {
@@ -130,13 +131,18 @@ export interface ConfirmResponse {
   clocktowerJson: object;
 }
 
-export interface GuildLanguageSetting {
-  guildId: string;
-  guildName: string;
+export interface GuildSettingsData {
   defaultLang: "en" | "zh";
   drunkOverlap: boolean;
+  townsquareUrl: string | null;
 }
 
-export interface GuildLanguageSettingsResponse {
-  guilds: GuildLanguageSetting[];
+export interface GuildSettingsEntry {
+  guildId: string;
+  guildName: string;
+  settings: GuildSettingsData;
+}
+
+export interface GuildSettingsResponse {
+  guilds: GuildSettingsEntry[];
 }

@@ -3,11 +3,13 @@
  * This file must NOT import from roles/ or scripts/ to avoid circular dependencies.
  */
 
+import { Client } from "discord.js";
 import {
   GameState,
   Lang,
   Player,
   PlayerRuntimeState,
+  PlayerTag,
   Role,
   RuntimeState,
 } from "./types";
@@ -32,6 +34,53 @@ export function getPlayerState(
   userId: string,
 ): PlayerRuntimeState | undefined {
   return runtime.playerStates.find((ps) => ps.player.userId === userId);
+}
+
+export function ensureRuntime(state: GameState): RuntimeState {
+  if (!state.runtime) {
+    const draft = state.draft!;
+    const playerStates: PlayerRuntimeState[] = state.players.map((p) => {
+      const role = draft.assignments.get(p.userId)!;
+      const effectiveRole =
+        role.id === "drunk" && draft.drunkFakeRole ? draft.drunkFakeRole : role;
+      const tags = new Set<PlayerTag>();
+      if (draft.redHerring === p.userId) tags.add("red_herring");
+      return { player: p, role, effectiveRole, alive: true, tags };
+    });
+    state.runtime = {
+      nightNumber: 0,
+      playerStates,
+      nightSession: null,
+      daySession: null,
+      lastExecutedPlayerId: null,
+      nightKillIds: [],
+      nightKillIntentId: null,
+      pendingEndGame: null,
+    };
+  }
+  return state.runtime;
+}
+
+export function getAlivePlayers(state: GameState): Player[] {
+  const runtime = ensureRuntime(state);
+  return runtime.playerStates.filter((ps) => ps.alive).map((ps) => ps.player);
+}
+
+export function playerDisplayName(state: GameState, userId: string): string {
+  return state.players.find((p) => p.userId === userId)?.displayName ?? userId;
+}
+
+/** Send a DM notification to the storyteller (non-blocking, best-effort). */
+export function notifyStoryteller(
+  client: Client,
+  state: GameState,
+  content: string,
+): void {
+  if (!state.storytellerId) return;
+  client.users
+    .fetch(state.storytellerId)
+    .then((u) => u.send(content))
+    .catch(() => {});
 }
 
 export function getRole(runtime: RuntimeState, playerId: string): Role {

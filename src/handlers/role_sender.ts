@@ -9,7 +9,8 @@ import { getLang, getRoleName, t } from "../i18n";
 import { renderRoleDm } from "../game/draft_render";
 import { updateGame } from "../game/state";
 import { sendPlayerDm } from "../utils/sendPlayerDm";
-import { ensureRuntime, startNightPhase } from "../game/night";
+import { startNightPhase } from "../game/night";
+import { channelLang, ensureRuntime } from "../game/utils";
 
 export async function distributeRoles(
   client: Client,
@@ -102,8 +103,7 @@ export async function distributeRoles(
       state.channelId,
     )) as TextChannel;
     // Use the lang of the first player as a fallback for the channel announcement.
-    const channelLang = getLang(state.players[0]?.userId ?? "", state.guildId);
-    await channel.send(t(channelLang, "rolesDistributed"));
+    await channel.send(t(channelLang(state), "rolesDistributed"));
   } catch {
     // Ignore channel errors.
   }

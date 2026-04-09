@@ -2,6 +2,7 @@ import enStrings from "./en.json";
 import zhStrings from "./zh.json";
 import { Lang } from "../game/types";
 import { ALL_ROLE_DEFINITIONS } from "../roles";
+import { getGuildDefaultLang } from "../guild-settings";
 
 const strings: Record<Lang, Record<string, string>> = {
   en: enStrings as Record<string, string>,
@@ -12,18 +13,13 @@ const roleDefById = new Map(ALL_ROLE_DEFINITIONS.map((r) => [r.id, r]));
 
 /** Per-user language preferences (lives for bot session lifetime). */
 const userLang = new Map<string, Lang>();
-/** Per-guild default language preferences (lives for bot session lifetime). */
-const guildDefaultLang = new Map<string, Lang>();
-/** Per-guild setting: whether Drunk's fake role may overlap with a real Townsfolk in play. */
-const guildDrunkOverlap = new Map<string, boolean>();
 
 export function getLang(userId: string, guildId?: string | null): Lang {
   const userSetting = userLang.get(userId);
   if (userSetting) return userSetting;
 
   if (guildId) {
-    const guildSetting = guildDefaultLang.get(guildId);
-    if (guildSetting) return guildSetting;
+    return getGuildDefaultLang(guildId);
   }
 
   return "en";
@@ -33,21 +29,13 @@ export function setLang(userId: string, lang: Lang): void {
   userLang.set(userId, lang);
 }
 
-export function getGuildDefaultLang(guildId: string): Lang {
-  return guildDefaultLang.get(guildId) ?? "en";
-}
-
-export function setGuildDefaultLang(guildId: string, lang: Lang): void {
-  guildDefaultLang.set(guildId, lang);
-}
-
-export function getGuildDrunkOverlap(guildId: string): boolean {
-  return guildDrunkOverlap.get(guildId) ?? false;
-}
-
-export function setGuildDrunkOverlap(guildId: string, allowed: boolean): void {
-  guildDrunkOverlap.set(guildId, allowed);
-}
+// Re-export guild settings for callers that import from i18n
+export {
+  getGuildDefaultLang,
+  setGuildDefaultLang,
+  getGuildDrunkOverlap,
+  setGuildDrunkOverlap,
+} from "../guild-settings";
 
 export function getRoleName(lang: Lang, roleId: string): string {
   return roleDefById.get(roleId)?.name[lang] ?? roleId;

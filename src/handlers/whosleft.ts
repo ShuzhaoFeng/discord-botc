@@ -1,7 +1,8 @@
 import { ChatInputCommandInteraction } from "discord.js";
 import { getGame } from "../game/state";
 import { getLang, t } from "../i18n";
-import { getNightPendingPlayerNames, ensureRuntime } from "../game/night";
+import { getNightPendingPlayerNames } from "../game/night";
+import { ensureRuntime } from "../game/utils";
 import { getActiveNominationInfo } from "../game/day";
 
 export async function handleWhosleft(

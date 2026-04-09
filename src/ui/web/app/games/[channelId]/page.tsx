@@ -114,28 +114,41 @@ export default function GamePage() {
   const handleConfirm = useCallback(async () => {
     setConfirmLoading(true);
     try {
-      const res = await fetch(`/api/games/${channelId}/confirm`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      const data = (await res.json()) as ConfirmResponse;
-      if (!res.ok) throw new Error((data as unknown as { error?: string }).error ?? "Failed to confirm");
-      setClocktowerJson(data.clocktowerJson);
+      if (game?.townsquareUrl) {
+        // Two-phase: get clocktower JSON, pause for export
+        const res = await fetch(`/api/games/${channelId}/confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        const data = (await res.json()) as ConfirmResponse;
+        if (!res.ok) throw new Error((data as unknown as { error?: string }).error ?? "Failed to confirm");
+        setClocktowerJson(data.clocktowerJson);
+      } else {
+        // Direct: distribute roles and go straight to night
+        const res = await fetch(`/api/games/${channelId}/start-night`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to confirm");
+        router.push("/games");
+      }
     } catch (e: unknown) {
       showError(e instanceof Error ? e.message : String(e));
     } finally {
       setConfirmLoading(false);
     }
-  }, [channelId]);
+  }, [channelId, game?.townsquareUrl, router]);
 
-  const handleStartNight = useCallback(async () => {
+  const handleStartNight = useCallback(async (sessionName: string) => {
     setStartNightLoading(true);
     try {
       const res = await fetch(`/api/games/${channelId}/start-night`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: "{}",
+        body: JSON.stringify(sessionName ? { sessionName } : {}),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to start night");

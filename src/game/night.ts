@@ -8,9 +8,7 @@ import {
   NightSession,
   Player,
   PlayerRuntimeState,
-  PlayerTag,
   Role,
-  RuntimeState,
 } from "./types";
 import { getLang, getRoleName, t } from "../i18n";
 import { findRole, getScript } from "./roles";
@@ -20,36 +18,21 @@ import { ALL_ROLE_DEFINITIONS } from "../roles/index";
 import type { NightGameCtx } from "../roles/types";
 import { triggerDeathHandlers } from "./death";
 import { ActiveGameState } from "./types";
-import { pick, getPlayerState, getRole } from "./utils";
+import {
+  channelLang,
+  ensureRuntime,
+  getAlivePlayers,
+  getPlayerState,
+  getRole,
+  pick,
+  playerDisplayName,
+  notifyStoryteller,
+  resolvePlayer,
+} from "./utils";
 import { logBotMessage, logPlayerMessage } from "../utils/chat-log";
 
 function getHandlers(roleId: string) {
   return ALL_ROLE_DEFINITIONS.find((r) => r.id === roleId)?.nightHandlers;
-}
-
-export function ensureRuntime(state: GameState): RuntimeState {
-  if (!state.runtime) {
-    const draft = state.draft!;
-    const playerStates: PlayerRuntimeState[] = state.players.map((p) => {
-      const role = draft.assignments.get(p.userId)!;
-      const effectiveRole =
-        role.id === "drunk" && draft.drunkFakeRole ? draft.drunkFakeRole : role;
-      const tags = new Set<PlayerTag>();
-      if (draft.redHerring === p.userId) tags.add("red_herring");
-      return { player: p, role, effectiveRole, alive: true, tags };
-    });
-    state.runtime = {
-      nightNumber: 0,
-      playerStates,
-      nightSession: null,
-      daySession: null,
-      lastExecutedPlayerId: null,
-      nightKillIds: [],
-      nightKillIntentId: null,
-      pendingEndGame: null,
-    };
-  }
-  return state.runtime;
 }
 
 function parsePlayerInput(raw: string): string[] {
@@ -57,48 +40,6 @@ function parsePlayerInput(raw: string): string[] {
     .split(/[，,]/)
     .map((s) => s.trim())
     .filter(Boolean);
-}
-
-function resolvePlayerName(
-  input: string,
-  players: Player[],
-): Player | undefined {
-  const lower = input.toLowerCase();
-  const exact = players.filter(
-    (p) =>
-      p.displayName.toLowerCase() === lower ||
-      p.username.toLowerCase() === lower,
-  );
-  if (exact.length === 1) return exact[0];
-
-  const prefix = players.filter(
-    (p) =>
-      p.displayName.toLowerCase().startsWith(lower) ||
-      p.username.toLowerCase().startsWith(lower),
-  );
-  if (prefix.length === 1) return prefix[0];
-  return undefined;
-}
-
-function getAlivePlayers(state: GameState): Player[] {
-  const runtime = ensureRuntime(state);
-  return runtime.playerStates.filter((ps) => ps.alive).map((ps) => ps.player);
-}
-
-function playerDisplayName(state: GameState, userId: string): string {
-  return state.players.find((p) => p.userId === userId)?.displayName ?? userId;
-}
-
-function notifyStoryteller(
-  client: Client,
-  state: GameState,
-  content: string,
-): void {
-  if (!state.storytellerId) return;
-  client.users
-    .fetch(state.storytellerId)
-    .then((u) => u.send(content))
-    .catch(() => {});
 }
 
 function buildCtx(
@@ -264,9 +205,8 @@ export async function startNightPhase(
     const channel = (await client.channels.fetch(
       state.channelId,
     )) as TextChannel;
-    const channelLang = getLang(state.players[0]?.userId ?? "", state.guildId);
     await channel.send(
-      t(channelLang, "nightBegins", { n: session.nightNumber }),
+      t(channelLang(state), "nightBegins", { n: session.nightNumber }),
     );
   }
 
@@ -312,7 +252,7 @@ function validatePromptResponse(
   const resolvedIds: string[] = [];
   for (let i = 0; i < rawNames.length; i++) {
     const rawName = rawNames[i];
-    const p = resolvePlayerName(rawName, state.players);
+    const p = resolvePlayer(rawName, state.players);
     if (!p)
       return {
         ok: false,
@@ -344,10 +284,6 @@ function roleNameFor(lang: Lang, role: Role): string {
   return getRoleName(lang, role.id);
 }
 
-function playerName(state: GameState, userId: string): string {
-  return state.players.find((p) => p.userId === userId)?.displayName ?? userId;
-}
-
 function boolWord(lang: Lang, value: boolean): string {
   return value ? t(lang, "nightBoolYes") : t(lang, "nightBoolNo");
 }
@@ -358,8 +294,8 @@ function renderOutcomeDraft(
   draft: NightOutcomeDraft,
 ): string {
   if (draft.templateId === "pair_role_info") {
-    const p1 = playerName(state, String(draft.fields.p1));
-    const p2 = playerName(state, String(draft.fields.p2));
+    const p1 = playerDisplayName(state, String(draft.fields.p1));
+    const p2 = playerDisplayName(state, String(draft.fields.p2));
     const role = getScript().roles.find(
       (r) => r.id === String(draft.fields.role),
     );
@@ -370,8 +306,8 @@ function renderOutcomeDraft(
   }
 
   if (draft.templateId === "empath_count") {
-    const left = playerName(state, String(draft.fields.left));
-    const right = playerName(state, String(draft.fields.right));
+    const left = playerDisplayName(state, String(draft.fields.left));
+    const right = playerDisplayName(state, String(draft.fields.right));
     const count = Number(draft.fields.count);
     return t(recipientLang, "nightEmpathCount", { left, right, count });
   }
@@ -415,7 +351,6 @@ function renderOutcomeDraft(
   return t(recipientLang, "nightInteractionRecorded");
 }
 
-
 function validateAndNormalizeDraft(
   state: GameState,
   draft: NightOutcomeDraft,
@@ -449,9 +384,6 @@ function validateAndNormalizeDraft(
   draft.fields.role = candidates[0].id;
   return null;
 }
-
-
-
 
 async function resolveNightOutcomes(
   client: Client,
@@ -629,7 +561,6 @@ async function resolveNightOutcomes(
           state.draft.assignments.set(newImpPs.player.userId, impRole);
         updateGame(state);
         newImpPlayerId = newImpPs.player.userId;
-
       }
     }
   }
@@ -839,7 +770,7 @@ async function handleDeathNarrativeDm(
       return true;
     }
 
-    const target = resolvePlayerName(namePart, state.players);
+    const target = resolvePlayer(namePart, state.players);
     if (!target) {
       const err = t(lang, "nightRavenkeeperDeathInvalidPlayer", {
         name: namePart,
@@ -864,7 +795,9 @@ async function handleDeathNarrativeDm(
 
     const draft = {
       fields: { target: target.userId, role: shownRoleId },
-      fieldTypes: poisoned ? ({ role: "role" } as Record<string, "role" | "player">) : {},
+      fieldTypes: poisoned
+        ? ({ role: "role" } as Record<string, "role" | "player">)
+        : {},
     };
     session.deathNarrativeDrafts.set(player.userId, draft);
     const confirmation = renderDeathNarrativeConfirmation(
@@ -903,7 +836,6 @@ async function handleDeathNarrativeDm(
   return true;
 }
 
-
 async function proceedAfterDeathNarrative(
   client: Client,
   state: GameState,
@@ -940,12 +872,11 @@ async function sendDeathNarrativeConfirmations(
   await startDayPhase(client, state);
 }
 
-
 export function getNightPendingPlayerNames(state: GameState): string[] {
   const runtime = ensureRuntime(state);
   const session = runtime.nightSession;
   if (!session || session.status !== "awaiting_players") return [];
-  return session.pendingPlayerIds.map((id) => playerName(state, id));
+  return session.pendingPlayerIds.map((id) => playerDisplayName(state, id));
 }
 
 // ─── UI helpers ──────────────────────────────────────────────────────────────
@@ -1108,7 +1039,12 @@ export function applyDeathNarrativeDraftFieldForUI(
   }
 
   const kind = session.deathNarrativePlayers.get(playerId) ?? "simple";
-  const confirmation = renderDeathNarrativeConfirmation(state, playerId, kind, draft);
+  const confirmation = renderDeathNarrativeConfirmation(
+    state,
+    playerId,
+    kind,
+    draft,
+  );
   session.deathNarrativeConfirmations.set(playerId, confirmation);
   updateGame(state);
   return { confirmation };
