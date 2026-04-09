@@ -82,6 +82,9 @@ function categoryToTeam(
 
 function buildClockTowerJson(state: GameState): object {
   const draft = state.draft!;
+  const hasFortuneTeller = [...draft.assignments.values()].some(
+    (r) => r.id === "fortune_teller",
+  );
   const players = state.players.map((p) => {
     const trueRole = draft.assignments.get(p.userId)!;
     const isDrunk = trueRole.id === "drunk";
@@ -95,6 +98,14 @@ function buildClockTowerJson(state: GameState): object {
         team: "outsider",
         edition: "tb",
         name: "Is The Drunk",
+      });
+    }
+    if (hasFortuneTeller && draft.redHerring === p.userId) {
+      reminders.push({
+        role: "fortuneteller",
+        team: "townsfolk",
+        edition: "tb",
+        name: "Red Herring",
       });
     }
 
