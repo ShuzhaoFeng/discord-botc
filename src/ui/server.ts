@@ -302,6 +302,7 @@ export async function startUiServer(
           )
         : null,
       townsquareUrl: getGuildSettings(state.guildId).townsquareUrl,
+      townsquareSessionUrl: state.townsquareSessionUrl ?? null,
     });
   });
 
@@ -507,14 +508,28 @@ export async function startUiServer(
         return void res
           .status(400)
           .json({ error: validErr.key, params: validErr.params });
+      // Block if townsquare integration is enabled but no session has been linked via /link
+      const townsquareUrl = getGuildSettings(state.guildId).townsquareUrl;
+      if (townsquareUrl && !state.townsquareSessionUrl) {
+        return void res
+          .status(400)
+          .json({
+            error:
+              "Townsquare is enabled but no session has been linked. Use /link in the game channel first.",
+          });
+      }
+
       try {
         await distributeRoles(client, state);
 
-        // Connect to townsquare as spectator if integration is enabled and session name provided
-        const { sessionName } = req.body as { sessionName?: string };
-        const townsquareUrl = getGuildSettings(state.guildId).townsquareUrl;
-        if (townsquareUrl && sessionName) {
-          connectTownsquareSpectator(state, townsquareUrl, sessionName, client);
+        // Connect to townsquare as spectator if integration is enabled
+        if (townsquareUrl && state.townsquareSessionUrl) {
+          connectTownsquareSpectator(
+            state,
+            townsquareUrl,
+            state.townsquareSessionUrl,
+            client,
+          );
         }
 
         res.json({ ok: true });

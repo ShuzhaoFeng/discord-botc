@@ -14,6 +14,7 @@ import {
   RuntimeState,
 } from "./types";
 import { getLang } from "../i18n";
+import { getGuildSettings } from "../guild-settings";
 
 export function shuffle<T>(arr: T[]): T[] {
   const next = [...arr];
@@ -147,4 +148,22 @@ export function resolvePlayer(
 /** Derives the display language from the first player in the game. */
 export function channelLang(state: GameState): Lang {
   return getLang(state.players[0]?.userId ?? "", state.guildId);
+}
+
+/**
+ * True when in-game shared channel commands (/nominate, /ye, /endday, role
+ * commands like /slay) should be silently ignored.
+ *
+ * This happens when:
+ *  - A human storyteller is running the game (manual mode), AND
+ *  - Townsquare integration is enabled for the guild.
+ *
+ * In that scenario the storyteller drives the entire day flow via the
+ * townsquare app, so Discord day-phase commands are unnecessary.
+ */
+export function areChannelCommandsDisabled(state: GameState): boolean {
+  return (
+    state.storytellerId !== null &&
+    getGuildSettings(state.guildId).townsquareUrl !== null
+  );
 }

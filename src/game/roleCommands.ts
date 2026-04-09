@@ -9,7 +9,7 @@ import { ALL_ROLE_DEFINITIONS } from "../roles/index";
 import { getGame } from "./state";
 import type { ActiveGameState, GameState } from "./types";
 import type { DayGameCtx } from "../roles/types";
-import { notifyStoryteller, playerDisplayName } from "./utils";
+import { areChannelCommandsDisabled, notifyStoryteller, playerDisplayName } from "./utils";
 import { cancelActiveNomination, killPlayerDuringDay } from "./day";
 
 export function getRoleCommandBuilders(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
@@ -57,6 +57,9 @@ export async function handleRoleCommand(
     });
     return true;
   }
+
+  // 3b. Silently ignore when human ST + townsquare handles the day flow.
+  if (areChannelCommandsDisabled(state)) return true;
 
   // 4. Check state.phase === "in_progress".
   if (state.phase !== "in_progress") {

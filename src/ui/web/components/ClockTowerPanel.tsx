@@ -5,7 +5,7 @@ import { Check, Copy } from "lucide-react";
 
 interface Props {
   clocktowerJson: object;
-  onStartNight: (sessionName: string) => void;
+  onStartNight: () => void;
   isStartNightLoading: boolean;
   error: string | null;
 }
@@ -17,7 +17,6 @@ export default function ClockTowerPanel({
   error,
 }: Props) {
   const [copied, setCopied] = useState(false);
-  const [sessionName, setSessionName] = useState("");
   const compactJson = JSON.stringify(clocktowerJson);
 
   async function handleCopy() {
@@ -60,29 +59,11 @@ export default function ClockTowerPanel({
         </button>
       </div>
 
-      {/* Townsquare session */}
-      <div className="shrink-0 space-y-1.5">
-        <label className="text-sm font-medium text-slate-300">
-          Townsquare Session Name
-        </label>
-        <input
-          type="text"
-          value={sessionName}
-          onChange={(e) => setSessionName(e.target.value)}
-          placeholder="e.g. foobar or https://clocktower.live/#foobar"
-          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-        />
-        <p className="text-xs text-slate-500">
-          Enter the session name from clocktower.live to sync alive/dead status.
-          Leave empty to skip.
-        </p>
-      </div>
-
       {/* Error + Start Night */}
       <div className="shrink-0 space-y-3">
         {error && <p className="text-red-400 text-sm">{error}</p>}
         <button
-          onClick={() => onStartNight(sessionName.trim())}
+          onClick={() => onStartNight()}
           disabled={isStartNightLoading}
           className="w-full bg-indigo-700 hover:bg-indigo-600 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold px-6 py-3 rounded-lg transition-colors disabled:cursor-not-allowed text-base"
         >

@@ -142,13 +142,13 @@ export default function GamePage() {
     }
   }, [channelId, game?.townsquareUrl, router]);
 
-  const handleStartNight = useCallback(async (sessionName: string) => {
+  const handleStartNight = useCallback(async () => {
     setStartNightLoading(true);
     try {
       const res = await fetch(`/api/games/${channelId}/start-night`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sessionName ? { sessionName } : {}),
+        body: "{}",
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to start night");

@@ -87,6 +87,19 @@ const commands = [
     .setDescription("Show game info: phase, role distribution, win conditions, and player status.")
     .toJSON(),
 
+  new SlashCommandBuilder()
+    .setName("link")
+    .setDescription("Link a townsquare session for live sync.")
+    .addStringOption((opt) =>
+      opt
+        .setName("url")
+        .setDescription(
+          'Player-facing townsquare link (e.g. "https://clocktower.live/#foobar")',
+        )
+        .setRequired(true),
+    )
+    .toJSON(),
+
   ...getRoleCommandBuilders(),
 ];
 

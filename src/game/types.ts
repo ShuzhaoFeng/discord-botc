@@ -197,6 +197,7 @@ export interface GameState {
   runtime: RuntimeState | null;
   testMode?: boolean; // true when started via !ctest
   testOwnerId?: string; // receives all redirected DMs for fake players
+  townsquareSessionUrl?: string; // full clocktower.live URL set via /link
 }
 
 /** A GameState that is guaranteed to have an active RuntimeState. */

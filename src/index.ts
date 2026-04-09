@@ -26,7 +26,10 @@ import { handleYeCommand } from "./handlers/ye";
 import { handleRoleCommand } from "./game/roleCommands";
 import { handleEnddayCommand } from "./handlers/endday";
 import { handleInfo } from "./handlers/info";
+import { handleLink } from "./handlers/link";
 import { startUiServer } from "./ui/server";
+import { getGame } from "./game/state";
+import { areChannelCommandsDisabled } from "./game/utils";
 
 const client = new Client({
   intents: [
@@ -72,16 +75,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleWhosleft(i);
         break;
       case "nominate":
-        await handleNominateCommand(i, client);
-        break;
       case "ye":
-        await handleYeCommand(i, client);
+      case "endday": {
+        const gameState = getGame(i.channelId);
+        if (gameState && areChannelCommandsDisabled(gameState)) break;
+        if (i.commandName === "nominate") await handleNominateCommand(i, client);
+        else if (i.commandName === "ye") await handleYeCommand(i, client);
+        else await handleEnddayCommand(i, client);
         break;
-      case "endday":
-        await handleEnddayCommand(i, client);
-        break;
+      }
       case "info":
         await handleInfo(i);
+        break;
+      case "link":
+        await handleLink(i);
         break;
       default:
         if (!await handleRoleCommand(i, client)) {
