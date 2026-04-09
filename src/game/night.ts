@@ -30,6 +30,7 @@ import {
   resolvePlayer,
 } from "./utils";
 import { logBotMessage, logPlayerMessage } from "../utils/chat-log";
+import { getGuildSettings } from "../guild-settings";
 
 function getHandlers(roleId: string) {
   return ALL_ROLE_DEFINITIONS.find((r) => r.id === roleId)?.nightHandlers;
@@ -111,6 +112,8 @@ export async function startNightPhase(
   const infoOutcomeMeta = new Map<string, NightOutcomeMeta>();
   const infoOutcomeDrafts = new Map<string, NightOutcomeDraft>();
 
+  const onlineMode = getGuildSettings(state.guildId).onlineMode;
+
   // First pass: build all prompts synchronously, identify which players need jokes.
   const nightNumber = runtime.nightNumber;
   const promptResults = alivePlayers.map((p) => {
@@ -154,16 +157,21 @@ export async function startNightPhase(
   });
 
   // Fetch all required jokes in parallel before sending any messages.
-  const jokePlayerIds = promptResults
-    .filter((r) => r.prompt.kind === "joke")
-    .map((r) => r.player.userId);
+  // In online mode, skip joke fetching entirely — joke players get no messages.
+  const jokePlayerIds = onlineMode
+    ? []
+    : promptResults
+        .filter((r) => r.prompt.kind === "joke")
+        .map((r) => r.player.userId);
   const fetchedJokes = await Promise.all(jokePlayerIds.map(() => getDadJoke()));
   const jokeByPlayerId = new Map(
     jokePlayerIds.map((id, i) => [id, fetchedJokes[i]]),
   );
 
   // Second pass: assemble actionMessages with pre-fetched jokes.
+  // In online mode, only action players get an action message.
   for (const { player, prompt, message } of promptResults) {
+    if (onlineMode && prompt.kind !== "action") continue;
     if (prompt.kind === "joke") {
       const lang = getLang(player.userId, state.guildId);
       const joke = jokeByPlayerId.get(player.userId)!;
@@ -172,6 +180,13 @@ export async function startNightPhase(
       actionMessages.set(player.userId, message);
     }
   }
+
+  // In online mode, only action players are pending (info/joke players don't respond).
+  const pendingPlayers = onlineMode
+    ? alivePlayers.filter(
+        (p) => prompts.get(p.userId)?.kind === "action",
+      )
+    : alivePlayers;
 
   const session: NightSession = {
     nightNumber: runtime.nightNumber,
@@ -182,7 +197,7 @@ export async function startNightPhase(
     prompts,
     actionMessages,
     responses,
-    pendingPlayerIds: alivePlayers.map((p) => p.userId),
+    pendingPlayerIds: pendingPlayers.map((p) => p.userId),
     infoMessages,
     infoOutcomeMeta,
     infoOutcomeDrafts,
@@ -208,6 +223,13 @@ export async function startNightPhase(
     await channel.send(
       t(channelLang(state), "nightBegins", { n: session.nightNumber }),
     );
+
+    // In online mode, if no action players exist, resolve immediately.
+    if (session.pendingPlayerIds.length === 0) {
+      await resolveNightOutcomes(client, state);
+      await proceedAfterResolution(client, state, session);
+      return;
+    }
   }
 
   updateGame(state);
@@ -583,18 +605,26 @@ async function resolveNightOutcomes(
     });
   }
 
-  // Joke players get a response to their joke reply.
+  // Joke players: in online mode they get no interaction at all;
+  // in in-person mode they get a response to their joke reply.
+  const onlineMode = getGuildSettings(state.guildId).onlineMode;
   for (const ps of runtime.playerStates) {
     if (!ps.alive) continue;
     const prompt = session.prompts.get(ps.player.userId);
     if (prompt?.kind !== "joke") continue;
-    const lang = getLang(ps.player.userId, state.guildId);
-    session.infoMessages.set(ps.player.userId, t(lang, "nightJudgeJoke"));
-    session.infoOutcomeDrafts.delete(ps.player.userId);
-    session.infoOutcomeMeta.set(ps.player.userId, {
-      kind: "fixed",
-      reasonKey: "nightReasonJokeInteraction",
-    });
+    if (onlineMode) {
+      session.infoMessages.delete(ps.player.userId);
+      session.infoOutcomeDrafts.delete(ps.player.userId);
+      session.infoOutcomeMeta.delete(ps.player.userId);
+    } else {
+      const lang = getLang(ps.player.userId, state.guildId);
+      session.infoMessages.set(ps.player.userId, t(lang, "nightJudgeJoke"));
+      session.infoOutcomeDrafts.delete(ps.player.userId);
+      session.infoOutcomeMeta.set(ps.player.userId, {
+        kind: "fixed",
+        reasonKey: "nightReasonJokeInteraction",
+      });
+    }
   }
 
   // Append the Imp promotion notice to the new Imp's info message (after all other
@@ -970,6 +1000,13 @@ export async function sendActionMessagesForUI(
   }
 
   updateGame(state);
+
+  // In online mode, if no action players exist, resolve immediately.
+  if (session.pendingPlayerIds.length === 0) {
+    await resolveNightOutcomes(client, state);
+    await proceedAfterResolution(client, state, session);
+  }
+
   return { ok: true };
 }
 

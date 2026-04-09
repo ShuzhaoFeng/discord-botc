@@ -6,12 +6,15 @@ export interface GuildSettings {
   drunkOverlap: boolean;
   /** When set, the confirm flow pauses to show a clocktower-compatible JSON export. */
   townsquareUrl: string | null;
+  /** When true, skips filler night messages (jokes, readiness confirmations) for online play. */
+  onlineMode: boolean;
 }
 
 const DEFAULT_GUILD_SETTINGS: GuildSettings = {
   defaultLang: "en",
   drunkOverlap: false,
   townsquareUrl: null,
+  onlineMode: false,
 };
 
 const guildSettingsMap = new Map<string, GuildSettings>();

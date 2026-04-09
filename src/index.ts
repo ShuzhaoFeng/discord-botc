@@ -20,7 +20,6 @@ import { handleYouare } from "./handlers/youare";
 import { handleNightDm } from "./handlers/night_dm";
 import { handleLang } from "./handlers/lang";
 import { handleRulebook } from "./handlers/rulebook";
-import { handleWhosleft } from "./handlers/whosleft";
 import { handleNominateCommand } from "./handlers/nominate";
 import { handleYeCommand } from "./handlers/ye";
 import { handleRoleCommand } from "./game/roleCommands";
@@ -71,15 +70,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
       case "rulebook":
         await handleRulebook(i);
         break;
-      case "whosleft":
-        await handleWhosleft(i);
-        break;
       case "nominate":
       case "ye":
       case "endday": {
         const gameState = getGame(i.channelId);
         if (gameState && areChannelCommandsDisabled(gameState)) break;
-        if (i.commandName === "nominate") await handleNominateCommand(i, client);
+        if (i.commandName === "nominate")
+          await handleNominateCommand(i, client);
         else if (i.commandName === "ye") await handleYeCommand(i, client);
         else await handleEnddayCommand(i, client);
         break;
@@ -91,7 +88,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleLink(i);
         break;
       default:
-        if (!await handleRoleCommand(i, client)) {
+        if (!(await handleRoleCommand(i, client))) {
           console.warn(`Unrecognized command: /${i.commandName}`);
         }
     }

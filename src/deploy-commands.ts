@@ -55,13 +55,6 @@ const commands = [
     .toJSON(),
 
   new SlashCommandBuilder()
-    .setName("whosleft")
-    .setDescription(
-      "Manual mode only: show which players still owe a night reply.",
-    )
-    .toJSON(),
-
-  new SlashCommandBuilder()
     .setName("nominate")
     .setDescription("Nominate a living player for execution (day phase).")
     .addStringOption((opt) =>
@@ -84,7 +77,9 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("info")
-    .setDescription("Show game info: phase, role distribution, win conditions, and player status.")
+    .setDescription(
+      "Show game info: phase, role distribution, win conditions, and player status.",
+    )
     .toJSON(),
 
   new SlashCommandBuilder()

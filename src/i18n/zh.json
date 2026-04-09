@@ -78,12 +78,6 @@
   "infoPlayersHeader": "**玩家（{count} 人）：**",
   "infoAlive": "存活",
   "infoDead": "已死亡",
-  "whosleftNoNomination": "📋 当前没有进行中的提名投票。",
-  "whosleftNone": "（无）",
-  "whosleftNominated": "🗳️ **{nominator}** 提名了 **{nominee}**\n已投票（{count}）：{voters}",
-  "whosleftNoPending": "✅ 当前夜晚阶段没有待回复的玩家。",
-  "whosleftPending": "⏳ 尚未回复的玩家：{players}",
-
   "dayAlive": "存活",
   "dayDead": "死亡",
   "dayPlayerDied": "⚰️ **{name}** 死亡。",

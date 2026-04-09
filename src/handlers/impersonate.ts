@@ -24,7 +24,6 @@ import { handleIam } from "./iam";
 import { handleYouare } from "./youare";
 import { handleLang } from "./lang";
 import { handleRulebook } from "./rulebook";
-import { handleWhosleft } from "./whosleft";
 import { handleInfo } from "./info";
 
 const COMMAND_PREFIX = "!as ";
@@ -138,7 +137,6 @@ export async function handleImpersonate(
     endday: { handler: handleEndDay },
     lang: { handler: (i, _c) => handleLang(i), argRequired: true },
     rulebook: { handler: (i, _c) => handleRulebook(i) },
-    whosleft: { handler: (i, _c) => handleWhosleft(i) },
     info: { handler: (i, _c) => handleInfo(i) },
   };
 

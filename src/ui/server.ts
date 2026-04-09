@@ -285,6 +285,14 @@ export async function startUiServer(
         .status(400)
         .json({ error: "townsquareUrl must be a string or null" });
     }
+    if (
+      settings.onlineMode !== undefined &&
+      typeof settings.onlineMode !== "boolean"
+    ) {
+      return void res
+        .status(400)
+        .json({ error: "onlineMode must be a boolean" });
+    }
 
     const updated = updateGuildSettings(guildId, settings);
     res.json({ ok: true, guildId, settings: updated });
@@ -580,7 +588,9 @@ export async function startUiServer(
       | undefined;
     if (session?.status === "awaiting_storyteller_action") {
       actionMessages = runtime.playerStates
-        .filter((ps) => ps.alive)
+        .filter(
+          (ps) => ps.alive && session.actionMessages.has(ps.player.userId),
+        )
         .map((ps) => ({
           userId: ps.player.userId,
           displayName: ps.player.displayName,

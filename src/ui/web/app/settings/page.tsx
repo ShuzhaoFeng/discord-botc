@@ -17,6 +17,7 @@ export default function SettingsPage() {
     defaultLang: "en",
     drunkOverlap: false,
     townsquareUrl: null,
+    onlineMode: false,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -182,6 +183,21 @@ export default function SettingsPage() {
                 <span>
                   Allow Drunk&apos;s fake role to overlap with a Townsfolk
                   already in play
+                </span>
+              </label>
+
+              <label className="flex items-center gap-3 text-sm text-slate-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded accent-indigo-500"
+                  checked={draft.onlineMode}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, onlineMode: e.target.checked }))
+                  }
+                />
+                <span>
+                  Online mode (skip filler night messages for players with no
+                  night interaction)
                 </span>
               </label>
             </section>

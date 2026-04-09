@@ -135,6 +135,7 @@ export interface GuildSettingsData {
   defaultLang: "en" | "zh";
   drunkOverlap: boolean;
   townsquareUrl: string | null;
+  onlineMode: boolean;
 }
 
 export interface GuildSettingsEntry {
