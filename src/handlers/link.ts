@@ -50,5 +50,5 @@ export async function handleLink(
   state.townsquareSessionUrl = url;
   updateGame(state);
 
-  await interaction.reply(tr("linkSet", { url, channel: sessionChannel }));
+  await interaction.reply(tr("linkSet", { url }));
 }

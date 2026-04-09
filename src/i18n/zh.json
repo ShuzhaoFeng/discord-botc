@@ -222,6 +222,6 @@
   "impersonateUsage": "❌ 用法：`!as <玩家> <命令>`",
   "impersonateUnknownPlayer": "❌ 此游戏中没有名为 \"{name}\" 的测试玩家。",
   "linkInvalidUrl": "❌ 请提供包含会话片段的完整 townsquare 链接（例如 `https://clocktower.live/#foobar`）。",
-  "linkSet": "🔗 已关联 Townsquare 会话：{url}（频道：`{channel}`）",
+  "linkSet": "🔗 已关联 Townsquare：{url}",
   "errorTownsquareNotLinked": "❌ Townsquare 集成已启用，但尚未关联会话。请先在游戏频道中使用 `/link`。"
 }

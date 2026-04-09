@@ -221,6 +221,6 @@
   "impersonateUsage": "❌ Usage: `!as <player> <command>`",
   "impersonateUnknownPlayer": "❌ No fake player named \"{name}\" in this game.",
   "linkInvalidUrl": "❌ Please provide a full townsquare link with a session fragment (e.g. `https://clocktower.live/#foobar`).",
-  "linkSet": "🔗 Townsquare session linked: {url} (channel: `{channel}`)",
+  "linkSet": "🔗 Townsquare linked: {url}",
   "errorTownsquareNotLinked": "❌ Townsquare integration is enabled but no session has been linked yet. Use `/link` in the game channel first."
 }
