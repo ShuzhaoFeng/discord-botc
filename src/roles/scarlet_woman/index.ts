@@ -1,6 +1,6 @@
 import type { RoleDefinition } from "../types";
 import { getRole } from "../../game/utils";
-import { getLang, t } from "../../i18n";
+import { useTranslation, getLang, t } from "../../i18n";
 import { sendPlayerDm } from "../../utils/sendPlayerDm";
 import { updateGame } from "../../game/state";
 import { TextChannel } from "discord.js";
@@ -37,21 +37,21 @@ export const definition: RoleDefinition = {
       updateGame(state);
 
       // Notify SW via DM
-      const swLang = getLang(swPs.player.userId, state.guildId);
+      const trSw = useTranslation(swPs.player.userId, state.guildId);
       await sendPlayerDm(
         client,
         swPs.player,
         state,
-        t(swLang, "dayScarletWomanBecomesImp"),
+        trSw("dayScarletWomanBecomesImp"),
       );
 
       // Notify storyteller if manual mode
       if (state.mode === "manual" && state.storytellerId) {
         try {
           const stUser = await client.users.fetch(state.storytellerId);
-          const stLang = getLang(state.storytellerId, state.guildId);
+          const trSt = useTranslation(state.storytellerId, state.guildId);
           await stUser.send(
-            t(stLang, "dayScarletWomanStorytellerNotify", {
+            trSt("dayScarletWomanStorytellerNotify", {
               player: swPs.player.displayName,
             }),
           );

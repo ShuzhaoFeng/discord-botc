@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction } from "discord.js";
 import { getGame } from "../game/state";
-import { getLang, t } from "../i18n";
+import { useTranslation, getLang } from "../i18n";
 import { getNightPendingPlayerNames } from "../game/night";
 import { ensureRuntime } from "../game/utils";
 import { getActiveNominationInfo } from "../game/day";
@@ -9,11 +9,12 @@ export async function handleWhosleft(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
   const lang = getLang(interaction.user.id, interaction.guildId);
+  const tr = useTranslation(interaction.user.id, interaction.guildId);
   const state = getGame(interaction.channelId);
 
   if (!state) {
     await interaction.reply({
-      content: t(lang, "errorNotGameChannel"),
+      content: tr("errorNotGameChannel"),
       ephemeral: true,
     });
     return;
@@ -26,7 +27,7 @@ export async function handleWhosleft(
     const info = getActiveNominationInfo(state);
     if (!info) {
       await interaction.reply({
-        content: t(lang, "whosleftNoNomination"),
+        content: tr("whosleftNoNomination"),
         ephemeral: true,
       });
       return;
@@ -35,9 +36,9 @@ export async function handleWhosleft(
     const voterList =
       info.voterNames.length > 0
         ? info.voterNames.join(sep)
-        : t(lang, "whosleftNone");
+        : tr("whosleftNone");
     await interaction.reply({
-      content: t(lang, "whosleftNominated", {
+      content: tr("whosleftNominated", {
         nominator: info.nominatorName,
         nominee: info.nomineeName,
         count: info.voteCount,
@@ -52,7 +53,7 @@ export async function handleWhosleft(
   const pending = getNightPendingPlayerNames(state);
   if (pending.length === 0) {
     await interaction.reply({
-      content: t(lang, "whosleftNoPending"),
+      content: tr("whosleftNoPending"),
       ephemeral: true,
     });
     return;
@@ -60,7 +61,7 @@ export async function handleWhosleft(
 
   const sep = lang === "zh" ? "、" : ", ";
   await interaction.reply({
-    content: t(lang, "whosleftPending", { players: pending.join(sep) }),
+    content: tr("whosleftPending", { players: pending.join(sep) }),
     ephemeral: true,
   });
 }

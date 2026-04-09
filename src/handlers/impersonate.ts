@@ -16,7 +16,7 @@ import {
   TextChannel,
 } from "discord.js";
 import { getGame } from "../game/state";
-import { getLang, t } from "../i18n";
+import { useTranslation } from "../i18n";
 import { Player } from "../game/types";
 import { handleNominate, handleYe, handleEndDay } from "../game/day";
 import { handleRoleCommand } from "../game/roleCommands";
@@ -101,24 +101,17 @@ export async function handleImpersonate(
   const tokens = raw.split(/\s+/);
   const playerName = tokens[0];
   const rest = tokens.slice(1);
+  const tr = useTranslation(message.author.id, message.guild.id);
 
   if (!playerName || rest.length === 0) {
-    await message.reply(
-      t(getLang(message.author.id, message.guild.id), "impersonateUsage"),
-    );
+    await message.reply(tr("impersonateUsage"));
     return;
   }
 
   // Resolve to a fake player in this game.
   const fakePlayer = resolveFakePlayer(playerName, state.players);
   if (!fakePlayer) {
-    await message.reply(
-      t(
-        getLang(message.author.id, message.guild.id),
-        "impersonateUnknownPlayer",
-        { name: playerName },
-      ),
-    );
+    await message.reply(tr("impersonateUnknownPlayer", { name: playerName }));
     return;
   }
 

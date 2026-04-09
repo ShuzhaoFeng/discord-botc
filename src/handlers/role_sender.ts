@@ -5,7 +5,7 @@
 
 import { Client, TextChannel } from "discord.js";
 import { GameState } from "../game/types";
-import { getLang, getRoleName, t } from "../i18n";
+import { useTranslation, getLang, getRoleName, t } from "../i18n";
 import { renderRoleDm } from "../game/draft_render";
 import { updateGame } from "../game/state";
 import { sendPlayerDm } from "../utils/sendPlayerDm";
@@ -21,6 +21,7 @@ export async function distributeRoles(
   for (const player of state.players) {
     const trueRole = draft.assignments.get(player.userId)!;
     const lang = getLang(player.userId, state.guildId);
+    const tr = useTranslation(player.userId, state.guildId);
     const isDrunk = trueRole.id === "drunk";
 
     // Determine what role to display to the player.
@@ -88,7 +89,7 @@ export async function distributeRoles(
       const ref = player.isTestPlayer
         ? `**${player.displayName}** (test player)`
         : `<@${player.userId}>`;
-      await channel.send(t(lang, "roleSenderDmFailed", { ref }));
+      await channel.send(tr("roleSenderDmFailed", { ref }));
     }
   }
 

@@ -21,7 +21,7 @@
 import { Message, GuildMember } from "discord.js";
 import { createGame, nextGameNumber } from "../game/state";
 import { GameState, Player, FAKE_PLAYER_ID_PREFIX } from "../game/types";
-import { t, getLang } from "../i18n";
+import { useTranslation } from "../i18n";
 import { createGameChannel } from "./clocktower";
 
 const COMMAND_PREFIX = "!ctest";
@@ -31,10 +31,10 @@ export function isCtestCommand(content: string): boolean {
 }
 
 export async function handleCtest(message: Message): Promise<void> {
-  const lang = getLang(message.author.id, message.guild?.id);
+  const tr = useTranslation(message.author.id, message.guild?.id);
 
   if (!message.guild) {
-    await message.reply(t(lang, "clocktowerServerOnly"));
+    await message.reply(tr("clocktowerServerOnly"));
     return;
   }
 
@@ -64,7 +64,7 @@ export async function handleCtest(message: Message): Promise<void> {
       try {
         member = await guild.members.fetch(userId);
       } catch {
-        await message.reply(t(lang, "clocktowerFetchError", { id: userId }));
+        await message.reply(tr("clocktowerFetchError", { id: userId }));
         return;
       }
       realMembers.push(member);
@@ -94,11 +94,11 @@ export async function handleCtest(message: Message): Promise<void> {
   const total = players.length;
 
   if (total < 5) {
-    await message.reply(t(lang, "errorPlayerCount", { n: total }));
+    await message.reply(tr("errorPlayerCount", { n: total }));
     return;
   }
   if (total > 16) {
-    await message.reply(t(lang, "errorPlayerCount", { n: total }));
+    await message.reply(tr("errorPlayerCount", { n: total }));
     return;
   }
 
@@ -136,17 +136,15 @@ export async function handleCtest(message: Message): Promise<void> {
     p.isTestPlayer ? `**${p.displayName}** *(test)*` : `<@${p.userId}>`,
   );
   await channel.send(
-    t(lang, "ctestGameChannelReady", {
-      gameHeader: t(lang, "gameChannelReady", {
+    tr("ctestGameChannelReady", {
+      gameHeader: tr("gameChannelReady", {
         gameId,
         players: playerLabels.join(", "),
       }),
       ownerId: testOwnerId,
     }),
   );
-  await channel.send(t(lang, "chooseStoryteller"));
+  await channel.send(tr("chooseStoryteller"));
 
-  await message.reply(
-    t(lang, "ctestChannelCreated", { channelId: channel.id }),
-  );
+  await message.reply(tr("ctestChannelCreated", { channelId: channel.id }));
 }

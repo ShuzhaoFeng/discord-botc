@@ -6,7 +6,7 @@
 
 import { ChatInputCommandInteraction } from "discord.js";
 import { getGame, updateGame } from "../game/state";
-import { getLang, t } from "../i18n";
+import { useTranslation } from "../i18n";
 
 /**
  * Parses a townsquare URL and extracts the session channel name from the
@@ -25,12 +25,12 @@ function parseSessionChannel(url: string): string | null {
 export async function handleLink(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  const lang = getLang(interaction.user.id, interaction.guildId);
+  const tr = useTranslation(interaction.user.id, interaction.guildId);
   const state = getGame(interaction.channelId);
 
   if (!state) {
     await interaction.reply({
-      content: t(lang, "errorNotGameChannel"),
+      content: tr("errorNotGameChannel"),
       ephemeral: true,
     });
     return;
@@ -41,7 +41,7 @@ export async function handleLink(
 
   if (!sessionChannel) {
     await interaction.reply({
-      content: t(lang, "linkInvalidUrl"),
+      content: tr("linkInvalidUrl"),
       ephemeral: true,
     });
     return;
@@ -50,7 +50,5 @@ export async function handleLink(
   state.townsquareSessionUrl = url;
   updateGame(state);
 
-  await interaction.reply(
-    t(lang, "linkSet", { url, channel: sessionChannel }),
-  );
+  await interaction.reply(tr("linkSet", { url, channel: sessionChannel }));
 }

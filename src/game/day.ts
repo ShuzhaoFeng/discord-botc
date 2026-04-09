@@ -6,7 +6,7 @@ import {
   GameState,
   NominationRecord,
 } from "./types";
-import { getLang, getRoleName, t } from "../i18n";
+import { useTranslation, getLang, getRoleName, t } from "../i18n";
 import { getGame, updateGame } from "./state";
 import {
   ensureRuntime,
@@ -399,16 +399,17 @@ export async function handleNominate(
 ): Promise<void> {
   const state = getGame(i.channelId);
   const lang = getLang(i.user.id, state?.guildId ?? i.guildId);
+  const tr = useTranslation(i.user.id, state?.guildId ?? i.guildId);
 
   if (!state || state.phase !== "in_progress") {
-    await i.reply({ content: t(lang, "dayNoActiveGame"), ephemeral: true });
+    await i.reply({ content: tr("dayNoActiveGame"), ephemeral: true });
     return;
   }
 
   // Storyteller cannot nominate
   if (state.storytellerId === i.user.id) {
     await i.reply({
-      content: t(lang, "dayStorytellerCannotNominate"),
+      content: tr("dayStorytellerCannotNominate"),
       ephemeral: true,
     });
     return;
@@ -419,7 +420,7 @@ export async function handleNominate(
 
   if (!daySession || daySession.status !== "open") {
     await i.reply({
-      content: t(lang, "dayNominationsNotOpen"),
+      content: tr("dayNominationsNotOpen"),
       ephemeral: true,
     });
     return;
@@ -428,7 +429,7 @@ export async function handleNominate(
   // Must be a registered player
   const nominator = state.players.find((p) => p.userId === i.user.id);
   if (!nominator) {
-    await i.reply({ content: t(lang, "dayNotAPlayer"), ephemeral: true });
+    await i.reply({ content: tr("dayNotAPlayer"), ephemeral: true });
     return;
   }
 
@@ -436,7 +437,7 @@ export async function handleNominate(
   const nominatorRtState = getPlayerState(runtime, i.user.id);
   if (!nominatorRtState?.alive) {
     await i.reply({
-      content: t(lang, "dayDeadCannotNominate"),
+      content: tr("dayDeadCannotNominate"),
       ephemeral: true,
     });
     return;
@@ -444,20 +445,20 @@ export async function handleNominate(
 
   // Each player may nominate at most once per day
   if (daySession.nominatorIds.has(i.user.id)) {
-    await i.reply({ content: t(lang, "dayAlreadyNominated"), ephemeral: true });
+    await i.reply({ content: tr("dayAlreadyNominated"), ephemeral: true });
     return;
   }
 
   // No new nominations after end condition triggered
   if (daySession.endDayThresholdMet || daySession.dayEndsAfterNomination) {
-    await i.reply({ content: t(lang, "dayNoNewNominations"), ephemeral: true });
+    await i.reply({ content: tr("dayNoNewNominations"), ephemeral: true });
     return;
   }
 
   // Cannot start if another nomination is active
   if (daySession.activeNomination) {
     await i.reply({
-      content: t(lang, "dayNominationInProgress"),
+      content: tr("dayNominationInProgress"),
       ephemeral: true,
     });
     return;
@@ -468,7 +469,7 @@ export async function handleNominate(
   const nominee = resolvePlayer(nomineeInput, state.players);
   if (!nominee) {
     await i.reply({
-      content: t(lang, "dayUnknownPlayer", { player: nomineeInput }),
+      content: tr("dayUnknownPlayer", { player: nomineeInput }),
       ephemeral: true,
     });
     return;
@@ -478,7 +479,7 @@ export async function handleNominate(
   const nomineeRtState = getPlayerState(runtime, nominee.userId);
   if (!nomineeRtState?.alive) {
     await i.reply({
-      content: t(lang, "dayNomineeDead", { player: nominee.displayName }),
+      content: tr("dayNomineeDead", { player: nominee.displayName }),
       ephemeral: true,
     });
     return;
@@ -487,7 +488,7 @@ export async function handleNominate(
   // Each player may be nominated at most once per day
   if (daySession.nomineeIds.has(nominee.userId)) {
     await i.reply({
-      content: t(lang, "dayAlreadyNominee", { player: nominee.displayName }),
+      content: tr("dayAlreadyNominee", { player: nominee.displayName }),
       ephemeral: true,
     });
     return;
@@ -515,7 +516,7 @@ export async function handleNominate(
 
   if (virginTriggered) {
     await i.reply(
-      t(lang, "dayNominateVirgin", {
+      tr("dayNominateVirgin", {
         nominator: nominator.displayName,
         nominee: nominee.displayName,
       }),
@@ -573,7 +574,7 @@ export async function handleNominate(
   updateGame(state);
 
   await i.reply(
-    t(lang, "dayNominate", {
+    tr("dayNominate", {
       nominator: nominator.displayName,
       nominee: nominee.displayName,
     }),
@@ -594,16 +595,17 @@ export async function handleYe(
 ): Promise<void> {
   const state = getGame(i.channelId);
   const lang = getLang(i.user.id, state?.guildId ?? i.guildId);
+  const tr = useTranslation(i.user.id, state?.guildId ?? i.guildId);
 
   if (!state || state.phase !== "in_progress") {
-    await i.reply({ content: t(lang, "dayNoActiveGame"), ephemeral: true });
+    await i.reply({ content: tr("dayNoActiveGame"), ephemeral: true });
     return;
   }
 
   // Storyteller cannot vote
   if (state.storytellerId === i.user.id) {
     await i.reply({
-      content: t(lang, "dayStorytellerCannotVote"),
+      content: tr("dayStorytellerCannotVote"),
       ephemeral: true,
     });
     return;
@@ -611,7 +613,7 @@ export async function handleYe(
 
   const player = state.players.find((p) => p.userId === i.user.id);
   if (!player) {
-    await i.reply({ content: t(lang, "dayNotInGame"), ephemeral: true });
+    await i.reply({ content: tr("dayNotInGame"), ephemeral: true });
     return;
   }
 
@@ -619,14 +621,14 @@ export async function handleYe(
   const daySession = runtime.daySession;
 
   if (!daySession || daySession.status !== "open") {
-    await i.reply({ content: t(lang, "dayVotingNotOpen"), ephemeral: true });
+    await i.reply({ content: tr("dayVotingNotOpen"), ephemeral: true });
     return;
   }
 
   const nomination = daySession.activeNomination;
   if (!nomination || nomination.status !== "active") {
     await i.reply({
-      content: t(lang, "dayNoActiveNomination"),
+      content: tr("dayNoActiveNomination"),
       ephemeral: true,
     });
     return;
@@ -638,7 +640,7 @@ export async function handleYe(
   if (!isAlive) {
     // Dead player uses ghost vote
     if (playerState?.tags.has("ghost_vote_used")) {
-      await i.reply({ content: t(lang, "dayGhostVoteUsed"), ephemeral: true });
+      await i.reply({ content: tr("dayGhostVoteUsed"), ephemeral: true });
       return;
     }
     // Mark ghost vote as used
@@ -646,7 +648,7 @@ export async function handleYe(
   }
 
   if (nomination.votes.has(i.user.id)) {
-    await i.reply({ content: t(lang, "dayAlreadyVoted"), ephemeral: true });
+    await i.reply({ content: tr("dayAlreadyVoted"), ephemeral: true });
     return;
   }
 
@@ -654,9 +656,9 @@ export async function handleYe(
   updateGame(state);
 
   const nomineeName = playerDisplayName(state, nomination.nomineeId);
-  const ghostNote = !isAlive ? t(lang, "dayGhostVoteExhausted") : "";
+  const ghostNote = !isAlive ? tr("dayGhostVoteExhausted") : "";
   await i.reply({
-    content: t(lang, "dayVoteRecorded", { nominee: nomineeName, ghostNote }),
+    content: tr("dayVoteRecorded", { nominee: nomineeName, ghostNote }),
     ephemeral: true,
   });
 }
@@ -696,9 +698,10 @@ export async function handleEndDay(
 ): Promise<void> {
   const state = getGame(i.channelId);
   const lang = getLang(i.user.id, state?.guildId ?? i.guildId);
+  const tr = useTranslation(i.user.id, state?.guildId ?? i.guildId);
 
   if (!state || state.phase !== "in_progress") {
-    await i.reply({ content: t(lang, "dayNoActiveGame"), ephemeral: true });
+    await i.reply({ content: tr("dayNoActiveGame"), ephemeral: true });
     return;
   }
 
@@ -706,7 +709,7 @@ export async function handleEndDay(
   const daySession = runtime.daySession;
 
   if (!daySession || daySession.status !== "open") {
-    await i.reply({ content: t(lang, "dayNotDaytime"), ephemeral: true });
+    await i.reply({ content: tr("dayNotDaytime"), ephemeral: true });
     return;
   }
 
@@ -715,7 +718,7 @@ export async function handleEndDay(
   // Storyteller /endday ends the day immediately
   if (state.storytellerId === i.user.id) {
     await i.reply({
-      content: t(lang, "dayEndedByStoryteller"),
+      content: tr("dayEndedByStoryteller"),
       ephemeral: true,
     });
     daySession.dayEndsAfterNomination = true;
@@ -732,21 +735,21 @@ export async function handleEndDay(
   // Players vote to end the day
   const player = state.players.find((p) => p.userId === i.user.id);
   if (!player) {
-    await i.reply({ content: t(lang, "dayNotInGame"), ephemeral: true });
+    await i.reply({ content: tr("dayNotInGame"), ephemeral: true });
     return;
   }
 
   // Dead players' /endday is silently ignored
   const playerState = getPlayerState(runtime, i.user.id);
   if (!playerState?.alive) {
-    await i.reply({ content: t(lang, "dayNoted"), ephemeral: true });
+    await i.reply({ content: tr("dayNoted"), ephemeral: true });
     return;
   }
 
   // Already voted
   if (daySession.endDayVotes.has(i.user.id)) {
     await i.reply({
-      content: t(lang, "dayAlreadyVotedEndDay"),
+      content: tr("dayAlreadyVotedEndDay"),
       ephemeral: true,
     });
     return;
@@ -761,7 +764,7 @@ export async function handleEndDay(
   const voteCount = daySession.endDayVotes.size;
 
   await i.reply({
-    content: t(lang, "dayEndDayVoteRecorded", { count: voteCount, threshold }),
+    content: tr("dayEndDayVoteRecorded", { count: voteCount, threshold }),
     ephemeral: true,
   });
 
@@ -771,10 +774,10 @@ export async function handleEndDay(
     updateGame(state);
 
     const suffix = daySession.activeNomination
-      ? t(lang, "dayEndDayThresholdSuffix")
+      ? tr("dayEndDayThresholdSuffix")
       : "";
     await channel.send(
-      t(lang, "dayEndDayThreshold", { count: voteCount, total: aliveCount }) +
+      tr("dayEndDayThreshold", { count: voteCount, total: aliveCount }) +
         suffix,
     );
 

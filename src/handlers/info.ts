@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction } from "discord.js";
 import { getGame, getGameByStoryteller, getGameByPlayer } from "../game/state";
-import { getLang, t } from "../i18n";
+import { useTranslation, getLang, t } from "../i18n";
 import { getDistribution } from "../game/distribution";
 import { GameState, Lang } from "../game/types";
 import { getPlayerState } from "../game/utils";
@@ -80,6 +80,7 @@ export async function handleInfo(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
   const lang = getLang(interaction.user.id, interaction.guildId);
+  const tr = useTranslation(interaction.user.id, interaction.guildId);
 
   // In a guild channel, look up the game directly; in DM, search by user
   let state = getGame(interaction.channelId);
@@ -91,7 +92,7 @@ export async function handleInfo(
 
   if (!state) {
     await interaction.reply({
-      content: t(lang, "infoNoActiveGame"),
+      content: tr("infoNoActiveGame"),
       ephemeral: true,
     });
     return;

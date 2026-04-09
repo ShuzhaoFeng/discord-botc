@@ -7,7 +7,7 @@
  */
 
 import { ChatInputCommandInteraction } from "discord.js";
-import { getLang, getRoleGuide, getRoleName, t } from "../i18n";
+import { useTranslation, getLang, getRoleGuide, getRoleName, t } from "../i18n";
 import { findRole, getScript } from "../game/roles";
 import { Lang, Role } from "../game/types";
 
@@ -55,6 +55,7 @@ export async function handleRulebook(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
   const lang = getLang(interaction.user.id, interaction.guildId);
+  const tr = useTranslation(interaction.user.id, interaction.guildId);
   const roleInput = interaction.options.getString("role");
 
   if (!roleInput) {
@@ -65,7 +66,7 @@ export async function handleRulebook(
   const role = findRole(roleInput);
   if (!role) {
     await interaction.reply({
-      content: t(lang, "rulebookRoleNotFound", { name: roleInput }),
+      content: tr("rulebookRoleNotFound", { name: roleInput }),
       ephemeral: true,
     });
     return;

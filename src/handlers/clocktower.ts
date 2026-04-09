@@ -19,7 +19,7 @@ import {
 } from "discord.js";
 import { createGame, nextGameNumber } from "../game/state";
 import { GameState, Player } from "../game/types";
-import { t, getLang } from "../i18n";
+import { useTranslation } from "../i18n";
 
 const COMMAND_PREFIX = "!clocktower";
 
@@ -28,10 +28,10 @@ export function isClockTowerCommand(content: string): boolean {
 }
 
 export async function handleClockTower(message: Message): Promise<void> {
-  const lang = getLang(message.author.id, message.guild?.id);
+  const tr = useTranslation(message.author.id, message.guild?.id);
 
   if (!message.guild) {
-    await message.reply(t(lang, "clocktowerServerOnly"));
+    await message.reply(tr("clocktowerServerOnly"));
     return;
   }
 
@@ -53,11 +53,11 @@ export async function handleClockTower(message: Message): Promise<void> {
   const total = mentionedIds.length;
 
   if (total < 5) {
-    await message.reply(t(lang, "errorPlayerCount", { n: total }));
+    await message.reply(tr("errorPlayerCount", { n: total }));
     return;
   }
   if (total > 16) {
-    await message.reply(t(lang, "errorPlayerCount", { n: total }));
+    await message.reply(tr("errorPlayerCount", { n: total }));
     return;
   }
 
@@ -68,7 +68,7 @@ export async function handleClockTower(message: Message): Promise<void> {
       const member = await guild.members.fetch(id);
       members.push(member);
     } catch {
-      await message.reply(t(lang, "clocktowerFetchError", { id }));
+      await message.reply(tr("clocktowerFetchError", { id }));
       return;
     }
   }
@@ -109,11 +109,15 @@ export async function handleClockTower(message: Message): Promise<void> {
 
   // Announce in game channel.
   const playerMentions = players.map((p) => `<@${p.userId}>`).join(", ");
-  await channel.send(t(lang, "gameChannelReady", { gameId, players: playerMentions }));
-  await channel.send(t(lang, "chooseStoryteller"));
+  await channel.send(
+    tr("gameChannelReady", { gameId, players: playerMentions }),
+  );
+  await channel.send(tr("chooseStoryteller"));
 
   // Acknowledge in the original channel.
-  await message.reply(t(lang, "clocktowerChannelCreated", { channelId: channel.id }));
+  await message.reply(
+    tr("clocktowerChannelCreated", { channelId: channel.id }),
+  );
 }
 
 export async function createGameChannel(
