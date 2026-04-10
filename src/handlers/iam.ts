@@ -5,7 +5,7 @@
 
 import { ChatInputCommandInteraction, Client } from "discord.js";
 import { getGame, updateGame, setStoryteller } from "../game/state";
-import { useTranslation, getGuildDrunkOverlap } from "../i18n";
+import { useTranslation } from "../i18n";
 import { generateDraft } from "../game/assignment";
 
 export async function handleIam(
@@ -60,10 +60,7 @@ export async function handleIam(
     .map((p, i) => ({ ...p, seatIndex: i }));
 
   // Generate a random draft.
-  state.draft = generateDraft(
-    state.players,
-    getGuildDrunkOverlap(state.guildId),
-  );
+  state.draft = generateDraft(state.players);
 
   const routingId = storytellerRoutingId ?? storytellerId;
   setStoryteller(routingId, channelId);

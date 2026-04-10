@@ -133,7 +133,6 @@ export interface ConfirmResponse {
 
 export interface GuildSettingsData {
   defaultLang: "en" | "zh";
-  drunkOverlap: boolean;
   townsquareUrl: string | null;
   onlineMode: boolean;
 }

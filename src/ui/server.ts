@@ -34,7 +34,6 @@ import { distributeRoles } from "../handlers/role_sender";
 import { GameState, Role } from "../game/types";
 import {
   getGuildSettings,
-  getGuildDrunkOverlap,
   updateGuildSettings,
   GuildSettings,
 } from "../guild-settings";
@@ -269,14 +268,6 @@ export async function startUiServer(
         .json({ error: "defaultLang must be en or zh" });
     }
     if (
-      settings.drunkOverlap !== undefined &&
-      typeof settings.drunkOverlap !== "boolean"
-    ) {
-      return void res
-        .status(400)
-        .json({ error: "drunkOverlap must be a boolean" });
-    }
-    if (
       settings.townsquareUrl !== undefined &&
       settings.townsquareUrl !== null &&
       typeof settings.townsquareUrl !== "string"
@@ -317,7 +308,6 @@ export async function startUiServer(
         ? validateDraft(
             state.draft,
             state.players,
-            getGuildDrunkOverlap(state.guildId),
           )
         : null,
       townsquareUrl: getGuildSettings(state.guildId).townsquareUrl,
@@ -336,18 +326,13 @@ export async function startUiServer(
       userId2: string;
     };
     swapRoles(state.draft, userId1, userId2);
-    reconcileDraftDependencies(
-      state.draft,
-      state.players,
-      getGuildDrunkOverlap(state.guildId),
-    );
+    reconcileDraftDependencies(state.draft, state.players);
     updateGame(state);
     res.json({
       draft: serializeDraft(state),
       validationError: validateDraft(
         state.draft,
         state.players,
-        getGuildDrunkOverlap(state.guildId),
       ),
     });
   });
@@ -369,18 +354,13 @@ export async function startUiServer(
         .status(400)
         .json({ error: ve.key, params: ve.params, userFacing: true });
     }
-    reconcileDraftDependencies(
-      state.draft,
-      state.players,
-      getGuildDrunkOverlap(state.guildId),
-    );
+    reconcileDraftDependencies(state.draft, state.players);
     updateGame(state);
     res.json({
       draft: serializeDraft(state),
       validationError: validateDraft(
         state.draft,
         state.players,
-        getGuildDrunkOverlap(state.guildId),
       ),
     });
   });
@@ -406,7 +386,6 @@ export async function startUiServer(
       validationError: validateDraft(
         state.draft,
         state.players,
-        getGuildDrunkOverlap(state.guildId),
       ),
     });
   });
@@ -431,7 +410,6 @@ export async function startUiServer(
       validationError: validateDraft(
         state.draft,
         state.players,
-        getGuildDrunkOverlap(state.guildId),
       ),
     });
   });
@@ -481,7 +459,6 @@ export async function startUiServer(
       validationError: validateDraft(
         state.draft,
         state.players,
-        getGuildDrunkOverlap(state.guildId),
       ),
     });
   });
@@ -499,7 +476,6 @@ export async function startUiServer(
     const validErr = validateDraft(
       state.draft,
       state.players,
-      getGuildDrunkOverlap(state.guildId),
     );
     if (validErr)
       return void res
@@ -524,7 +500,6 @@ export async function startUiServer(
       const validErr = validateDraft(
         state.draft,
         state.players,
-        getGuildDrunkOverlap(state.guildId),
       );
       if (validErr)
         return void res

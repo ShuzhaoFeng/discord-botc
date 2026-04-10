@@ -15,7 +15,6 @@ export default function SettingsPage() {
   const [selectedGuildId, setSelectedGuildId] = useState<string>("");
   const [draft, setDraft] = useState<GuildSettingsData>({
     defaultLang: "en",
-    drunkOverlap: false,
     townsquareUrl: null,
     onlineMode: false,
   });
@@ -160,30 +159,6 @@ export default function SettingsPage() {
                   <option value="en">English</option>
                   <option value="zh">简体中文</option>
                 </select>
-              </label>
-            </section>
-
-            {/* Game Logic */}
-            <section className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4">
-              <div>
-                <h2 className="text-base font-semibold text-slate-100">
-                  Game Logic
-                </h2>
-              </div>
-
-              <label className="flex items-center gap-3 text-sm text-slate-300 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded accent-indigo-500"
-                  checked={draft.drunkOverlap}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, drunkOverlap: e.target.checked }))
-                  }
-                />
-                <span>
-                  Allow Drunk&apos;s fake role to overlap with a Townsfolk
-                  already in play
-                </span>
               </label>
             </section>
 

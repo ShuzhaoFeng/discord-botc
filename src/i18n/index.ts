@@ -87,8 +87,6 @@ export function useTranslation(
 export {
   getGuildDefaultLang,
   setGuildDefaultLang,
-  getGuildDrunkOverlap,
-  setGuildDrunkOverlap,
 } from "../guild-settings";
 
 export function getRoleName(lang: Lang, roleId: string): string {

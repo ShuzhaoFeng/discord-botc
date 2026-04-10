@@ -3,7 +3,6 @@ import { Lang } from "./game/types";
 /** Per-guild settings bag. All guild-level prefs live here. */
 export interface GuildSettings {
   defaultLang: Lang;
-  drunkOverlap: boolean;
   /** When set, the confirm flow pauses to show a clocktower-compatible JSON export. */
   townsquareUrl: string | null;
   /** When true, skips filler night messages (jokes, readiness confirmations) for online play. */
@@ -12,7 +11,6 @@ export interface GuildSettings {
 
 const DEFAULT_GUILD_SETTINGS: GuildSettings = {
   defaultLang: "en",
-  drunkOverlap: false,
   townsquareUrl: null,
   onlineMode: false,
 };
@@ -45,12 +43,4 @@ export function getGuildDefaultLang(guildId: string): Lang {
 
 export function setGuildDefaultLang(guildId: string, lang: Lang): void {
   updateGuildSettings(guildId, { defaultLang: lang });
-}
-
-export function getGuildDrunkOverlap(guildId: string): boolean {
-  return resolve(guildId).drunkOverlap;
-}
-
-export function setGuildDrunkOverlap(guildId: string, allowed: boolean): void {
-  updateGuildSettings(guildId, { drunkOverlap: allowed });
 }
