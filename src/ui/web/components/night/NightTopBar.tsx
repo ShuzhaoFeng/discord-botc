@@ -1,4 +1,5 @@
 import type { NightDetail } from "@/types";
+import { ArrowLeft } from "lucide-react";
 
 interface NightTopBarProps {
   detail: NightDetail;
@@ -12,7 +13,7 @@ export default function NightTopBar({ detail, onBack }: NightTopBarProps) {
         onClick={onBack}
         className="text-slate-500 hover:text-slate-300 text-sm transition-colors"
       >
-        {"<-"}
+        <ArrowLeft size={16} />
       </button>
       <span className="font-semibold text-slate-200">{detail.gameId}</span>
       <span className="text-slate-500 text-sm">Night {detail.nightNumber}</span>

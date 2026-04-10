@@ -19,7 +19,7 @@ export default function SettingsPage() {
     onlineMode: false,
   });
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [message, setMessage] = useState<string>("");
 
   async function loadSettings() {
@@ -64,7 +64,6 @@ export default function SettingsPage() {
 
   async function saveSettings() {
     if (!selectedGuildId) return;
-    setSaving(true);
     setMessage("");
 
     try {
@@ -87,13 +86,12 @@ export default function SettingsPage() {
             : g,
         ),
       );
-      setMessage("Saved.");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
     } catch (err: unknown) {
       setMessage(
         err instanceof Error ? err.message : "Failed to save settings",
       );
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -225,13 +223,17 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={saveSettings}
-                disabled={saving || !selectedGuildId}
-                className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 disabled:text-slate-300 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                disabled={saved || !selectedGuildId}
+                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                  saved
+                    ? "bg-emerald-600 text-white"
+                    : "bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 disabled:text-slate-300 text-white"
+                }`}
               >
-                {saving ? "Saving..." : "Save"}
+                {saved ? "Saved!" : "Save"}
               </button>
               {message && (
-                <span className="text-sm text-slate-300">{message}</span>
+                <span className="text-sm text-red-400">{message}</span>
               )}
             </div>
           </>

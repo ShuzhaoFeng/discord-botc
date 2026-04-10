@@ -7,6 +7,7 @@ import DerivedFields from "@/components/DerivedFields";
 import ConfirmBar from "@/components/ConfirmBar";
 import ClockTowerPanel from "@/components/ClockTowerPanel";
 import type { ConfirmResponse, DraftUpdateResponse, GameDetail } from "@/types";
+import { ArrowLeft } from "lucide-react";
 
 export default function GamePage() {
   const { channelId } = useParams<{ channelId: string }>();
@@ -77,9 +78,7 @@ export default function GamePage() {
   const handleHerring = useCallback(
     async (userId: string) => {
       try {
-        applyUpdate(
-          await post(`/api/games/${channelId}/herring`, { userId }),
-        );
+        applyUpdate(await post(`/api/games/${channelId}/herring`, { userId }));
       } catch (e: unknown) {
         showError(e instanceof Error ? e.message : String(e));
       }
@@ -101,9 +100,7 @@ export default function GamePage() {
   const handleBluffs = useCallback(
     async (roleIds: [string, string, string]) => {
       try {
-        applyUpdate(
-          await post(`/api/games/${channelId}/bluffs`, { roleIds }),
-        );
+        applyUpdate(await post(`/api/games/${channelId}/bluffs`, { roleIds }));
       } catch (e: unknown) {
         showError(e instanceof Error ? e.message : String(e));
       }
@@ -122,7 +119,11 @@ export default function GamePage() {
           body: "{}",
         });
         const data = (await res.json()) as ConfirmResponse;
-        if (!res.ok) throw new Error((data as unknown as { error?: string }).error ?? "Failed to confirm");
+        if (!res.ok)
+          throw new Error(
+            (data as unknown as { error?: string }).error ??
+              "Failed to confirm",
+          );
         setClocktowerJson(data.clocktowerJson);
       } else {
         // Direct: distribute roles and go straight to night
@@ -212,7 +213,7 @@ export default function GamePage() {
           onClick={() => router.push("/games")}
           className="text-sm underline hover:text-slate-200"
         >
-          ← Back to games
+          <ArrowLeft size={16} /> Back to games
         </button>
       </div>
     );
@@ -248,7 +249,7 @@ export default function GamePage() {
           onClick={() => router.push("/games")}
           className="text-slate-500 hover:text-slate-300 text-sm transition-colors"
         >
-          ←
+          <ArrowLeft size={16} />
         </button>
         <span className="font-semibold text-slate-200">{game.gameId}</span>
         <span className="text-slate-500 text-sm">Role Assignment</span>
