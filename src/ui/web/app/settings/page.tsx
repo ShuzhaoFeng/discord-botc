@@ -185,6 +185,15 @@ export default function SettingsPage() {
                   already in play
                 </span>
               </label>
+            </section>
+
+            {/* Integration */}
+            <section className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-100">
+                  Integration
+                </h2>
+              </div>
 
               <label className="flex items-center gap-3 text-sm text-slate-300 cursor-pointer select-none">
                 <input
@@ -200,15 +209,6 @@ export default function SettingsPage() {
                   night interaction)
                 </span>
               </label>
-            </section>
-
-            {/* Integration */}
-            <section className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4">
-              <div>
-                <h2 className="text-base font-semibold text-slate-100">
-                  Integration
-                </h2>
-              </div>
 
               <label className="flex items-center gap-3 text-sm text-slate-300 cursor-pointer select-none">
                 <input

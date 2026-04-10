@@ -1,35 +1,32 @@
 # Blood on the Clocktower Discord Bot
 
-A Discord bot for running **Blood on the Clocktower: Trouble Brewing** games, semi- to fully automatically.
+A Discord bot for running **Blood on the Clocktower: Trouble Brewing** games, semi- to fully automatically. Includes a web-based Admin UI for Storytellers in Manual Mode.
 
 > This bot currently only supports the **Trouble Brewing** script.
 
 > This is a fan-made project. I'm not affiliated with or endorsed by The Pandemonium Institute.
 
-## Mode
+## Modes
 
 The bot supports two modes:
 
-- **Automated Mode**: The bot essentially acts as the Storyteller and handles all game mechanics and rules. Whenever a random event occurs, the bot will automatically resolve it by rolling a dice and picking among the plausible outcomes.
+- **Manual Mode** (`/iam`): A human Storyteller runs the game. The bot handles deterministic mechanics and **suggests outcomes for random events**, which the Storyteller can review and override via the Admin UI.
 
-- **Manual Mode**: Some human takes the role of the Storyteller. The bot will handle all the deterministic mechanics, **and suggest outcome resolution for random events**. The Storyteller can intervene in any decision and override the outcome if they wish.
-
-Here, by random events, I'm talking about, for example:
-
-- Role assignment at the beginning of the game, including the Drunk's fake role, the Red Herring, the Bluff Roles, etc.
-- The information received by some characters. For example, the two player choice of the Washerwoman.
-- The outcome of some abilities under drunk or poisoned conditions.
+- **Automated Mode** (`/youare`): The bot acts as the Storyteller and handles all game mechanics. Random events (role assignment, character information, drunk/poisoned outcomes) are resolved automatically. **This feature is WIP and currently not to be counted on**.
 
 ## Features
 
-The bot can handle:
-
-- Game channel creation
-- Role assignment
-- Night and Day shifting, with game rules resolution.
-- Nominations and voting.
-- Elimination, and win condition checking.
-- English / Simplified Chinese language support. _That thing is pretty unstable at the moment._
+- **Game channel creation** — `!clocktower @player1 @player2 ...` creates a private channel for 5–16 players.
+- **Role assignment** — Random draft with full Trouble Brewing distribution rules (Drunk fake role, Red Herring, Imp bluffs). Manual Mode includes a web UI for reviewing and editing the draft.
+- **Night phase** — Prompts players via DM for night actions; resolves abilities in order. Manual Mode Storytellers can review and override all information sent to players.
+- **Day phase** — Nominations (`/nominate`), voting (`/ye`), end-day consensus (`/endday`), elimination, and win condition checking.
+- **Role-specific commands** — Active abilities like Slayer's shot are available as slash commands.
+- **Admin UI** — A Next.js web dashboard (Express + SSE) for Manual Mode: role draft editing, night phase control panel, and live game state monitoring.
+- **Townsquare integration** — Optional live sync with [clocktower.live](https://clocktower.online) or any other deployment of [@nicholas-eden/townsquare](https://github.com/nicholas-eden/townsquare).
+- **Rulebook** — `/rulebook` to look up any Trouble Brewing role in-game.
+- **i18n** — English and Simplified Chinese language support (`/lang`).
+- **Online Mode** — Guild setting that skips filler night messages for online play.
+- **Test mode** — `!ctest` to start a game with synthetic players for solo testing.
 
 ## Setup
 
@@ -43,15 +40,40 @@ Invite the bot to your server, then in any channel:
 !clocktower @player1 @player2 ... @playerN
 ```
 
-5–15 players is required for a game (storyteller is not counted as a player). The bot creates a private game channel and walks everyone through setup.
+5–16 players required (storyteller is not counted). The bot creates a private game channel and prompts for storyteller selection.
 
-### Commands
+### Slash Commands
 
-{Coming soon}
+| Command              | Description                                                             |
+| -------------------- | ----------------------------------------------------------------------- |
+| `/iam`               | Claim Storyteller — starts Manual Mode                                  |
+| `/youare`            | Let the bot be Storyteller — starts Automated Mode                      |
+| `/nominate <player>` | Nominate a living player for execution (day phase)                      |
+| `/ye`                | Vote for the currently nominated player                                 |
+| `/endday`            | Vote to end the day (or Storyteller ends it immediately)                |
+| `/info`              | Show game info: phase, role distribution, win conditions, player status |
+| `/link <url>`        | Link a townsquare session for live sync                                 |
+| `/rulebook [role]`   | Look up a Trouble Brewing role (omit for full list)                     |
+| `/lang <en\|zh>`     | Set your language preference                                            |
 
-## Early PoC
+Role-specific commands (e.g. `/slayer`) are also registered for active abilities.
 
-This is an early PoC. I'm aware that some rule details may differ from the official script, and some bugs may exist. Although I don't have a list of known issues at the moment, I seek feedback to improve the bot. You are welcome to open issues or submit PRs.
+### Message Commands
+
+| Command                    | Description                                 |
+| -------------------------- | ------------------------------------------- |
+| `!clocktower @mentions...` | Start a new game with the mentioned players |
+| `!ctest`                   | Start a test game with fake players         |
+| `!as <player> <message>`   | (Debug) Impersonate a player                |
+
+### Admin UI
+
+When running in Manual Mode, the Admin UI is available at `http://localhost:3000`. It provides:
+
+- **Role assignment editor** — Swap roles, set the Drunk's fake role, pick the Red Herring, choose Imp bluffs, and validate the draft before distributing.
+- **Night control panel** — Review action messages, edit randomized information outcomes, confirm death narratives, and send messages to players.
+- **Live game state** — Real-time updates.
+- **Guild settings** — Configure guild-specific settings.
 
 ## Licensed under AGPL-3.0
 
