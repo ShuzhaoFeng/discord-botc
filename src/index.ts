@@ -106,10 +106,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 // ─── Message commands ──────────────────────────────────────────────────────────
 
 client.on(Events.MessageCreate, async (message) => {
-  // Ignore bots.
   if (message.author.bot) return;
 
-  // DM messages → route to night handler.
   if (!message.guild) {
     try {
       await handleNightDm(message, client);
@@ -119,7 +117,6 @@ client.on(Events.MessageCreate, async (message) => {
     return;
   }
 
-  // Guild messages → check for !as / !ctest / !clocktower commands.
   if (isImpersonateCommand(message.content)) {
     try {
       await handleImpersonate(message, client);

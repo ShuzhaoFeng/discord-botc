@@ -38,7 +38,7 @@
   "validErrFtNoHerring": "占卜师在局中但未指定红鲱鱼。",
   "validErrHerringNotGood": "红鲱鱼必须是非恶魔的善良玩家。",
   "validErrImpNoBluffs": "小恶魔在局中但未设置虚张声势角色。",
-  "validErrBluffNotTownsfolk": "虚张声势角色 {role} 不是镇民。",
+  "validErrBluffNotGood": "虚张声势角色 {role} 不是善良角色（镇民或外来者）。",
   "validErrBluffAssigned": "虚张声势角色 {role} 已被分配给真实玩家。",
   "validErrBluffNotDistinct": "小恶魔的虚张声势角色必须是3个不同的角色。",
   "validErrPlayerNotFound": "未找到该玩家。",

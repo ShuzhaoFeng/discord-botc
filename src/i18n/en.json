@@ -38,7 +38,7 @@
   "validErrFtNoHerring": "Fortune Teller is in play but no Red Herring is designated.",
   "validErrHerringNotGood": "Red Herring must be a non-Demon Good player.",
   "validErrImpNoBluffs": "Imp is in play but no bluff roles are set.",
-  "validErrBluffNotTownsfolk": "Bluff role {role} is not a Townsfolk.",
+  "validErrBluffNotGood": "Bluff role {role} is not a good role (Townsfolk or Outsider).",
   "validErrBluffAssigned": "Bluff role {role} is already assigned to a real player.",
   "validErrBluffNotDistinct": "Imp bluff roles must be 3 distinct roles.",
   "validErrPlayerNotFound": "Player not found.",

@@ -32,7 +32,6 @@ export async function handleLang(
   }
 
   const input = rawInput as Lang;
-  // Only the calling user's preference is updated.
   setLang(userId, input);
   const newLang = input;
   const tr = useTranslation(userId, interaction.guildId);

@@ -3,14 +3,7 @@ import { ActiveGameState } from "./types";
 import { ALL_ROLE_DEFINITIONS } from "../roles/index";
 import type { DeathCtx } from "../roles/types";
 
-/**
- * Iterates all role definitions and invokes any registered death handlers,
- * passing context about which player died, in which phase, and whether the
- * death was caused by execution.
- *
- * Handlers are called in role-list order and iteration stops early if the
- * game ends (state.phase === "ended") mid-loop.
- */
+/** Invoke all registered death handlers; stops early if the game ends mid-loop. */
 export async function triggerDeathHandlers(
   client: Client,
   state: ActiveGameState,

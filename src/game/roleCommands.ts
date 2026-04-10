@@ -9,7 +9,11 @@ import { ALL_ROLE_DEFINITIONS } from "../roles/index";
 import { getGame } from "./state";
 import type { ActiveGameState, GameState } from "./types";
 import type { DayGameCtx } from "../roles/types";
-import { areChannelCommandsDisabled, notifyStoryteller, playerDisplayName } from "./utils";
+import {
+  areChannelCommandsDisabled,
+  notifyStoryteller,
+  playerDisplayName,
+} from "./utils";
 import { cancelActiveNomination, killPlayerDuringDay } from "./day";
 
 export function getRoleCommandBuilders(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
@@ -22,13 +26,11 @@ export async function handleRoleCommand(
   i: ChatInputCommandInteraction,
   client: Client,
 ): Promise<boolean> {
-  // 1. Find matching RoleCommandDefinition across all role definitions.
   const cmd = ALL_ROLE_DEFINITIONS.flatMap((d) => d.commands ?? []).find(
     (c) => c.name === i.commandName,
   );
   if (!cmd) return false;
 
-  // 2. Validate channel context.
   const isDm = i.channel?.isDMBased() ?? i.guildId === null;
   const isGuild = i.guildId !== null;
 
@@ -47,7 +49,6 @@ export async function handleRoleCommand(
     return true;
   }
 
-  // 3. Look up game state by channelId.
   const channelId = i.channelId;
   const state = getGame(channelId);
   if (!state) {
@@ -58,10 +59,8 @@ export async function handleRoleCommand(
     return true;
   }
 
-  // 3b. Silently ignore when human ST + townsquare handles the day flow.
   if (areChannelCommandsDisabled(state)) return true;
 
-  // 4. Check state.phase === "in_progress".
   if (state.phase !== "in_progress") {
     await i.reply({
       content: "No active game in this channel.",
@@ -70,7 +69,7 @@ export async function handleRoleCommand(
     return true;
   }
 
-  // 5. Use state.runtime directly (do NOT call ensureRuntime).
+  // Use state.runtime directly. Do NOT call ensureRuntime here.
   const runtime = state.runtime;
   if (!runtime) {
     await i.reply({
@@ -80,7 +79,6 @@ export async function handleRoleCommand(
     return true;
   }
 
-  // 6. Validate phase.
   if (cmd.allowedPhase === "day" && runtime.daySession?.status !== "open") {
     await i.reply({
       content: "This command can only be used during the day phase.",
@@ -96,7 +94,6 @@ export async function handleRoleCommand(
     return true;
   }
 
-  // 7. Build DayGameCtx.
   const ctx: DayGameCtx = {
     state: state as ActiveGameState,
     client,
@@ -110,7 +107,6 @@ export async function handleRoleCommand(
     },
   };
 
-  // 8. Dispatch.
   await cmd.execute(i, ctx);
   return true;
 }

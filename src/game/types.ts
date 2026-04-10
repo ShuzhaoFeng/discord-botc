@@ -28,7 +28,7 @@ export type SlayOutcome = "nothing" | "kill";
 export type NightPromptKind = "action" | "info" | "joke";
 
 export interface InputSpec {
-  type: "player"; // extensible union for future input types
+  type: "player";
   optional: boolean;
   allowSelf: boolean; // enforced per-slot during validation
 }

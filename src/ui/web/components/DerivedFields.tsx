@@ -50,15 +50,17 @@ export default function DerivedFields({
     (a) => a.role.category !== "Demon" && a.role.category !== "Minion",
   );
   const allTownsfolk = allRoles.filter((r) => r.category === "Townsfolk");
-  const unassignedTf = allRoles.filter(
-    (r) => r.category === "Townsfolk" && !assignedIds.has(r.id),
+  const unassignedGood = allRoles.filter(
+    (r) =>
+      (r.category === "Townsfolk" || r.category === "Outsider") &&
+      !assignedIds.has(r.id),
   );
 
   function updateBluff(index: number, roleId: string) {
     const current: [string, string, string] = [
-      draft.impBluffs?.[0]?.id ?? unassignedTf[0]?.id ?? "",
-      draft.impBluffs?.[1]?.id ?? unassignedTf[1]?.id ?? "",
-      draft.impBluffs?.[2]?.id ?? unassignedTf[2]?.id ?? "",
+      draft.impBluffs?.[0]?.id ?? unassignedGood[0]?.id ?? "",
+      draft.impBluffs?.[1]?.id ?? unassignedGood[1]?.id ?? "",
+      draft.impBluffs?.[2]?.id ?? unassignedGood[2]?.id ?? "",
     ];
     current[index] = roleId;
     onBluffsChange(current);
@@ -108,7 +110,7 @@ export default function DerivedFields({
                 onChange={(e) => updateBluff(i, e.target.value)}
                 className={selectClass}
               >
-                {unassignedTf.map((r) => (
+                {unassignedGood.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name}
                   </option>

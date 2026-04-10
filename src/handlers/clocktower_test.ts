@@ -14,8 +14,6 @@
  * Test mode impersonation (game channel commands):
  *   !as <player> iam      — fake player claims the Storyteller role
  *   !as <player> youare   — fake player triggers Automated Mode
- *
- * Impersonation for future in-game player actions (night/day phases) is TBD.
  */
 
 import { Message, GuildMember } from "discord.js";

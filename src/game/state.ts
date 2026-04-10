@@ -17,7 +17,6 @@ export function getAllGames(): GameState[] {
   return [...games.values()];
 }
 
-/** Monotonically increasing game counter for readable game IDs. */
 let gameCounter = 0;
 
 export function nextGameNumber(): number {

@@ -25,13 +25,15 @@ function pick<T>(pool: T[], n: number): T[] {
 
 /**
  * Randomly generate a complete Draft for the given players.
- * Implements the algorithm from AGENTS.md §Assignment Algorithm.
  *
  * @param drunkCanOverlap - When true, the Drunk's fake Townsfolk role may be
  *   one already assigned to a real player. When false (default), it must be
  *   a Townsfolk not currently in play.
  */
-export function generateDraft(players: Player[], drunkCanOverlap = false): Draft {
+export function generateDraft(
+  players: Player[],
+  drunkCanOverlap = false,
+): Draft {
   const script = getScript();
   const count = players.length;
   let dist = getDistribution(count);
@@ -87,19 +89,17 @@ export function generateDraft(players: Player[], drunkCanOverlap = false): Draft
     drunkFakeRole = pick(eligible, 1)[0];
   }
 
-  // 5. Imp bluffs: 3 Townsfolk not assigned to real players.
+  // 5. Imp bluffs: 3 good roles (Townsfolk or Outsider) not assigned to real players.
   //    Drunk's fake role IS eligible even if the real Townsfolk role is not in play.
   const impInPlay = [...assignments.values()].some((r) => r.id === "imp");
   let impBluffs: [Role, Role, Role] | null = null;
   if (impInPlay) {
     const usedIds = new Set([...assignments.values()].map((r) => r.id));
-    // Remove drunk's real role from used; add fake role's id to used so it counts as "in play"
-    // Per spec: Drunk's fake role is eligible (i.e., not blocked from bluffs).
     const eligible = script.roles.filter(
-      (r) => r.category === "Townsfolk" && !usedIds.has(r.id),
+      (r) =>
+        (r.category === "Townsfolk" || r.category === "Outsider") &&
+        !usedIds.has(r.id),
     );
-    // If drunkFakeRole exists, it might already be excluded as a real assignment? No —
-    // drunkFakeRole.id is NOT in assignments (that's how it was chosen). So it's already in `eligible`.
     const chosen = pick(eligible, 3);
     impBluffs = [chosen[0], chosen[1], chosen[2]];
   }
@@ -227,16 +227,16 @@ export function validateDraft(
     }
   }
 
-  // Imp bluffs: must be 3 Townsfolk not in real assignments.
+  // Imp bluffs: must be 3 good roles (Townsfolk or Outsider) not in real assignments.
   const impInPlay = roles.some((r) => r.id === "imp");
   if (impInPlay && !draft.impBluffs) {
     return { key: "validErrImpNoBluffs" };
   }
   if (draft.impBluffs) {
     for (const bluff of draft.impBluffs) {
-      if (bluff.category !== "Townsfolk") {
+      if (bluff.category !== "Townsfolk" && bluff.category !== "Outsider") {
         return {
-          key: "validErrBluffNotTownsfolk",
+          key: "validErrBluffNotGood",
           params: { role: roleParam(bluff.id) },
         };
       }
@@ -381,8 +381,7 @@ export function reconcileDraftDependencies(
     if (!fakeValid) {
       const eligible = script.roles.filter(
         (r) =>
-          r.category === "Townsfolk" &&
-          (drunkCanOverlap || !usedIds.has(r.id)),
+          r.category === "Townsfolk" && (drunkCanOverlap || !usedIds.has(r.id)),
       );
       if (eligible.length > 0) {
         const picked = pick(eligible, 1)[0];
@@ -435,13 +434,15 @@ export function reconcileDraftDependencies(
       new Set(bluffs.map((b) => b.id)).size === 3 &&
       bluffs.every(
         (b) =>
-          b.category === "Townsfolk" &&
+          (b.category === "Townsfolk" || b.category === "Outsider") &&
           !usedIds.has(b.id) &&
           script.roles.some((r) => r.id === b.id),
       );
     if (!bluffValid) {
       const eligible = script.roles.filter(
-        (r) => r.category === "Townsfolk" && !usedIds.has(r.id),
+        (r) =>
+          (r.category === "Townsfolk" || r.category === "Outsider") &&
+          !usedIds.has(r.id),
       );
       if (eligible.length >= 3) {
         const picked = pick(eligible, 3);

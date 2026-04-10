@@ -454,10 +454,13 @@ export async function startUiServer(
     const bluffs: Role[] = [];
     for (const id of roleIds) {
       const role = getScript().roles.find((r) => r.id === id);
-      if (!role || role.category !== "Townsfolk") {
+      if (
+        !role ||
+        (role.category !== "Townsfolk" && role.category !== "Outsider")
+      ) {
         return void res
           .status(400)
-          .json({ error: `${id} is not a Townsfolk role` });
+          .json({ error: `${id} is not a good role` });
       }
       if (usedIds.has(id)) {
         return void res
