@@ -139,6 +139,29 @@ function buildClockTowerJson(state: GameState): object {
 
 // ─── Serialization ────────────────────────────────────────────────────────────
 
+/**
+ * Wire-format role for the admin UI. Mirrors RoleInfo in src/ui/web/types.ts.
+ *
+ * Why this helper exists: at runtime, the values stored in `draft.assignments`,
+ * `draft.drunkFakeRole`, and `draft.impBluffs` carry the full ScriptRole shape
+ * (including `name: LocalizedString` and handler functions), not the minimal
+ * Role declared in src/game/types.ts. Sending those raw through res.json strips
+ * functions but preserves `name: {en, zh}` — which then stringifies as
+ * "[object Object]". Always pass roles through serializeRole before sending.
+ */
+function serializeRole(role: Role): {
+  id: string;
+  category: Role["category"];
+  name: string;
+} {
+  const def = ALL_ROLE_DEFINITIONS.find((d) => d.id === role.id);
+  return {
+    id: role.id,
+    category: role.category,
+    name: def?.name.en ?? role.id,
+  };
+}
+
 function serializeDraft(state: GameState) {
   if (!state.draft) return null;
   const { draft, players } = state;
@@ -147,19 +170,24 @@ function serializeDraft(state: GameState) {
       userId: p.userId,
       displayName: p.displayName,
       seatIndex: p.seatIndex,
-      role: draft.assignments.get(p.userId)!,
+      role: serializeRole(draft.assignments.get(p.userId)!),
     })),
-    drunkFakeRole: draft.drunkFakeRole,
+    drunkFakeRole: draft.drunkFakeRole
+      ? serializeRole(draft.drunkFakeRole)
+      : null,
     redHerring: draft.redHerring,
-    impBluffs: draft.impBluffs,
+    impBluffs: draft.impBluffs
+      ? (draft.impBluffs.map(serializeRole) as [
+          ReturnType<typeof serializeRole>,
+          ReturnType<typeof serializeRole>,
+          ReturnType<typeof serializeRole>,
+        ])
+      : null,
   };
 }
 
 function getAllRoles() {
-  return getScript().roles.map((r) => {
-    const def = ALL_ROLE_DEFINITIONS.find((d) => d.id === r.id);
-    return { id: r.id, category: r.category, name: def?.name.en ?? r.id };
-  });
+  return getScript().roles.map(serializeRole);
 }
 
 // ─── Server ───────────────────────────────────────────────────────────────────
@@ -257,7 +285,6 @@ export async function startUiServer(
         .json({ error: "settings object is required" });
     }
 
-    // Validate individual fields if present
     if (
       settings.defaultLang !== undefined &&
       settings.defaultLang !== "en" &&
@@ -519,7 +546,6 @@ export async function startUiServer(
       try {
         await distributeRoles(client, state);
 
-        // Connect to townsquare as spectator if integration is enabled
         if (townsquareUrl && state.townsquareSessionUrl) {
           connectTownsquareSpectator(
             state,

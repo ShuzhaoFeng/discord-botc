@@ -4,6 +4,7 @@ import {
   DeathConfirmCard,
   InfoMessageCard,
 } from "./NightControlPanelCards";
+import { ScrollArea } from "@/components/ui/ScrollArea";
 
 interface StatusPanelProps {
   text: string;
@@ -11,8 +12,8 @@ interface StatusPanelProps {
 
 export function StatusPanel({ text }: StatusPanelProps) {
   return (
-    <div className="w-72 shrink-0 border-l border-slate-700 bg-slate-900 flex items-center justify-center px-6">
-      <p className="text-slate-600 text-sm text-center">{text}</p>
+    <div className="w-full bg-ink-2/40 flex items-center justify-center px-6">
+      <p className="text-parchment-2/50 text-sm text-center italic">{text}</p>
     </div>
   );
 }
@@ -23,9 +24,11 @@ export function AwaitingPlayersPanel({
   pendingCount: number;
 }) {
   return (
-    <div className="w-72 shrink-0 border-l border-slate-700 bg-slate-900 flex flex-col items-center justify-center gap-3 px-6 text-center">
-      <span className="w-3 h-3 rounded-full bg-yellow-400 animate-pulse" />
-      <p className="text-slate-400 text-sm">
+    <div className="w-full bg-ink-2/40 flex flex-col items-center justify-center gap-3 px-6 text-center">
+      <span className="candle-flicker text-2xl leading-none" aria-hidden="true">
+        🕯️
+      </span>
+      <p className="text-parchment-2/70 text-sm">
         Waiting for {pendingCount} player{pendingCount !== 1 ? "s" : ""} to
         respond.
       </p>
@@ -39,14 +42,16 @@ export function AwaitingDeathNarrativePanel({
   pendingDead: { userId: string; displayName: string }[];
 }) {
   return (
-    <div className="w-72 shrink-0 border-l border-slate-700 bg-slate-900 flex flex-col items-center justify-center gap-3 px-6 text-center">
-      <span className="w-3 h-3 rounded-full bg-rose-400 animate-pulse" />
-      <p className="text-slate-400 text-sm">
+    <div className="w-full bg-ink-2/40 flex flex-col items-center justify-center gap-3 px-6 text-center">
+      <span className="text-2xl leading-none animate-pulse" aria-hidden="true">
+        💀
+      </span>
+      <p className="text-parchment-2/70 text-sm">
         Waiting for {pendingDead.length} dead player
-        {pendingDead.length !== 1 ? "s" : ""} to describe their death...
+        {pendingDead.length !== 1 ? "s" : ""} to describe their death…
       </p>
       {pendingDead.map((player) => (
-        <span key={player.userId} className="text-xs text-slate-500">
+        <span key={player.userId} className="text-xs text-parchment-2/50">
           {player.displayName}
         </span>
       ))}
@@ -72,52 +77,66 @@ export function StagingPanel({
   onSendAll,
 }: StagingPanelProps) {
   return (
-    <div className="w-72 shrink-0 border-l border-slate-700 bg-slate-900 flex flex-col h-full">
-      <div className="px-4 py-2.5 border-b border-slate-700 shrink-0 flex items-center justify-between">
-        <p className="text-xs uppercase tracking-widest text-slate-500 font-medium">
+    <div className="w-full bg-ink-2/40 flex flex-col h-full">
+      <div className="px-4 py-2.5 border-b border-gold/30 shrink-0 flex items-center justify-between">
+        <p className="text-xs uppercase tracking-[0.18em] text-parchment-2/70 font-display">
           Staged
         </p>
         <button
           onClick={onBack}
-          className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          className="text-xs text-parchment-2/60 hover:text-ember transition-colors font-display tracking-wide"
         >
-          Back
+          ← Back
         </button>
       </div>
 
-      <div className="px-4 py-2.5 border-b border-slate-700 bg-indigo-950/30 shrink-0">
-        <p className="text-xs text-indigo-400 leading-relaxed">
+      <div className="px-4 py-2.5 border-b border-gold/30 bg-ember/10 shrink-0">
+        <p className="text-xs text-ember leading-relaxed">
           Select a player on the left to edit their pending message.
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-2">
-        {Object.entries(stagedMessages).map(([userId, msg]) => {
-          const player = allPlayers.find((item) => item.userId === userId);
-          return (
-            <div
-              key={userId}
-              className="flex flex-col px-4 py-2 border-b border-slate-800/60"
-            >
-              <span className="text-xs font-medium text-slate-300">
-                {player?.displayName ?? userId}
-              </span>
-              <span className="text-xs text-slate-600 truncate mt-0.5">
-                {msg.slice(0, 60) || "-"}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+      <ScrollArea className="flex-1">
+        <div className="py-2">
+          {Object.entries(stagedMessages).map(([userId, msg]) => {
+            const player = allPlayers.find((item) => item.userId === userId);
+            return (
+              <div
+                key={userId}
+                className="flex flex-col px-4 py-2 border-b border-gold/15"
+              >
+                <span className="text-xs font-display tracking-wide text-parchment">
+                  {player?.displayName ?? userId}
+                </span>
+                <span className="text-xs text-parchment-2/50 truncate mt-0.5">
+                  {msg.slice(0, 60) || "—"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </ScrollArea>
 
-      <div className="p-3 border-t border-slate-700 shrink-0">
-        {sendError && <p className="text-red-400 text-xs mb-2">{sendError}</p>}
+      <div className="p-3 border-t border-gold/30 shrink-0">
+        {sendError && (
+          <p className="wax-seal text-xs mb-2 px-2 py-1 rounded inline-flex items-center gap-1.5">
+            <span aria-hidden="true">⚠</span>
+            {sendError}
+          </p>
+        )}
         <button
           onClick={onSendAll}
           disabled={isSending}
-          className="w-full py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm rounded font-medium transition-colors"
+          className="w-full py-2 font-display tracking-[0.1em] uppercase text-sm rounded transition-all disabled:cursor-not-allowed enabled:hover:-translate-y-0.5 enabled:hover:shadow-lg"
+          style={{
+            background:
+              "linear-gradient(180deg, var(--color-ember) 0%, color-mix(in srgb, var(--color-ember) 70%, black) 100%)",
+            color: "#1a1410",
+            border: "1px solid var(--color-gold)",
+            opacity: isSending ? 0.6 : 1,
+          }}
         >
-          {isSending ? "Sending..." : "Send All"}
+          {isSending ? "Sending…" : "Send All"}
         </button>
       </div>
     </div>
@@ -164,14 +183,14 @@ export function TemplatePanel({
   onStageMessages,
 }: TemplatePanelProps) {
   return (
-    <div className="w-72 shrink-0 border-l border-slate-700 bg-slate-900 flex flex-col h-full">
-      <div className="px-4 py-2.5 border-b border-slate-700 shrink-0">
-        <p className="text-xs uppercase tracking-widest text-slate-500 font-medium">
+    <div className="w-full bg-ink-2/40 flex flex-col h-full">
+      <div className="px-4 py-2.5 border-b border-gold/30 shrink-0">
+        <p className="text-xs uppercase tracking-[0.18em] text-parchment-2/70 font-display">
           {phaseLabel}
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <ScrollArea className="flex-1">
         <div className="p-3 space-y-3">
           {isDeathConfirmPhase
             ? (detail.deathConfirmEntries ?? []).map((entry) => (
@@ -201,12 +220,18 @@ export function TemplatePanel({
                   />
                 ))}
         </div>
-      </div>
+      </ScrollArea>
 
-      <div className="p-3 border-t border-slate-700 shrink-0">
+      <div className="p-3 border-t border-gold/30 shrink-0">
         <button
           onClick={onStageMessages}
-          className="w-full py-2 bg-indigo-700 hover:bg-indigo-600 text-white text-sm rounded font-medium transition-colors"
+          className="w-full py-2 font-display tracking-[0.1em] uppercase text-sm rounded transition-all enabled:hover:-translate-y-0.5 enabled:hover:shadow-lg"
+          style={{
+            background:
+              "linear-gradient(180deg, var(--color-ember) 0%, color-mix(in srgb, var(--color-ember) 70%, black) 100%)",
+            color: "#1a1410",
+            border: "1px solid var(--color-gold)",
+          }}
         >
           Confirm Messages
         </button>

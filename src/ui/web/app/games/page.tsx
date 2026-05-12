@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Settings } from "lucide-react";
 import type { GameSummary } from "@/types";
+import { Tooltip } from "@/components/ui/Tooltip";
+import { ScrollArea } from "@/components/ui/ScrollArea";
 
 export default function GamesPage() {
   const [games, setGames] = useState<GameSummary[]>([]);
@@ -30,66 +32,74 @@ export default function GamesPage() {
   }, []);
 
   return (
-    <div className="h-full overflow-y-auto">
+    <ScrollArea className="h-full">
       <div className="max-w-5xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-300">Games</h2>
-          <Link
-            href="/settings"
-            aria-label="Settings"
-            title="Settings"
-            className="inline-flex items-center justify-center text-slate-400 hover:text-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/80 rounded-sm"
-          >
-            <Settings className="w-5 h-5" aria-hidden="true" />
-          </Link>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-display text-2xl tracking-[0.08em] text-parchment-2">
+            Games
+          </h2>
+          <Tooltip content="Settings">
+            <Link
+              href="/settings"
+              aria-label="Settings"
+              className="inline-flex items-center justify-center text-parchment-2/70 hover:text-ember transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember/60 rounded-sm"
+            >
+              <Settings className="w-5 h-5" aria-hidden="true" />
+            </Link>
+          </Tooltip>
         </div>
         {loading ? (
-          <p className="text-slate-400 mt-8">Loading games…</p>
+          <p className="text-parchment-2/60 mt-8 italic">Loading games…</p>
         ) : games.length === 0 ? (
-          <div className="text-center mt-20 text-slate-400">
-            <p className="text-5xl mb-5">🎲</p>
-            <h2 className="text-xl font-semibold mb-2 text-slate-300">
-              No active games
+          <div className="text-center mt-20">
+            <p className="text-5xl mb-5" aria-hidden="true">🕯️</p>
+            <h2 className="font-display text-xl mb-2 tracking-[0.08em] text-parchment">
+              No games in session
             </h2>
-            <p className="text-sm">
-              Start a manual-mode game with{" "}
-              <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">
+            <p className="text-sm text-parchment-2/70">
+              Light the candle in Discord with{" "}
+              <code className="bg-ink-2 border border-gold/40 px-1.5 py-0.5 rounded text-ember font-mono">
                 /iam
               </code>{" "}
-              in Discord to begin.
+              to begin.
             </p>
           </div>
         ) : (
           <div>
-            <h2 className="text-lg font-semibold mb-4 text-slate-300">
+            <h3 className="font-display text-base mb-4 tracking-[0.08em] text-parchment-2">
               Active Games
-            </h2>
+            </h3>
             <div className="grid gap-3">
               {games.map((g) => {
                 const href =
                   g.phase === "in_progress"
                     ? `/games/${encodeURIComponent(g.channelId)}/night`
                     : `/games/${encodeURIComponent(g.channelId)}`;
-                const phaseLabel =
-                  g.phase === "in_progress" ? "Night" : "Role Assignment";
+                const isNight = g.phase === "in_progress";
+                const phaseLabel = isNight ? "Night" : "Role Assignment";
+                const phaseIcon = isNight ? "🌙" : "☀️";
+                const accent = isNight
+                  ? "var(--color-ember)"
+                  : "var(--color-gold)";
                 return (
                   <Link
                     key={g.channelId}
                     href={href}
-                    className="block bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-lg px-5 py-4 transition-colors"
+                    className="parchment block rounded-md pl-5 pr-5 py-4 transition-transform hover:-translate-y-0.5 hover:shadow-lg"
+                    style={{ borderLeft: `4px solid ${accent}` }}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold">{g.gameId}</span>
-                      <div className="flex items-center gap-3 text-sm text-slate-400">
-                        <span
-                          className={
-                            g.phase === "in_progress"
-                              ? "text-indigo-400"
-                              : "text-slate-400"
-                          }
-                        >
-                          {phaseLabel}
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-display text-base tracking-wide text-[#2a1f12]">
+                        {g.gameId}
+                      </span>
+                      <div className="flex items-center gap-3 text-sm text-[#4a3a26]">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span aria-hidden="true">{phaseIcon}</span>
+                          <span className="font-display tracking-wide">
+                            {phaseLabel}
+                          </span>
                         </span>
+                        <span className="text-[#6a5238]">·</span>
                         <span>{g.playerCount} players</span>
                       </div>
                     </div>
@@ -100,6 +110,6 @@ export default function GamesPage() {
           </div>
         )}
       </div>
-    </div>
+    </ScrollArea>
   );
 }

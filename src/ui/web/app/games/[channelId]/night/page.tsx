@@ -7,6 +7,11 @@ import NightChatArea from "@/components/night/NightChatArea";
 import NightControlPanel from "@/components/night/NightControlPanel";
 import NightPlayerSidebar from "@/components/night/NightPlayerSidebar";
 import NightTopBar from "@/components/night/NightTopBar";
+import {
+  Panel,
+  PanelGroup,
+  PanelResizeHandle,
+} from "@/components/ui/ResizablePanels";
 
 export default function NightPage() {
   const { channelId } = useParams<{ channelId: string }>();
@@ -55,23 +60,23 @@ export default function NightPage() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center text-slate-400">
-        Loading...
+      <div className="h-full flex items-center justify-center text-parchment-2/60 italic">
+        Loading…
       </div>
     );
   }
 
   if (!detail || error) {
     return (
-      <div className="h-full flex flex-col items-center justify-center text-slate-400">
-        <p className="mb-4">
+      <div className="h-full flex flex-col items-center justify-center text-parchment-2/70">
+        <p className="mb-4 italic">
           {error ?? "Game not found or not in night phase."}
         </p>
         <button
           onClick={() => router.push("/games")}
-          className="text-sm underline hover:text-slate-200"
+          className="text-sm text-parchment-2/80 hover:text-ember underline underline-offset-2 transition-colors"
         >
-          Back to games
+          ← Back to games
         </button>
       </div>
     );
@@ -91,36 +96,44 @@ export default function NightPage() {
   return (
     <div className="h-full flex flex-col">
       <NightTopBar detail={detail} onBack={() => router.push("/games")} />
-      <div className="flex flex-1 overflow-hidden">
-        <NightPlayerSidebar
-          players={detail.players}
-          conversations={detail.conversations}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-        />
-        <NightChatArea
-          player={selectedPlayer}
-          messages={selectedMessages}
-          stagedMessage={stagedMessage}
-          onStagedChange={
-            selectedId
-              ? (msg) =>
-                  setStagedMessages((prev) => ({
-                    ...prev,
-                    [selectedId]: msg,
-                  }))
-              : undefined
-          }
-        />
-        <NightControlPanel
-          detail={detail}
-          channelId={channelId}
-          panelStage={panelStage}
-          onPanelStageChange={setPanelStage}
-          stagedMessages={stagedMessages}
-          onStagedMessagesChange={setStagedMessages}
-        />
-      </div>
+      <PanelGroup direction="horizontal" className="flex-1">
+        <Panel defaultSize="22%" minSize="14%" maxSize="40%" id="players">
+          <NightPlayerSidebar
+            players={detail.players}
+            conversations={detail.conversations}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+          />
+        </Panel>
+        <PanelResizeHandle direction="horizontal" />
+        <Panel defaultSize="52%" minSize="28%" id="chat">
+          <NightChatArea
+            player={selectedPlayer}
+            messages={selectedMessages}
+            stagedMessage={stagedMessage}
+            onStagedChange={
+              selectedId
+                ? (msg) =>
+                    setStagedMessages((prev) => ({
+                      ...prev,
+                      [selectedId]: msg,
+                    }))
+                : undefined
+            }
+          />
+        </Panel>
+        <PanelResizeHandle direction="horizontal" />
+        <Panel defaultSize="26%" minSize="16%" maxSize="45%" id="control">
+          <NightControlPanel
+            detail={detail}
+            channelId={channelId}
+            panelStage={panelStage}
+            onPanelStageChange={setPanelStage}
+            stagedMessages={stagedMessages}
+            onStagedMessagesChange={setStagedMessages}
+          />
+        </Panel>
+      </PanelGroup>
     </div>
   );
 }

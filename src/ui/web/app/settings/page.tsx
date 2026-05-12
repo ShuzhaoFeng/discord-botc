@@ -7,6 +7,16 @@ import type {
   GuildSettingsEntry,
   GuildSettingsResponse,
 } from "@/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/Select";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { ScrollArea } from "@/components/ui/ScrollArea";
+import { ArrowLeft } from "lucide-react";
 
 const DEFAULT_TOWNSQUARE_URL = "https://clocktower.live";
 
@@ -97,84 +107,107 @@ export default function SettingsPage() {
 
   const townsquareEnabled = draft.townsquareUrl !== null;
 
+  const inputClass =
+    "mt-1 w-full bg-ink-2 border border-gold/40 rounded-md px-3 py-2 text-parchment focus:outline-none focus:border-ember";
+
   return (
-    <div className="h-full overflow-y-auto">
+    <ScrollArea className="h-full">
       <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-slate-200">Settings</h1>
+          <h1 className="font-display text-2xl tracking-[0.08em] text-parchment-2">
+            ⚙️ Settings
+          </h1>
           <Link
             href="/games"
-            className="text-sm text-slate-300 hover:text-slate-100 underline underline-offset-2"
+            className="text-sm text-parchment-2/70 hover:text-ember underline underline-offset-2 transition-colors"
           >
-            Back to games
+            <ArrowLeft size={16} />
           </Link>
         </div>
 
         {loading ? (
-          <p className="text-sm text-slate-400">Loading settings...</p>
+          <p className="text-sm text-parchment-2/60 italic">
+            Loading settings…
+          </p>
         ) : guilds.length === 0 ? (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-parchment-2/60 italic">
             No guilds are currently available.
           </p>
         ) : (
           <>
-            {/* Guild selector */}
-            <label className="block text-sm text-slate-300">
-              Guild
-              <select
-                className="mt-1 w-full bg-slate-900 border border-slate-600 rounded-md px-3 py-2 text-slate-100"
+            <div className="block text-sm text-parchment">
+              <span className="font-display tracking-wide text-parchment-2">
+                Guild
+              </span>
+              <Select
                 value={selectedGuildId}
-                onChange={(e) => setSelectedGuildId(e.target.value)}
+                onValueChange={setSelectedGuildId}
               >
-                {guilds.map((g) => (
-                  <option key={g.guildId} value={g.guildId}>
-                    {g.guildName}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <SelectTrigger className="mt-1 px-3 py-2">
+                  <SelectValue placeholder="Select a guild" />
+                </SelectTrigger>
+                <SelectContent>
+                  {guilds.map((g) => (
+                    <SelectItem key={g.guildId} value={g.guildId}>
+                      {g.guildName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            {/* Guild Settings */}
-            <section className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4">
-              <div>
-                <h2 className="text-base font-semibold text-slate-100">
-                  Guild Settings
-                </h2>
-              </div>
+            <section
+              className="rounded-lg p-5 space-y-4 bg-ink-2/60"
+              style={{
+                borderLeft: "3px solid var(--color-gold)",
+                border:
+                  "1px solid color-mix(in srgb, var(--color-gold) 30%, transparent)",
+                borderLeftWidth: "3px",
+              }}
+            >
+              <h2 className="font-display text-base tracking-[0.08em] text-parchment-2">
+                📜 Guild Settings
+              </h2>
 
-              <label className="block text-sm text-slate-300">
-                Default language
-                <select
-                  className="mt-1 w-full bg-slate-900 border border-slate-600 rounded-md px-3 py-2 text-slate-100"
+              <div className="block text-sm text-parchment">
+                <span className="font-display tracking-wide text-parchment-2">
+                  Default language
+                </span>
+                <Select
                   value={draft.defaultLang}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      defaultLang: e.target.value as "en" | "zh",
-                    }))
+                  onValueChange={(v) =>
+                    setDraft((d) => ({ ...d, defaultLang: v as "en" | "zh" }))
                   }
                 >
-                  <option value="en">English</option>
-                  <option value="zh">简体中文</option>
-                </select>
-              </label>
+                  <SelectTrigger className="mt-1 px-3 py-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="zh">简体中文</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </section>
 
-            {/* Integration */}
-            <section className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4">
-              <div>
-                <h2 className="text-base font-semibold text-slate-100">
-                  Integration
-                </h2>
-              </div>
+            <section
+              className="rounded-lg p-5 space-y-4 bg-ink-2/60"
+              style={{
+                borderLeft: "3px solid var(--color-ember)",
+                border:
+                  "1px solid color-mix(in srgb, var(--color-gold) 30%, transparent)",
+                borderLeftWidth: "3px",
+              }}
+            >
+              <h2 className="font-display text-base tracking-[0.08em] text-parchment-2">
+                🔗 Integration
+              </h2>
 
-              <label className="flex items-center gap-3 text-sm text-slate-300 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded accent-indigo-500"
+              <label className="flex items-center gap-3 text-sm text-parchment cursor-pointer select-none">
+                <Checkbox
                   checked={draft.onlineMode}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, onlineMode: e.target.checked }))
+                  onCheckedChange={(c) =>
+                    setDraft((d) => ({ ...d, onlineMode: c === true }))
                   }
                 />
                 <span>
@@ -183,17 +216,13 @@ export default function SettingsPage() {
                 </span>
               </label>
 
-              <label className="flex items-center gap-3 text-sm text-slate-300 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded accent-indigo-500"
+              <label className="flex items-center gap-3 text-sm text-parchment cursor-pointer select-none">
+                <Checkbox
                   checked={townsquareEnabled}
-                  onChange={(e) =>
+                  onCheckedChange={(c) =>
                     setDraft((d) => ({
                       ...d,
-                      townsquareUrl: e.target.checked
-                        ? DEFAULT_TOWNSQUARE_URL
-                        : null,
+                      townsquareUrl: c === true ? DEFAULT_TOWNSQUARE_URL : null,
                     }))
                   }
                 />
@@ -201,11 +230,13 @@ export default function SettingsPage() {
               </label>
 
               {townsquareEnabled && (
-                <label className="block text-sm text-slate-300">
-                  Townsquare URL
+                <label className="block text-sm text-parchment">
+                  <span className="font-display tracking-wide text-parchment-2">
+                    Townsquare URL
+                  </span>
                   <input
                     type="url"
-                    className="mt-1 w-full bg-slate-900 border border-slate-600 rounded-md px-3 py-2 text-slate-100"
+                    className={inputClass}
                     value={draft.townsquareUrl ?? ""}
                     onChange={(e) =>
                       setDraft((d) => ({
@@ -218,27 +249,33 @@ export default function SettingsPage() {
               )}
             </section>
 
-            {/* Save */}
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={saveSettings}
                 disabled={saved || !selectedGuildId}
-                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                  saved
-                    ? "bg-emerald-600 text-white"
-                    : "bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 disabled:text-slate-300 text-white"
-                }`}
+                className="font-display tracking-[0.1em] uppercase text-sm rounded-md px-4 py-2 transition-all disabled:cursor-not-allowed enabled:hover:-translate-y-0.5 enabled:hover:shadow-lg"
+                style={{
+                  background: saved
+                    ? "linear-gradient(180deg, var(--color-fabled) 0%, color-mix(in srgb, var(--color-fabled) 70%, black) 100%)"
+                    : "linear-gradient(180deg, var(--color-ember) 0%, color-mix(in srgb, var(--color-ember) 70%, black) 100%)",
+                  color: "#1a1410",
+                  border: "1px solid var(--color-gold)",
+                  opacity: !selectedGuildId ? 0.6 : 1,
+                }}
               >
-                {saved ? "Saved!" : "Save"}
+                {saved ? "✓ Saved" : "Save"}
               </button>
               {message && (
-                <span className="text-sm text-red-400">{message}</span>
+                <span className="wax-seal text-sm px-3 py-1.5 rounded-md inline-flex items-center gap-2">
+                  <span aria-hidden="true">⚠</span>
+                  {message}
+                </span>
               )}
             </div>
           </>
         )}
       </div>
-    </div>
+    </ScrollArea>
   );
 }

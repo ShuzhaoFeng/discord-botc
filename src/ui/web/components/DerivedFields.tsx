@@ -1,6 +1,13 @@
 "use client";
 
 import type { DraftState, RoleInfo } from "@/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/Select";
 
 interface Props {
   draft: DraftState;
@@ -10,8 +17,12 @@ interface Props {
   onBluffsChange: (roleIds: [string, string, string]) => void;
 }
 
-const selectClass =
-  "w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-slate-400 cursor-pointer";
+const CATEGORY_TINT: Record<string, string> = {
+  Townsfolk: "var(--color-townsfolk)",
+  Outsider: "var(--color-outsider)",
+  Minion: "var(--color-minion)",
+  Demon: "var(--color-demon)",
+};
 
 function Field({
   label,
@@ -22,7 +33,7 @@ function Field({
 }) {
   return (
     <div>
-      <p className="text-xs uppercase tracking-widest text-slate-500 mb-1.5">
+      <p className="text-xs uppercase tracking-widest text-parchment-2/60 mb-1.5 font-display">
         {label}
       </p>
       {children}
@@ -70,33 +81,49 @@ export default function DerivedFields({
     <div className="space-y-5">
       {ftInPlay && (
         <Field label="🔮 Red Herring">
-          <select
+          <Select
             value={draft.redHerring ?? ""}
-            onChange={(e) => onHerringChange(e.target.value)}
-            className={selectClass}
+            onValueChange={onHerringChange}
           >
-            {goodPlayers.map((a) => (
-              <option key={a.userId} value={a.userId}>
-                {a.displayName}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger>
+              <SelectValue placeholder="Choose a good player" />
+            </SelectTrigger>
+            <SelectContent>
+              {goodPlayers.map((a) => (
+                <SelectItem
+                  key={a.userId}
+                  value={a.userId}
+                  tint={CATEGORY_TINT[a.role.category]}
+                >
+                  {a.displayName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Field>
       )}
 
       {drunkInPlay && (
         <Field label="🍺 Drunk Fake Role">
-          <select
+          <Select
             value={draft.drunkFakeRole?.id ?? ""}
-            onChange={(e) => onDrunkChange(e.target.value)}
-            className={selectClass}
+            onValueChange={onDrunkChange}
           >
-            {allTownsfolk.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger>
+              <SelectValue placeholder="Choose a Townsfolk role" />
+            </SelectTrigger>
+            <SelectContent>
+              {allTownsfolk.map((r) => (
+                <SelectItem
+                  key={r.id}
+                  value={r.id}
+                  tint={CATEGORY_TINT.Townsfolk}
+                >
+                  {r.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Field>
       )}
 
@@ -104,18 +131,26 @@ export default function DerivedFields({
         <Field label="🃏 Imp Bluffs">
           <div className="space-y-2">
             {[0, 1, 2].map((i) => (
-              <select
+              <Select
                 key={i}
                 value={draft.impBluffs?.[i]?.id ?? ""}
-                onChange={(e) => updateBluff(i, e.target.value)}
-                className={selectClass}
+                onValueChange={(v) => updateBluff(i, v)}
               >
-                {unassignedGood.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger>
+                  <SelectValue placeholder={`Bluff ${i + 1}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {unassignedGood.map((r) => (
+                    <SelectItem
+                      key={r.id}
+                      value={r.id}
+                      tint={CATEGORY_TINT[r.category]}
+                    >
+                      {r.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             ))}
           </div>
         </Field>

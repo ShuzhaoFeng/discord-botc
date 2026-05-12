@@ -2,12 +2,23 @@
 
 import { useState } from "react";
 import type { PlayerAssignment, RoleInfo } from "@/types";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/Select";
+import { Tooltip } from "@/components/ui/Tooltip";
+import { ScrollArea } from "@/components/ui/ScrollArea";
 
-const CATEGORY_STYLE: Record<string, string> = {
-  Townsfolk: "bg-blue-900/40 text-blue-300 border border-blue-800",
-  Outsider: "bg-cyan-900/40 text-cyan-300 border border-cyan-800",
-  Minion: "bg-orange-900/40 text-orange-300 border border-orange-800",
-  Demon: "bg-red-900/40 text-red-300 border border-red-800",
+const CATEGORY_TINT: Record<string, string> = {
+  Townsfolk: "var(--color-townsfolk)",
+  Outsider: "var(--color-outsider)",
+  Minion: "var(--color-minion)",
+  Demon: "var(--color-demon)",
 };
 
 const CATEGORY_ORDER = ["Townsfolk", "Outsider", "Minion", "Demon"] as const;
@@ -30,38 +41,34 @@ export default function PlayerTable({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Column header */}
-      <div className="shrink-0 flex items-center px-4 py-2.5 border-b border-slate-700 text-xs uppercase tracking-widest text-slate-500 font-medium">
-        <span className="w-10 shrink-0">Seat</span>
+      <div className="shrink-0 flex items-center pl-3 pr-4 py-2.5 border-b border-gold/30 text-xs uppercase tracking-[0.18em] text-parchment-2/70 font-display">
+        {/* Token column has no header label; it's purely visual. */}
+        <span className="w-11 shrink-0" aria-hidden="true" />
+        <span className="w-12 shrink-0">Seat</span>
         <span className="flex-1 min-w-0">Player</span>
-        <span className="w-52 shrink-0 pl-6">Role</span>
-        <span className="w-28 shrink-0 text-right pr-1">Category</span>
+        <span className="w-64 shrink-0">Role</span>
       </div>
 
-      {/* Scrollable rows */}
-      <div className="overflow-y-auto flex-1">
+      <ScrollArea className="flex-1">
         {assignments.map((row) => {
           const isSource = dragSourceId === row.userId;
           const isOver = dragOverId === row.userId;
+          const tint = CATEGORY_TINT[row.role.category] ?? "var(--color-gold)";
           return (
             <div
               key={row.userId}
-              draggable
+              style={{ borderLeft: `3px solid ${tint}` }}
               className={[
-                "flex items-center px-4 py-3 border-b border-slate-800 transition-colors select-none",
-                isSource ? "opacity-40" : "",
+                "parchment-row flex items-center pl-3 pr-4 py-3 border-b border-gold/15 transition-colors select-none",
                 isOver
-                  ? "bg-indigo-950/40 outline outline-1 outline-dashed outline-indigo-500"
-                  : "hover:bg-slate-800/40",
+                  ? "outline outline-1 outline-dashed outline-ember/80"
+                  : "",
               ].join(" ")}
-              onDragStart={() => setDragSourceId(row.userId)}
-              onDragEnd={() => {
-                setDragSourceId(null);
-                setDragOverId(null);
-              }}
               onDragOver={(e) => {
                 e.preventDefault();
-                if (dragSourceId !== row.userId) setDragOverId(row.userId);
+                if (dragSourceId && dragSourceId !== row.userId) {
+                  setDragOverId(row.userId);
+                }
               }}
               onDragLeave={() => setDragOverId(null)}
               onDrop={(e) => {
@@ -72,55 +79,99 @@ export default function PlayerTable({
                 }
               }}
             >
-              {/* Seat */}
-              <span className="w-10 shrink-0">
-                <span className="bg-slate-700 text-slate-400 rounded px-1.5 py-0.5 text-xs font-mono">
+              <span className="w-11 shrink-0 flex items-center">
+                <Tooltip content={`${row.role.name} (${row.role.category})`}>
+                  <span
+                    className="token-disc"
+                    style={{ ["--token-tint" as string]: tint }}
+                    aria-label={`${row.role.name} (${row.role.category})`}
+                  />
+                </Tooltip>
+              </span>
+
+              <span className="w-12 shrink-0">
+                <span className="bg-ink-2 text-parchment-2 border border-gold/30 rounded px-1.5 py-0.5 text-xs font-mono">
                   {row.seatIndex + 1}
                 </span>
               </span>
 
-              {/* Player name */}
-              <span className="flex-1 min-w-0 font-medium text-sm truncate pr-4">
+              <span className="flex-1 min-w-0 font-medium text-sm truncate pr-4 text-parchment">
                 {row.displayName}
               </span>
 
-              {/* Role select with drag handle */}
-              <div className="w-52 shrink-0 flex items-center gap-2">
-                <span
-                  className="text-slate-600 cursor-grab active:cursor-grabbing leading-none text-base"
-                  title="Drag to swap roles"
-                >
-                  ⠿
-                </span>
-                <select
+              {/* Drag-to-swap is scoped to this cell: the ⠿ handle starts
+                  the drag, setDragImage uses the whole cell as the floating
+                  preview, and only this cell dims while it's the source.
+                  Drop handlers live on the row so any part of a target row
+                  accepts the drop. */}
+              <div
+                data-role-cell
+                className={`w-64 shrink-0 flex items-center gap-2 transition-opacity ${
+                  isSource ? "opacity-40" : ""
+                }`}
+              >
+                <Tooltip content="Drag to swap roles">
+                  <span
+                    draggable
+                    onDragStart={(e) => {
+                      const cell = e.currentTarget.closest(
+                        "[data-role-cell]",
+                      ) as HTMLElement | null;
+                      if (cell) {
+                        e.dataTransfer.setDragImage(
+                          cell,
+                          cell.offsetWidth / 2,
+                          cell.offsetHeight / 2,
+                        );
+                      }
+                      e.dataTransfer.effectAllowed = "move";
+                      setDragSourceId(row.userId);
+                    }}
+                    onDragEnd={() => {
+                      setDragSourceId(null);
+                      setDragOverId(null);
+                    }}
+                    className="text-parchment-2/50 hover:text-ember cursor-grab active:cursor-grabbing leading-none text-base transition-colors"
+                    aria-label="Drag to swap roles"
+                  >
+                    ⠿
+                  </span>
+                </Tooltip>
+                <Select
                   value={row.role.id}
-                  onChange={(e) => onRoleChange(row.userId, e.target.value)}
-                  className="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-100 cursor-pointer focus:outline-none focus:border-slate-400"
+                  onValueChange={(v) => onRoleChange(row.userId, v)}
                 >
-                  {CATEGORY_ORDER.flatMap((cat) =>
-                    allRoles
-                      .filter((r) => r.category === cat)
-                      .map((r) => (
-                        <option key={`${cat}:${r.id}`} value={r.id}>
-                          {r.name}
-                        </option>
-                      )),
-                  )}
-                </select>
-              </div>
-
-              {/* Category badge */}
-              <div className="w-28 shrink-0 flex justify-end">
-                <span
-                  className={`text-xs font-semibold uppercase tracking-wide rounded px-2 py-0.5 ${CATEGORY_STYLE[row.role.category]}`}
-                >
-                  {row.role.category}
-                </span>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_ORDER.map((cat) => {
+                      const rolesInCat = allRoles.filter(
+                        (r) => r.category === cat,
+                      );
+                      if (rolesInCat.length === 0) return null;
+                      return (
+                        <SelectGroup key={cat}>
+                          <SelectLabel>{cat}</SelectLabel>
+                          {rolesInCat.map((r) => (
+                            <SelectItem
+                              key={`${cat}:${r.id}`}
+                              value={r.id}
+                              tint={CATEGORY_TINT[cat]}
+                            >
+                              {r.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           );
         })}
-      </div>
+      </ScrollArea>
     </div>
   );
 }
