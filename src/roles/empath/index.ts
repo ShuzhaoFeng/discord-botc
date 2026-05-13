@@ -1,6 +1,7 @@
 import type { RoleDefinition } from "../types";
 import { Night } from "../types";
-import { getPlayerState, registersAsEvilForDetection } from "../../game/utils";
+import { getPlayerState, hasFalsifiedInfo } from "../../utils/runtime";
+import { registersAs } from "../../utils/roleDetection";
 import type {
   NightOutcomeFieldType,
   Player,
@@ -42,7 +43,7 @@ function computeEmpathCount(runtime: RuntimeState, empathId: string): number {
   let count = 0;
   for (const uid of neighborIds) {
     const neighborPs = getPlayerState(runtime, uid);
-    if (neighborPs && registersAsEvilForDetection(neighborPs.role)) count += 1;
+    if (neighborPs && registersAs(neighborPs.role, "Evil")) count += 1;
   }
   return count;
 }
@@ -57,9 +58,7 @@ export const definition: RoleDefinition = {
       compute: (ctx) => {
         const { runtime } = ctx.state;
         const { player } = ctx.night;
-        const ps = getPlayerState(runtime, player.userId);
-        const randomizeInfo =
-          ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
+        const falsified = hasFalsifiedInfo(getPlayerState(runtime, player.userId));
         const leftNeighbor = findAliveNeighborInDirection(
           runtime,
           player.seatIndex,
@@ -72,8 +71,8 @@ export const definition: RoleDefinition = {
         );
         const fixedValue = computeEmpathCount(runtime, player.userId);
         const randomizedValue = Math.floor(Math.random() * 3);
-        const selectedValue = randomizeInfo ? randomizedValue : fixedValue;
-        const fieldTypes: Record<string, NightOutcomeFieldType> = randomizeInfo
+        const selectedValue = falsified ? randomizedValue : fixedValue;
+        const fieldTypes: Record<string, NightOutcomeFieldType> = falsified
           ? { count: "number" }
           : {};
         return {
@@ -84,8 +83,8 @@ export const definition: RoleDefinition = {
             count: selectedValue,
           },
           fieldTypes,
-          allowArbitraryOverride: randomizeInfo,
-          reasonKey: randomizeInfo
+          allowArbitraryOverride: falsified,
+          reasonKey: falsified
             ? "nightReasonFalseInfo"
             : "nightReasonEmpathNeighbors",
         };

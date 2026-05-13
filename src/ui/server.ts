@@ -12,7 +12,7 @@ import path from "path";
 import createNext from "next";
 import { Client } from "discord.js";
 import { getAllGames, getGame, updateGame, setUpdateHook } from "../game/state";
-import { getConversations, setChatUpdateHook } from "../utils/chat-log";
+import { getConversations, setChatUpdateHook } from "../utils/chatLog";
 import {
   applyInfoDraftFieldForUI,
   sendActionMessagesForUI,
@@ -36,7 +36,7 @@ import {
   getGuildSettings,
   updateGuildSettings,
   GuildSettings,
-} from "../guild-settings";
+} from "../guildSettings";
 import { connectTownsquareSpectator } from "../townsquare";
 
 // ─── SSE ─────────────────────────────────────────────────────────────────────
@@ -188,6 +188,49 @@ function serializeDraft(state: GameState) {
 
 function getAllRoles() {
   return getScript().roles.map(serializeRole);
+}
+
+// ─── Draft mutation wrapper ───────────────────────────────────────────────────
+
+interface DraftMutationError {
+  error: string;
+  status?: number;
+  params?: Record<string, unknown>;
+  userFacing?: boolean;
+}
+
+/**
+ * Shared scaffold for draft-mutation endpoints: look up the game, null-check
+ * the draft, run the mutator, optionally reconcile, persist, and return the
+ * serialized draft + validation error. Mutator returns void on success or a
+ * {@link DraftMutationError}.
+ */
+function withDraftMutation(
+  mutator: (state: GameState, body: unknown) => DraftMutationError | void,
+  opts: { reconcile?: boolean } = {},
+): (req: Request, res: Response) => void {
+  return (req, res) => {
+    const state = getGame(req.params.channelId as string);
+    if (!state?.draft) {
+      return void res.status(404).json({ error: "Game not found" });
+    }
+    const result = mutator(state, req.body);
+    if (result) {
+      return void res.status(result.status ?? 400).json({
+        error: result.error,
+        params: result.params,
+        userFacing: result.userFacing,
+      });
+    }
+    if (opts.reconcile) {
+      reconcileDraftDependencies(state.draft, state.players);
+    }
+    updateGame(state);
+    res.json({
+      draft: serializeDraft(state),
+      validationError: validateDraft(state.draft, state.players),
+    });
+  };
 }
 
 // ─── Server ───────────────────────────────────────────────────────────────────
@@ -342,153 +385,94 @@ export async function startUiServer(
     });
   });
 
-  // ── Swap ──────────────────────────────────────────────────────────────────
+  // ── Draft mutations (swap / role / herring / drunk / bluffs) ──────────────
 
-  app.post("/api/games/:channelId/swap", (req: Request, res: Response) => {
-    const state = getGame(req.params.channelId as string);
-    if (!state?.draft)
-      return void res.status(404).json({ error: "Game not found" });
-    const { userId1, userId2 } = req.body as {
-      userId1: string;
-      userId2: string;
-    };
-    swapRoles(state.draft, userId1, userId2);
-    reconcileDraftDependencies(state.draft, state.players);
-    updateGame(state);
-    res.json({
-      draft: serializeDraft(state),
-      validationError: validateDraft(
-        state.draft,
-        state.players,
-      ),
-    });
-  });
+  app.post(
+    "/api/games/:channelId/swap",
+    withDraftMutation(
+      (state, body) => {
+        const { userId1, userId2 } = body as {
+          userId1: string;
+          userId2: string;
+        };
+        swapRoles(state.draft!, userId1, userId2);
+      },
+      { reconcile: true },
+    ),
+  );
 
-  // ── Set role ──────────────────────────────────────────────────────────────
+  app.post(
+    "/api/games/:channelId/role",
+    withDraftMutation(
+      (state, body) => {
+        const { userId, roleId } = body as { userId: string; roleId: string };
+        const newRole = getScript().roles.find((r) => r.id === roleId);
+        if (!newRole) return { error: `Unknown role: ${roleId}` };
+        const result = setRole(state.draft!, state.players, userId, newRole);
+        if ("key" in result && !("adjustedSlots" in result)) {
+          const ve = result as ValidationError;
+          return { error: ve.key, params: ve.params, userFacing: true };
+        }
+      },
+      { reconcile: true },
+    ),
+  );
 
-  app.post("/api/games/:channelId/role", (req: Request, res: Response) => {
-    const state = getGame(req.params.channelId as string);
-    if (!state?.draft)
-      return void res.status(404).json({ error: "Game not found" });
-    const { userId, roleId } = req.body as { userId: string; roleId: string };
-    const newRole = getScript().roles.find((r) => r.id === roleId);
-    if (!newRole)
-      return void res.status(400).json({ error: `Unknown role: ${roleId}` });
-    const result = setRole(state.draft, state.players, userId, newRole);
-    if ("key" in result && !("adjustedSlots" in result)) {
-      const ve = result as ValidationError;
-      return void res
-        .status(400)
-        .json({ error: ve.key, params: ve.params, userFacing: true });
-    }
-    reconcileDraftDependencies(state.draft, state.players);
-    updateGame(state);
-    res.json({
-      draft: serializeDraft(state),
-      validationError: validateDraft(
-        state.draft,
-        state.players,
-      ),
-    });
-  });
-
-  // ── Red herring ───────────────────────────────────────────────────────────
-
-  app.post("/api/games/:channelId/herring", (req: Request, res: Response) => {
-    const state = getGame(req.params.channelId as string);
-    if (!state?.draft)
-      return void res.status(404).json({ error: "Game not found" });
-    const { userId } = req.body as { userId: string };
-    const role = state.draft.assignments.get(userId);
-    if (!role) return void res.status(400).json({ error: "Player not found" });
-    if (role.category === "Demon" || role.category === "Minion") {
-      return void res
-        .status(400)
-        .json({ error: "Red herring must be a Good player" });
-    }
-    state.draft.redHerring = userId;
-    updateGame(state);
-    res.json({
-      draft: serializeDraft(state),
-      validationError: validateDraft(
-        state.draft,
-        state.players,
-      ),
-    });
-  });
-
-  // ── Drunk fake role ───────────────────────────────────────────────────────
-
-  app.post("/api/games/:channelId/drunk", (req: Request, res: Response) => {
-    const state = getGame(req.params.channelId as string);
-    if (!state?.draft)
-      return void res.status(404).json({ error: "Game not found" });
-    const { roleId } = req.body as { roleId: string };
-    const role = getScript().roles.find((r) => r.id === roleId);
-    if (!role || role.category !== "Townsfolk") {
-      return void res
-        .status(400)
-        .json({ error: "Drunk fake role must be a Townsfolk role" });
-    }
-    state.draft.drunkFakeRole = role;
-    updateGame(state);
-    res.json({
-      draft: serializeDraft(state),
-      validationError: validateDraft(
-        state.draft,
-        state.players,
-      ),
-    });
-  });
-
-  // ── Imp bluffs ────────────────────────────────────────────────────────────
-
-  app.post("/api/games/:channelId/bluffs", (req: Request, res: Response) => {
-    const state = getGame(req.params.channelId as string);
-    if (!state?.draft)
-      return void res.status(404).json({ error: "Game not found" });
-    const { roleIds } = req.body as { roleIds: string[] };
-    if (!Array.isArray(roleIds) || roleIds.length !== 3) {
-      return void res
-        .status(400)
-        .json({ error: "Exactly 3 role IDs required" });
-    }
-    const usedIds = new Set(
-      [...state.draft.assignments.values()].map((r) => r.id),
-    );
-    const bluffs: Role[] = [];
-    for (const id of roleIds) {
-      const role = getScript().roles.find((r) => r.id === id);
-      if (
-        !role ||
-        (role.category !== "Townsfolk" && role.category !== "Outsider")
-      ) {
-        return void res
-          .status(400)
-          .json({ error: `${id} is not a good role` });
+  app.post(
+    "/api/games/:channelId/herring",
+    withDraftMutation((state, body) => {
+      const { userId } = body as { userId: string };
+      const role = state.draft!.assignments.get(userId);
+      if (!role) return { error: "Player not found" };
+      if (role.category === "Demon" || role.category === "Minion") {
+        return { error: "Red herring must be a Good player" };
       }
-      if (usedIds.has(id)) {
-        return void res
-          .status(400)
-          .json({ error: `${id} is already assigned` });
+      state.draft!.redHerring = userId;
+    }),
+  );
+
+  app.post(
+    "/api/games/:channelId/drunk",
+    withDraftMutation((state, body) => {
+      const { roleId } = body as { roleId: string };
+      const role = getScript().roles.find((r) => r.id === roleId);
+      if (!role || role.category !== "Townsfolk") {
+        return { error: "Drunk fake role must be a Townsfolk role" };
       }
-      bluffs.push(role);
-    }
-    if (new Set(roleIds).size !== 3) {
-      return void res
-        .status(400)
-        .json({ error: "Bluff roles must be distinct" });
-    }
-    state.draft.impBluffs = [bluffs[0], bluffs[1], bluffs[2]];
-    updateGame(state);
-    res.json({
-      draft: serializeDraft(state),
-      validationError: validateDraft(
-        state.draft,
-        state.players,
-      ),
-    });
-  });
+      state.draft!.drunkFakeRole = role;
+    }),
+  );
+
+  app.post(
+    "/api/games/:channelId/bluffs",
+    withDraftMutation((state, body) => {
+      const { roleIds } = body as { roleIds: string[] };
+      if (!Array.isArray(roleIds) || roleIds.length !== 3) {
+        return { error: "Exactly 3 role IDs required" };
+      }
+      const usedIds = new Set(
+        [...state.draft!.assignments.values()].map((r) => r.id),
+      );
+      const bluffs: Role[] = [];
+      for (const id of roleIds) {
+        const role = getScript().roles.find((r) => r.id === id);
+        if (
+          !role ||
+          (role.category !== "Townsfolk" && role.category !== "Outsider")
+        ) {
+          return { error: `${id} is not a good role` };
+        }
+        if (usedIds.has(id)) {
+          return { error: `${id} is already assigned` };
+        }
+        bluffs.push(role);
+      }
+      if (new Set(roleIds).size !== 3) {
+        return { error: "Bluff roles must be distinct" };
+      }
+      state.draft!.impBluffs = [bluffs[0], bluffs[1], bluffs[2]];
+    }),
+  );
 
   // ── Confirm draft (returns clocktower JSON, does NOT start night) ─────────
 

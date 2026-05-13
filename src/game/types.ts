@@ -27,10 +27,10 @@ export type NominationStatus = "active" | "completed" | "cancelled";
 export type SlayOutcome = "nothing" | "kill";
 export type NightPromptKind = "action" | "info" | "joke";
 
+/** One slot of a night-action prompt. Always resolves to a player userId. */
 export interface InputSpec {
-  type: "player";
   optional: boolean;
-  allowSelf: boolean; // enforced per-slot during validation
+  allowSelf: boolean;
 }
 
 export interface Role {

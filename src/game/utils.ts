@@ -1,6 +1,8 @@
 /**
- * Pure runtime utility helpers shared between game/night.ts and role handlers.
- * This file must NOT import from roles/ or scripts/ to avoid circular dependencies.
+ * Game-level helpers that need i18n, guild settings, or Discord.js. Pure
+ * helpers live in `src/utils/` and are re-exported below.
+ *
+ * Must not import from roles/ or scripts/ — they import this transitively.
  */
 
 import { Client } from "discord.js";
@@ -14,28 +16,21 @@ import {
   RuntimeState,
 } from "./types";
 import { getLang } from "../i18n";
-import { getGuildSettings } from "../guild-settings";
+import { getGuildSettings } from "../guildSettings";
+import { registersAs } from "../utils/roleDetection";
 
-export function shuffle<T>(arr: T[]): T[] {
-  const next = [...arr];
-  for (let i = next.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [next[i], next[j]] = [next[j], next[i]];
-  }
-  return next;
-}
+// ── Re-exports of pure helpers (canonical home is src/utils/*) ────────────────
+export { shuffle, pick } from "../utils/random";
+export {
+  getPlayerState,
+  getRole,
+  isEvil,
+  hasFalsifiedInfo,
+} from "../utils/runtime";
+export { registersAs } from "../utils/roleDetection";
+export type { DetectionTarget } from "../utils/roleDetection";
 
-export function pick<T>(arr: T[], n: number): T[] {
-  if (n <= 0) return [];
-  return shuffle(arr).slice(0, n);
-}
-
-export function getPlayerState(
-  runtime: RuntimeState,
-  userId: string,
-): PlayerRuntimeState | undefined {
-  return runtime.playerStates.find((ps) => ps.player.userId === userId);
-}
+// ── Impure game-level helpers (need i18n / Discord / guild settings) ──────────
 
 export function ensureRuntime(state: GameState): RuntimeState {
   if (!state.runtime) {
@@ -84,59 +79,49 @@ export function notifyStoryteller(
     .catch(() => {});
 }
 
-export function getRole(runtime: RuntimeState, playerId: string): Role {
-  return getPlayerState(runtime, playerId)!.role;
-}
+// ── Legacy registersAs* aliases ──────────────────────────────────────────────
+// Prefer `registersAs(role, target)` directly for new code.
 
-export function isEvil(role: Role): boolean {
-  return role.category === "Minion" || role.category === "Demon";
-}
-
-/** True if this role registers as Townsfolk to Townsfolk-detection abilities. */
 export function registersAsTownsfolkForDetection(role: Role): boolean {
-  if (role.id === "spy") return Math.random() < 0.5;
-  return role.category === "Townsfolk";
+  return registersAs(role, "Townsfolk");
 }
-
-/** True if this role registers as Outsider to Outsider-detection abilities. */
 export function registersAsOutsiderForDetection(role: Role): boolean {
-  if (role.id === "recluse") return Math.random() < 0.5;
-  if (role.id === "spy") return Math.random() < 0.5;
-  return role.category === "Outsider";
+  return registersAs(role, "Outsider");
 }
-
-/** True if this role registers as Minion to Minion-detection abilities. */
 export function registersAsMinionForDetection(role: Role): boolean {
-  if (role.id === "recluse") return Math.random() < 0.5;
-  if (role.id === "spy") return Math.random() < 0.5;
-  return role.category === "Minion";
+  return registersAs(role, "Minion");
 }
-
-/** True if this role registers as evil to alignment-detection abilities. */
 export function registersAsEvilForDetection(role: Role): boolean {
-  if (role.id === "recluse") return Math.random() < 0.5;
-  if (role.id === "spy") return Math.random() < 0.5;
-  return role.category === "Minion" || role.category === "Demon";
+  return registersAs(role, "Evil");
 }
-
-/** True if this role registers as Demon to Demon-detection abilities. */
 export function registersAsDemonForDetection(role: Role): boolean {
-  if (role.id === "recluse") return Math.random() < 0.5;
-  return role.category === "Demon";
+  return registersAs(role, "Demon");
 }
 
+// ── Player resolution by name ─────────────────────────────────────────────────
+
+/**
+ * Resolve a player by name. Tries case-insensitive exact match first
+ * (displayName or username), then prefix match. Returns undefined if zero or
+ * multiple players match.
+ *
+ * The `filter` option narrows the candidate pool — e.g. pass
+ * `(p) => p.isTestPlayer === true` to resolve only fake players.
+ */
 export function resolvePlayer(
   name: string,
   players: Player[],
+  filter?: (p: Player) => boolean,
 ): Player | undefined {
   const lower = name.toLowerCase().trim();
-  const exact = players.filter(
+  const pool = filter ? players.filter(filter) : players;
+  const exact = pool.filter(
     (p) =>
       p.displayName.toLowerCase() === lower ||
       p.username.toLowerCase() === lower,
   );
   if (exact.length === 1) return exact[0];
-  const prefix = players.filter(
+  const prefix = pool.filter(
     (p) =>
       p.displayName.toLowerCase().startsWith(lower) ||
       p.username.toLowerCase().startsWith(lower),

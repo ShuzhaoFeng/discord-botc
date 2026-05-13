@@ -20,15 +20,11 @@ import { handleYouare } from "./handlers/youare";
 import { handleNightDm } from "./handlers/night_dm";
 import { handleLang } from "./handlers/lang";
 import { handleRulebook } from "./handlers/rulebook";
-import { handleNominateCommand } from "./handlers/nominate";
-import { handleYeCommand } from "./handlers/ye";
+import { handleNominate, handleYe, handleEndDay } from "./game/day";
 import { handleRoleCommand } from "./game/roleCommands";
-import { handleEnddayCommand } from "./handlers/endday";
 import { handleInfo } from "./handlers/info";
 import { handleLink } from "./handlers/link";
 import { startUiServer } from "./ui/server";
-import { getGame } from "./game/state";
-import { areChannelCommandsDisabled } from "./game/utils";
 
 const client = new Client({
   intents: [
@@ -59,7 +55,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   try {
     switch (i.commandName) {
       case "iam":
-        await handleIam(i, client);
+        await handleIam(i);
         break;
       case "youare":
         await handleYouare(i, client);
@@ -71,16 +67,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await handleRulebook(i);
         break;
       case "nominate":
-      case "ye":
-      case "endday": {
-        const gameState = getGame(i.channelId);
-        if (gameState && areChannelCommandsDisabled(gameState)) break;
-        if (i.commandName === "nominate")
-          await handleNominateCommand(i, client);
-        else if (i.commandName === "ye") await handleYeCommand(i, client);
-        else await handleEnddayCommand(i, client);
+        await handleNominate(i, client);
         break;
-      }
+      case "ye":
+        await handleYe(i, client);
+        break;
+      case "endday":
+        await handleEndDay(i, client);
+        break;
       case "info":
         await handleInfo(i);
         break;

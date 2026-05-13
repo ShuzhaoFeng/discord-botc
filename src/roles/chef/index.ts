@@ -1,10 +1,7 @@
 import type { RoleDefinition } from "../types";
 import { Night } from "../types";
-import {
-  isEvil,
-  getPlayerState,
-  registersAsEvilForDetection,
-} from "../../game/utils";
+import { getPlayerState, hasFalsifiedInfo, isEvil } from "../../utils/runtime";
+import { registersAs } from "../../utils/roleDetection";
 import type { NightOutcomeFieldType, RuntimeState } from "../../game/types";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
@@ -39,13 +36,11 @@ export const definition: RoleDefinition = {
       compute: (ctx) => {
         const { runtime } = ctx.state;
         const { player } = ctx.night;
-        const ps = getPlayerState(runtime, player.userId);
-        const randomizeInfo =
-          ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
+        const falsified = hasFalsifiedInfo(getPlayerState(runtime, player.userId));
         const registersAsEvilById = new Map(
           runtime.playerStates.map((candidatePs) => [
             candidatePs.player.userId,
-            registersAsEvilForDetection(candidatePs.role),
+            registersAs(candidatePs.role, "Evil"),
           ]),
         );
         const numEvil = runtime.playerStates.filter((ps) =>
@@ -55,16 +50,16 @@ export const definition: RoleDefinition = {
         const randomizedValue = Math.floor(
           Math.random() * Math.max(numEvil, 1),
         );
-        const selectedValue = randomizeInfo ? randomizedValue : fixedValue;
-        const fieldTypes: Record<string, NightOutcomeFieldType> = randomizeInfo
+        const selectedValue = falsified ? randomizedValue : fixedValue;
+        const fieldTypes: Record<string, NightOutcomeFieldType> = falsified
           ? { count: "number" }
           : {};
         return {
           templateId: "chef_count",
           fields: { count: selectedValue },
           fieldTypes,
-          allowArbitraryOverride: randomizeInfo,
-          reasonKey: randomizeInfo
+          allowArbitraryOverride: falsified,
+          reasonKey: falsified
             ? "nightReasonFalseInfo"
             : "nightReasonChefSeating",
         };

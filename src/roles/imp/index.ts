@@ -10,7 +10,7 @@ export const definition: RoleDefinition = {
   nightHandlers: {
     action: {
       active: Night.afterFirst,
-      buildPrompt: () => [{ type: "player", optional: false, allowSelf: true }],
+      buildPrompt: () => [{ optional: false, allowSelf: true }],
       resolve: (ctx, values) => {
         ctx.state.runtime.nightKillIntentId = values[0];
       },

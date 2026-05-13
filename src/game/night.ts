@@ -9,6 +9,7 @@ import {
   Player,
   PlayerRuntimeState,
   Role,
+  RuntimeState,
 } from "./types";
 import { getLang, getRoleName, t } from "../i18n";
 import { findRole, getScript } from "./roles";
@@ -24,13 +25,14 @@ import {
   getAlivePlayers,
   getPlayerState,
   getRole,
+  hasFalsifiedInfo,
   pick,
   playerDisplayName,
   notifyStoryteller,
   resolvePlayer,
 } from "./utils";
-import { logBotMessage, logPlayerMessage } from "../utils/chat-log";
-import { getGuildSettings } from "../guild-settings";
+import { logBotMessage, logPlayerMessage } from "../utils/chatLog";
+import { getGuildSettings } from "../guildSettings";
 
 function getHandlers(roleId: string) {
   return ALL_ROLE_DEFINITIONS.find((r) => r.id === roleId)?.nightHandlers;
@@ -407,15 +409,20 @@ function validateAndNormalizeDraft(
   return null;
 }
 
-async function resolveNightOutcomes(
-  client: Client,
-  state: GameState,
-): Promise<void> {
-  const runtime = ensureRuntime(state);
-  const session = runtime.nightSession;
-  if (!session) return;
+// ─── Night resolution stages ────────────────────────────────────────────────
+// Stage order is load-bearing; see resolveNightOutcomes for the rationale.
 
+/**
+ * Seed every alive player's info with the "interaction recorded" default.
+ * Already-dead players get no entry so they receive nothing after death.
+ * Players killed this night are still alive here; their entry is overwritten
+ * later by setupDeathNarratives.
+ */
+function initInfoDefaults(state: GameState, session: NightSession): void {
+  const runtime = ensureRuntime(state);
   for (const p of state.players) {
+    const ps = getPlayerState(runtime, p.userId);
+    if (!ps?.alive) continue;
     const lang = getLang(p.userId, state.guildId);
     session.infoMessages.set(p.userId, t(lang, "nightInteractionRecorded"));
     session.infoOutcomeMeta.set(p.userId, {
@@ -424,15 +431,21 @@ async function resolveNightOutcomes(
     });
     session.infoOutcomeDrafts.delete(p.userId);
   }
+}
 
-  // Pass 1 — action resolves.
+/** Drunks reach this stage but their resolve is a no-op (no real ability). */
+function runActionResolves(
+  client: Client,
+  state: GameState,
+  session: NightSession,
+): void {
+  const runtime = ensureRuntime(state);
   for (const [playerId, values] of session.responses.entries()) {
     const actorPs = getPlayerState(runtime, playerId);
     if (!actorPs?.alive) continue;
     const handlers = getHandlers(actorPs.effectiveRole.id);
     if (!handlers?.action) continue;
-
-    // Drunk experiences the ability prompt but resolve has no effect on game state.
+    // Drunk experiences the prompt but resolve has no effect.
     if (actorPs.role.id === "drunk") continue;
 
     const lang = getLang(playerId, state.guildId);
@@ -446,45 +459,56 @@ async function resolveNightOutcomes(
     );
     handlers.action.resolve(ctx, values);
   }
+}
 
-  // Core kill resolution — runs after all action resolves.
-  // Track whether the Imp killed themselves so we can promote a Minion later if needed.
-  let impKilledSelf = false;
-  if (runtime.nightKillIntentId !== null) {
-    const targetId = runtime.nightKillIntentId;
-    const impPs = runtime.playerStates.find((ps) => ps.role.id === "imp");
-    impKilledSelf = impPs != null && targetId === impPs.player.userId;
-    const targetPs = getPlayerState(runtime, targetId);
+/**
+ * Resolve the Imp's kill intent through Soldier immunity, Monk protection,
+ * and Mayor redirect. Returns true if the intent landed on the Imp themselves
+ * — the coordinator uses this to decide whether to promote a Minion.
+ */
+function applyKillIntent(state: GameState): boolean {
+  const runtime = ensureRuntime(state);
+  if (runtime.nightKillIntentId === null) return false;
 
-    if (targetPs?.alive) {
-      if (targetPs.role.id === "soldier") {
-        // Soldier is immune — kill blocked.
-      } else if (targetPs.tags.has("protected")) {
-        // Monk protection — kill blocked.
-      } else if (targetPs.role.id === "mayor" && Math.random() < 0.5) {
-        // Mayor redirect — kill goes to a random other alive player.
-        const candidates = getAlivePlayers(state).filter(
-          (p) => p.userId !== targetId,
-        );
-        const redirected = pick(candidates, 1)[0];
-        if (redirected) {
-          runtime.nightKillIds.push(redirected.userId);
-        }
-      } else {
-        runtime.nightKillIds.push(targetId);
-      }
-    }
+  const targetId = runtime.nightKillIntentId;
+  runtime.nightKillIntentId = null;
 
-    runtime.nightKillIntentId = null;
+  const impPs = runtime.playerStates.find((ps) => ps.role.id === "imp");
+  const impKilledSelf = impPs != null && targetId === impPs.player.userId;
+  const targetPs = getPlayerState(runtime, targetId);
+
+  if (!targetPs?.alive) return impKilledSelf;
+  if (targetPs.role.id === "soldier") return impKilledSelf; // immune
+  if (targetPs.tags.has("protected")) return impKilledSelf; // Monk
+
+  if (targetPs.role.id === "mayor" && Math.random() < 0.5) {
+    // Mayor redirect — kill goes to a random other alive player.
+    const candidates = getAlivePlayers(state).filter(
+      (p) => p.userId !== targetId,
+    );
+    const redirected = pick(candidates, 1)[0];
+    if (redirected) runtime.nightKillIds.push(redirected.userId);
+    return impKilledSelf;
   }
 
-  // Apply kills before info compute — a player who dies this night does not receive their information.
+  runtime.nightKillIds.push(targetId);
+  return impKilledSelf;
+}
+
+/** Applied before info compute so the dying receive no information. */
+function markKilledPlayersDead(runtime: RuntimeState): void {
   for (const killedId of runtime.nightKillIds) {
     const killedPs = getPlayerState(runtime, killedId);
     if (killedPs) killedPs.alive = false;
   }
+}
 
-  // Pass 2 — info compute. Runs with post-kill state; dead players are skipped.
+function runInfoCompute(
+  client: Client,
+  state: GameState,
+  session: NightSession,
+): void {
+  const runtime = ensureRuntime(state);
   for (const ps of runtime.playerStates) {
     if (!ps.alive) continue;
     const handlers = getHandlers(ps.effectiveRole.id);
@@ -525,9 +549,13 @@ async function resolveNightOutcomes(
       });
     }
   }
+}
 
-  // Trigger death handlers for every player who died this night.
-  // (Kills were already applied above, before info compute.)
+async function triggerNightDeathHandlers(
+  client: Client,
+  state: GameState,
+): Promise<void> {
+  const runtime = ensureRuntime(state);
   for (const killedId of runtime.nightKillIds) {
     await triggerDeathHandlers(
       client,
@@ -537,14 +565,20 @@ async function resolveNightOutcomes(
       false,
     );
   }
+}
 
-  // Death narrative setup — for every killed player, replace their info message
-  // with a death prompt and register them in the death narrative phase.
+/**
+ * For each player killed this night, replace their info with the death-
+ * narrative prompt and register them as pending. The Ravenkeeper kind may
+ * already have been set by its death handler; everyone else defaults to
+ * "simple".
+ */
+function setupDeathNarratives(state: GameState, session: NightSession): void {
+  const runtime = ensureRuntime(state);
   for (const killedId of runtime.nightKillIds) {
     const killedPlayer = state.players.find((p) => p.userId === killedId);
     if (!killedPlayer) continue;
     const lang = getLang(killedId, state.guildId);
-    // Ravenkeeper kind may have been set by the death handler; default to "simple".
     const kind = session.deathNarrativePlayers.get(killedId) ?? "simple";
     session.deathNarrativePlayers.set(killedId, kind);
     session.deathNarrativePendingIds.push(killedId);
@@ -562,32 +596,36 @@ async function resolveNightOutcomes(
           : "nightReasonDeathNarrative",
     });
   }
+}
 
-  // Imp self-kill: if the Imp killed themselves and no alive Imp remains (i.e. Scarlet Woman
-  // did not already promote), pick a random alive Minion to become the new Imp.
-  let newImpPlayerId: string | null = null;
-  if (impKilledSelf) {
-    const anyAliveImp = runtime.playerStates.some(
-      (ps) => ps.alive && ps.role.id === "imp",
-    );
-    if (!anyAliveImp) {
-      const aliveMinions = runtime.playerStates.filter(
-        (ps) => ps.alive && ps.role.category === "Minion",
-      );
-      if (aliveMinions.length > 0) {
-        const newImpPs = pick(aliveMinions, 1)[0];
-        const impRole = getScript().roles.find((r) => r.id === "imp")!;
-        newImpPs.role = impRole;
-        newImpPs.effectiveRole = impRole;
-        if (state.draft)
-          state.draft.assignments.set(newImpPs.player.userId, impRole);
-        updateGame(state);
-        newImpPlayerId = newImpPs.player.userId;
-      }
-    }
-  }
+/**
+ * If the Imp killed themselves and Scarlet Woman did not promote, pick a
+ * random alive Minion to become the new Imp. Returns the new Imp's userId,
+ * or null if no promotion occurred.
+ */
+function promoteImpOnSelfKill(state: GameState): string | null {
+  const runtime = ensureRuntime(state);
+  const anyAliveImp = runtime.playerStates.some(
+    (ps) => ps.alive && ps.role.id === "imp",
+  );
+  if (anyAliveImp) return null;
 
-  // Confirm choice recorded for action-only players (those without an info handler).
+  const aliveMinions = runtime.playerStates.filter(
+    (ps) => ps.alive && ps.role.category === "Minion",
+  );
+  if (aliveMinions.length === 0) return null;
+
+  const newImpPs = pick(aliveMinions, 1)[0];
+  const impRole = getScript().roles.find((r) => r.id === "imp")!;
+  newImpPs.role = impRole;
+  newImpPs.effectiveRole = impRole;
+  if (state.draft) state.draft.assignments.set(newImpPs.player.userId, impRole);
+  updateGame(state);
+  return newImpPs.player.userId;
+}
+
+function setActionAckMessages(state: GameState, session: NightSession): void {
+  const runtime = ensureRuntime(state);
   for (const ps of runtime.playerStates) {
     if (!ps.alive) continue;
     const prompt = session.prompts.get(ps.player.userId);
@@ -604,9 +642,10 @@ async function resolveNightOutcomes(
       reasonKey: "nightReasonActionAck",
     });
   }
+}
 
-  // Joke players: in online mode they get no interaction at all;
-  // in in-person mode they get a response to their joke reply.
+function setJokeMessages(state: GameState, session: NightSession): void {
+  const runtime = ensureRuntime(state);
   const onlineMode = getGuildSettings(state.guildId).onlineMode;
   for (const ps of runtime.playerStates) {
     if (!ps.alive) continue;
@@ -626,16 +665,47 @@ async function resolveNightOutcomes(
       });
     }
   }
+}
 
-  // Append the Imp promotion notice to the new Imp's info message (after all other
-  // messages are finalized, so it always appears as a postscript regardless of role).
+/** Runs last so the postscript survives any earlier overwrites. */
+function appendImpPromotionPostscript(
+  state: GameState,
+  session: NightSession,
+  newImpPlayerId: string,
+): void {
+  const lang = getLang(newImpPlayerId, state.guildId);
+  const existing = session.infoMessages.get(newImpPlayerId) ?? "";
+  session.infoMessages.set(
+    newImpPlayerId,
+    existing + "\n\n" + t(lang, "nightImpSelfKillNewImp"),
+  );
+}
+
+async function resolveNightOutcomes(
+  client: Client,
+  state: GameState,
+): Promise<void> {
+  const runtime = ensureRuntime(state);
+  const session = runtime.nightSession;
+  if (!session) return;
+
+  // Order is load-bearing: action resolves run on pre-kill state so a dying
+  // Imp's intent is still captured; kills then apply before info compute so
+  // the dead skip it; death handlers fire after info compute so e.g.
+  // Ravenkeeper can flag its narrative kind; Imp self-kill promotion runs
+  // after death handlers so Scarlet Woman gets first refusal.
+  initInfoDefaults(state, session);
+  runActionResolves(client, state, session);
+  const impKilledSelf = applyKillIntent(state);
+  markKilledPlayersDead(runtime);
+  runInfoCompute(client, state, session);
+  await triggerNightDeathHandlers(client, state);
+  setupDeathNarratives(state, session);
+  const newImpPlayerId = impKilledSelf ? promoteImpOnSelfKill(state) : null;
+  setActionAckMessages(state, session);
+  setJokeMessages(state, session);
   if (newImpPlayerId !== null) {
-    const lang = getLang(newImpPlayerId, state.guildId);
-    const existing = session.infoMessages.get(newImpPlayerId) ?? "";
-    session.infoMessages.set(
-      newImpPlayerId,
-      existing + "\n\n" + t(lang, "nightImpSelfKillNewImp"),
-    );
+    appendImpPromotionPostscript(state, session, newImpPlayerId);
   }
 }
 
@@ -812,10 +882,10 @@ async function handleDeathNarrativeDm(
 
     const rkPs = getPlayerState(runtime, player.userId);
     const targetPs = getPlayerState(runtime, target.userId);
-    const poisoned = rkPs?.tags.has("poisoned") ?? false;
+    const falsified = hasFalsifiedInfo(rkPs);
 
     let shownRoleId: string;
-    if (poisoned) {
+    if (falsified) {
       const trueId = targetPs?.role.id ?? "";
       const candidates = getScript().roles.filter((r) => r.id !== trueId);
       shownRoleId = (pick(candidates, 1)[0] ?? getScript().roles[0]).id;
@@ -825,7 +895,7 @@ async function handleDeathNarrativeDm(
 
     const draft = {
       fields: { target: target.userId, role: shownRoleId },
-      fieldTypes: poisoned
+      fieldTypes: falsified
         ? ({ role: "role" } as Record<string, "role" | "player">)
         : {},
     };

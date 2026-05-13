@@ -8,21 +8,21 @@ export const definition: RoleDefinition = {
   guide: { en: en.guide, zh: zh.guide },
   deathHandler: {
     async onDeath({ state, deadPlayerId, phase }) {
-      // Ravenkeeper ability only triggers on night death
       if (phase !== "night") return;
 
-      // Confirm the dead player is this Ravenkeeper
+      // Match on effectiveRole so a Drunk who thinks they are the Ravenkeeper
+      // also gets the prompt (with a randomized role result, per BotC rules).
       const rkPs = state.runtime.playerStates.find(
         (ps) =>
-          ps.role.id === "ravenkeeper" && ps.player.userId === deadPlayerId,
+          ps.effectiveRole.id === "ravenkeeper" &&
+          ps.player.userId === deadPlayerId,
       );
       if (!rkPs) return;
 
       const session = state.runtime.nightSession;
       if (!session) return;
 
-      // Mark this player as the ravenkeeper kind in the death narrative phase.
-      // The actual prompt will be sent by resolveNightOutcomes as part of step-3 info messages.
+      // The actual prompt is sent later by setupDeathNarratives.
       session.deathNarrativePlayers.set(deadPlayerId, "ravenkeeper");
     },
   },

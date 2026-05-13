@@ -9,6 +9,7 @@ import {
 import { useTranslation, getLang, getRoleName, t } from "../i18n";
 import { getGame, updateGame } from "./state";
 import {
+  areChannelCommandsDisabled,
   ensureRuntime,
   getAlivePlayers,
   getPlayerState,
@@ -406,6 +407,8 @@ export async function handleNominate(
     return;
   }
 
+  if (areChannelCommandsDisabled(state)) return;
+
   // Storyteller cannot nominate
   if (state.storytellerId === i.user.id) {
     await i.reply({
@@ -602,6 +605,8 @@ export async function handleYe(
     return;
   }
 
+  if (areChannelCommandsDisabled(state)) return;
+
   // Storyteller cannot vote
   if (state.storytellerId === i.user.id) {
     await i.reply({
@@ -704,6 +709,8 @@ export async function handleEndDay(
     await i.reply({ content: tr("dayNoActiveGame"), ephemeral: true });
     return;
   }
+
+  if (areChannelCommandsDisabled(state)) return;
 
   const runtime = ensureRuntime(state);
   const daySession = runtime.daySession;

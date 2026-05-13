@@ -1,6 +1,7 @@
 import type { RoleDefinition } from "../types";
 import { Night } from "../types";
-import { shuffle, getPlayerState } from "../../game/utils";
+import { shuffle } from "../../utils/random";
+import { getPlayerState, hasFalsifiedInfo } from "../../utils/runtime";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
 
@@ -14,11 +15,10 @@ export const definition: RoleDefinition = {
       compute: (ctx) => {
         const { runtime } = ctx.state;
         const { player } = ctx.night;
-        const ps = getPlayerState(runtime, player.userId);
-        const randomizeInfo = ps?.role.id === "drunk" || (ps?.tags.has("poisoned") ?? false);
+        const falsified = hasFalsifiedInfo(getPlayerState(runtime, player.userId));
         const playerStates = runtime.playerStates;
 
-        if (randomizeInfo) {
+        if (falsified) {
           // Shuffle role IDs across players so every entry is plausibly wrong.
           const roles = shuffle(playerStates.map((ps) => ps.role));
           const fields: Record<string, string> = {};
@@ -34,19 +34,19 @@ export const definition: RoleDefinition = {
             allowArbitraryOverride: true,
             reasonKey: "nightReasonFalseGrimoire",
           };
-        } else {
-          const fields: Record<string, string> = {};
-          playerStates.forEach((ps) => {
-            fields[ps.player.displayName] = ps.role.id;
-          });
-          return {
-            templateId: "grimoire",
-            fields,
-            fieldTypes: {},
-            allowArbitraryOverride: false,
-            reasonKey: "nightReasonGrimoireReveal",
-          };
         }
+
+        const fields: Record<string, string> = {};
+        playerStates.forEach((ps) => {
+          fields[ps.player.displayName] = ps.role.id;
+        });
+        return {
+          templateId: "grimoire",
+          fields,
+          fieldTypes: {},
+          allowArbitraryOverride: false,
+          reasonKey: "nightReasonGrimoireReveal",
+        };
       },
     },
   },

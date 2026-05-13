@@ -17,7 +17,7 @@ import {
 } from "discord.js";
 import { getGame } from "../game/state";
 import { useTranslation } from "../i18n";
-import { Player } from "../game/types";
+import { resolvePlayer } from "../game/utils";
 import { handleNominate, handleYe, handleEndDay } from "../game/day";
 import { handleRoleCommand } from "../game/roleCommands";
 import { handleIam } from "./iam";
@@ -108,7 +108,11 @@ export async function handleImpersonate(
   }
 
   // Resolve to a fake player in this game.
-  const fakePlayer = resolveFakePlayer(playerName, state.players);
+  const fakePlayer = resolvePlayer(
+    playerName,
+    state.players,
+    (p) => p.isTestPlayer === true,
+  );
   if (!fakePlayer) {
     await message.reply(tr("impersonateUnknownPlayer", { name: playerName }));
     return;
@@ -124,7 +128,7 @@ export async function handleImpersonate(
    * To support a new command, add one entry here — no other changes needed.
    */
   const commands: Record<string, CommandEntry> = {
-    iam: { handler: (i, c) => handleIam(i, c, state.testOwnerId!) },
+    iam: { handler: (i, _c) => handleIam(i, state.testOwnerId!) },
     youare: { handler: handleYouare },
     nominate: { handler: handleNominate, argRequired: true },
     ye: { handler: handleYe },
@@ -164,29 +168,4 @@ export async function handleImpersonate(
     argInput,
   );
   await entry.handler(fakeI as unknown as ChatInputCommandInteraction, client);
-}
-
-/** Find a fake test player by username or displayName (case-insensitive prefix match). */
-function resolveFakePlayer(
-  name: string,
-  players: Player[],
-): Player | undefined {
-  const lower = name.toLowerCase();
-  const fakes = players.filter((p) => p.isTestPlayer);
-
-  const exact = fakes.find(
-    (p) =>
-      p.username.toLowerCase() === lower ||
-      p.displayName.toLowerCase() === lower,
-  );
-  if (exact) return exact;
-
-  const prefixMatches = fakes.filter(
-    (p) =>
-      p.username.toLowerCase().startsWith(lower) ||
-      p.displayName.toLowerCase().startsWith(lower),
-  );
-  if (prefixMatches.length === 1) return prefixMatches[0];
-
-  return undefined;
 }

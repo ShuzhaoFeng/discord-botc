@@ -1,7 +1,7 @@
 import enStrings from "./en.json";
 import zhStrings from "./zh.json";
 import { Lang } from "../game/types";
-import { getGuildDefaultLang } from "../guild-settings";
+import { getGuildDefaultLang } from "../guildSettings";
 
 const strings: Record<Lang, Record<string, string>> = {
   en: enStrings as Record<string, string>,
@@ -87,7 +87,7 @@ export function useTranslation(
 export {
   getGuildDefaultLang,
   setGuildDefaultLang,
-} from "../guild-settings";
+} from "../guildSettings";
 
 export function getRoleName(lang: Lang, roleId: string): string {
   return ensureRoleDefById().get(roleId)?.name[lang] ?? roleId;

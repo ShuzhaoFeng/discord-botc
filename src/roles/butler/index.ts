@@ -11,7 +11,7 @@ export const definition: RoleDefinition = {
   nightHandlers: {
     action: {
       active: Night.always,
-      buildPrompt: () => [{ type: "player", optional: false, allowSelf: false }],
+      buildPrompt: () => [{ optional: false, allowSelf: false }],
       resolve: (ctx, values) => {
         ctx.state.runtime.playerStates.forEach((ps) => ps.tags.delete("butler_master"));
         const targetPs = getPlayerState(ctx.state.runtime, values[0]!);

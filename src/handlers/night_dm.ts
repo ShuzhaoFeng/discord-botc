@@ -7,30 +7,7 @@ import {
 } from "../game/state";
 import { handleNightPlayerDm } from "../game/night";
 import { handleRoleStorytellerDm } from "../game/roleCommands";
-import { Player } from "../game/types";
-
-function resolveFakePlayer(
-  name: string,
-  players: Player[],
-): Player | undefined {
-  const lower = name.toLowerCase();
-  const fakes = players.filter((p) => p.isTestPlayer);
-
-  const exact = fakes.find(
-    (p) =>
-      p.username.toLowerCase() === lower ||
-      p.displayName.toLowerCase() === lower,
-  );
-  if (exact) return exact;
-
-  const prefix = fakes.filter(
-    (p) =>
-      p.username.toLowerCase().startsWith(lower) ||
-      p.displayName.toLowerCase().startsWith(lower),
-  );
-  if (prefix.length === 1) return prefix[0];
-  return undefined;
-}
+import { resolvePlayer } from "../game/utils";
 
 function parseAsPrefix(
   content: string,
@@ -50,7 +27,11 @@ async function handleNightDmAsFakePlayer(
 
   const games = getGamesByTestOwner(message.author.id);
   for (const state of games) {
-    const fake = resolveFakePlayer(parsed.playerName, state.players);
+    const fake = resolvePlayer(
+      parsed.playerName,
+      state.players,
+      (p) => p.isTestPlayer === true,
+    );
     if (!fake) continue;
 
     const clonedMessage = Object.create(message) as Message;

@@ -11,7 +11,7 @@ export const definition: RoleDefinition = {
   nightHandlers: {
     action: {
       active: Night.always,
-      buildPrompt: () => [{ type: "player", optional: false, allowSelf: true }],
+      buildPrompt: () => [{ optional: false, allowSelf: true }],
       resolve: (ctx, values) => {
         const targetPs = getPlayerState(ctx.state.runtime, values[0]!);
         if (targetPs) targetPs.tags.add("poisoned");

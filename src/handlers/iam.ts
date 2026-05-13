@@ -3,22 +3,20 @@
  * The user volunteers to be the storyteller (Manual Mode).
  */
 
-import { ChatInputCommandInteraction, Client } from "discord.js";
+import { ChatInputCommandInteraction } from "discord.js";
 import { getGame, updateGame, setStoryteller } from "../game/state";
 import { useTranslation } from "../i18n";
 import { generateDraft } from "../game/assignment";
 
 export async function handleIam(
   interaction: ChatInputCommandInteraction,
-  client: Client,
   /**
-   * Override the user ID used for storyteller DM routing.
-   * Used in test-mode impersonation, where the fake player's synthetic ID
-   * cannot receive DMs; pass the test owner's real ID instead.
+   * Override the user ID used for storyteller DM routing. Used in test-mode
+   * impersonation, where the fake player's synthetic ID cannot receive DMs;
+   * pass the test owner's real ID instead.
    */
   storytellerRoutingId?: string,
 ): Promise<void> {
-  void client;
   const tr = useTranslation(interaction.user.id, interaction.guildId);
   const channelId = interaction.channelId;
   const state = getGame(channelId);

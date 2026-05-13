@@ -1,6 +1,6 @@
 import { Client } from 'discord.js';
 import { Player, GameState } from '../game/types';
-import { logBotMessage } from './chat-log';
+import { logBotMessage } from './chatLog';
 
 /**
  * Sends a DM to a player.

@@ -2,23 +2,54 @@ import { Role, Draft, Player } from "./types";
 import { getScript } from "./roles";
 import { getDistribution, applyBaronAdjustment } from "./distribution";
 import { roleParam } from "../i18n";
+import { pick, shuffle } from "../utils/random";
 
-// ─── Utility ─────────────────────────────────────────────────────────────────
+// ─── Draft auto-pickers ───────────────────────────────────────────────────────
+// Shared between initial draft generation and reconciliation after edits.
 
-/** Fisher-Yates shuffle (in-place). */
-function shuffle<T>(arr: T[]): T[] {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
+/**
+ * Pick a Townsfolk role for the Drunk to think they are. Returns null if no
+ * unassigned Townsfolk remains.
+ */
+function chooseDrunkFakeRole(assignments: Map<string, Role>): Role | null {
+  const usedIds = new Set([...assignments.values()].map((r) => r.id));
+  const eligible = getScript().roles.filter(
+    (r) => r.category === "Townsfolk" && !usedIds.has(r.id),
+  );
+  return pick(eligible, 1)[0] ?? null;
 }
 
-/** Pick `n` random unique items from `pool` without modifying it. */
-function pick<T>(pool: T[], n: number): T[] {
-  if (n > pool.length)
-    throw new Error(`Cannot pick ${n} from pool of ${pool.length}`);
-  return shuffle([...pool]).slice(0, n);
+/**
+ * Pick a Good (non-Demon, non-Minion) player to be the Fortune Teller's red
+ * herring. Returns null if no eligible player remains.
+ */
+function chooseRedHerring(
+  assignments: Map<string, Role>,
+  players: Player[],
+): Player | null {
+  const eligible = players.filter((p) => {
+    const role = assignments.get(p.userId);
+    return role && role.category !== "Demon" && role.category !== "Minion";
+  });
+  return pick(eligible, 1)[0] ?? null;
+}
+
+/**
+ * Pick three good (Townsfolk or Outsider) roles unassigned to real players,
+ * for the Imp's bluffs. Returns null if fewer than 3 candidates exist.
+ */
+function chooseImpBluffs(
+  assignments: Map<string, Role>,
+): [Role, Role, Role] | null {
+  const usedIds = new Set([...assignments.values()].map((r) => r.id));
+  const eligible = getScript().roles.filter(
+    (r) =>
+      (r.category === "Townsfolk" || r.category === "Outsider") &&
+      !usedIds.has(r.id),
+  );
+  if (eligible.length < 3) return null;
+  const picked = pick(eligible, 3);
+  return [picked[0], picked[1], picked[2]];
 }
 
 // ─── Assignment algorithm ─────────────────────────────────────────────────────
@@ -26,9 +57,7 @@ function pick<T>(pool: T[], n: number): T[] {
 /**
  * Randomly generate a complete Draft for the given players.
  */
-export function generateDraft(
-  players: Player[],
-): Draft {
+export function generateDraft(players: Player[]): Draft {
   const script = getScript();
   const count = players.length;
   let dist = getDistribution(count);
@@ -38,8 +67,7 @@ export function generateDraft(
     script.roles.filter((r) => r.category === "Minion"),
     dist.minions,
   );
-  const baronInPlay = minions.some((r) => r.id === "baron");
-  if (baronInPlay) {
+  if (minions.some((r) => r.id === "baron")) {
     dist = applyBaronAdjustment(dist);
   }
 
@@ -55,60 +83,23 @@ export function generateDraft(
   const demon = script.roles.find((r) => r.category === "Demon")!; // Only the Imp in Trouble Brewing
 
   // 3. Combine all roles and shuffle; assign to players in order.
-  const allRoles: Role[] = shuffle([
-    ...townsfolk,
-    ...outsiders,
-    ...minions,
-    demon,
-  ]);
+  const allRoles = shuffle([...townsfolk, ...outsiders, ...minions, demon]);
   const assignments = new Map<string, Role>();
   players.forEach((p, i) => assignments.set(p.userId, allRoles[i]));
 
-  // 4. Drunk: pick a fake Townsfolk that is not already assigned to a real player.
-  const drunkPlayer = players.find(
-    (p) => assignments.get(p.userId)?.id === "drunk",
-  );
-  let drunkFakeRole: Role | null = null;
-  if (drunkPlayer) {
-    const assignedTfIds = new Set(
-      [...assignments.values()]
-        .filter((r) => r.category === "Townsfolk")
-        .map((r) => r.id),
-    );
-    const eligible = script.roles.filter(
-      (r) =>
-        r.category === "Townsfolk" && !assignedTfIds.has(r.id),
-    );
-    drunkFakeRole = pick(eligible, 1)[0];
-  }
+  // 4. Derived fields: Drunk's fake role, Imp bluffs, Fortune Teller's red herring.
+  const drunkInPlay = [...assignments.values()].some((r) => r.id === "drunk");
+  const drunkFakeRole = drunkInPlay ? chooseDrunkFakeRole(assignments) : null;
 
-  // 5. Imp bluffs: 3 good roles (Townsfolk or Outsider) not assigned to real players.
-  //    Drunk's fake role IS eligible even if the real Townsfolk role is not in play.
   const impInPlay = [...assignments.values()].some((r) => r.id === "imp");
-  let impBluffs: [Role, Role, Role] | null = null;
-  if (impInPlay) {
-    const usedIds = new Set([...assignments.values()].map((r) => r.id));
-    const eligible = script.roles.filter(
-      (r) =>
-        (r.category === "Townsfolk" || r.category === "Outsider") &&
-        !usedIds.has(r.id),
-    );
-    const chosen = pick(eligible, 3);
-    impBluffs = [chosen[0], chosen[1], chosen[2]];
-  }
+  const impBluffs = impInPlay ? chooseImpBluffs(assignments) : null;
 
-  // 6. Red herring for Fortune Teller: any non-Demon Good player (randomly chosen).
   const ftInPlay = [...assignments.values()].some(
     (r) => r.id === "fortune_teller",
   );
-  let redHerring: string | null = null;
-  if (ftInPlay) {
-    const goodNonDemon = players.filter((p) => {
-      const role = assignments.get(p.userId);
-      return role && role.category !== "Demon" && role.category !== "Minion";
-    });
-    redHerring = pick(goodNonDemon, 1)[0].userId;
-  }
+  const redHerring = ftInPlay
+    ? (chooseRedHerring(assignments, players)?.userId ?? null)
+    : null;
 
   return { assignments, drunkFakeRole, redHerring, impBluffs };
 }
@@ -350,6 +341,7 @@ export function reconcileDraftDependencies(
   const roles = [...draft.assignments.values()];
   const usedIds = new Set(roles.map((r) => r.id));
 
+  // ── Drunk fake role ───────────────────────────────────────────────────────
   const drunkInPlay = roles.some((r) => r.id === "drunk");
   if (!drunkInPlay && draft.drunkFakeRole) {
     draft.drunkFakeRole = null;
@@ -358,16 +350,10 @@ export function reconcileDraftDependencies(
   if (drunkInPlay) {
     const fake = draft.drunkFakeRole;
     const fakeValid =
-      !!fake &&
-      fake.category === "Townsfolk" &&
-      !usedIds.has(fake.id);
+      !!fake && fake.category === "Townsfolk" && !usedIds.has(fake.id);
     if (!fakeValid) {
-      const eligible = script.roles.filter(
-        (r) =>
-          r.category === "Townsfolk" && !usedIds.has(r.id),
-      );
-      if (eligible.length > 0) {
-        const picked = pick(eligible, 1)[0];
+      const picked = chooseDrunkFakeRole(draft.assignments);
+      if (picked) {
         draft.drunkFakeRole = picked;
         notes.push({
           key: "noteAutoSetDrunkFake",
@@ -377,6 +363,7 @@ export function reconcileDraftDependencies(
     }
   }
 
+  // ── Red herring ───────────────────────────────────────────────────────────
   const ftInPlay = roles.some((r) => r.id === "fortune_teller");
   if (!ftInPlay && draft.redHerring) {
     draft.redHerring = null;
@@ -389,12 +376,8 @@ export function reconcileDraftDependencies(
     const herringValid =
       !!rhRole && rhRole.category !== "Demon" && rhRole.category !== "Minion";
     if (!herringValid) {
-      const eligible = players.filter((p) => {
-        const role = draft.assignments.get(p.userId);
-        return role && role.category !== "Demon" && role.category !== "Minion";
-      });
-      if (eligible.length > 0) {
-        const chosen = pick(eligible, 1)[0];
+      const chosen = chooseRedHerring(draft.assignments, players);
+      if (chosen) {
         draft.redHerring = chosen.userId;
         notes.push({
           key: "noteAutoSetRedHerring",
@@ -404,6 +387,7 @@ export function reconcileDraftDependencies(
     }
   }
 
+  // ── Imp bluffs ────────────────────────────────────────────────────────────
   const impInPlay = roles.some((r) => r.id === "imp");
   if (!impInPlay && draft.impBluffs) {
     draft.impBluffs = null;
@@ -422,14 +406,9 @@ export function reconcileDraftDependencies(
           script.roles.some((r) => r.id === b.id),
       );
     if (!bluffValid) {
-      const eligible = script.roles.filter(
-        (r) =>
-          (r.category === "Townsfolk" || r.category === "Outsider") &&
-          !usedIds.has(r.id),
-      );
-      if (eligible.length >= 3) {
-        const picked = pick(eligible, 3);
-        draft.impBluffs = [picked[0], picked[1], picked[2]];
+      const picked = chooseImpBluffs(draft.assignments);
+      if (picked) {
+        draft.impBluffs = picked;
         notes.push({
           key: "noteAutoSetImpBluffs",
           params: {
