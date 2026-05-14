@@ -57,7 +57,6 @@ export async function handleIam(
     .filter((p) => p.userId !== storytellerId)
     .map((p, i) => ({ ...p, seatIndex: i }));
 
-  // Generate a random draft.
   state.draft = generateDraft(state.players);
 
   const routingId = storytellerRoutingId ?? storytellerId;

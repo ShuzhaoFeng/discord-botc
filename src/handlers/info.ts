@@ -30,11 +30,9 @@ function phaseLabel(state: GameState, lang: Lang): string {
 function buildInfoMessage(state: GameState, lang: Lang): string {
   const lines: string[] = [];
 
-  // Header
   lines.push(t(lang, "infoHeader", { gameId: state.gameId }));
   lines.push("");
 
-  // Phase
   lines.push(t(lang, "infoPhaseLabel", { phase: phaseLabel(state, lang) }));
   lines.push("");
 
@@ -54,7 +52,6 @@ function buildInfoMessage(state: GameState, lang: Lang): string {
   }
   lines.push("");
 
-  // Win conditions
   lines.push(t(lang, "infoWinHeader"));
   lines.push(t(lang, "infoWinGood"));
   lines.push(t(lang, "infoWinGoodMayor"));
@@ -62,7 +59,6 @@ function buildInfoMessage(state: GameState, lang: Lang): string {
   lines.push(t(lang, "infoWinEvilSaint"));
   lines.push("");
 
-  // Player list with alive status
   const runtime = state.runtime;
   lines.push(t(lang, "infoPlayersHeader", { count: state.players.length }));
   for (const player of state.players) {

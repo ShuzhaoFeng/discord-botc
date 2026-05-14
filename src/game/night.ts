@@ -67,7 +67,6 @@ function buildCtx(
   };
 }
 
-/** Derives the action prompt i18n key from a role ID using the naming convention. */
 function nightPromptKey(roleId: string): string {
   const pascal = roleId
     .split("_")
@@ -91,13 +90,34 @@ async function getDadJoke(): Promise<string> {
   }
 }
 
-export async function startNightPhase(
+export function runNightPhase(
+  client: Client,
+  state: GameState,
+): Promise<void> {
+  const runtime = ensureRuntime(state);
+  return new Promise<void>((resolve, reject) => {
+    runtime.phaseCompletion = resolve;
+    startNightPhase(client, state).catch((err) => {
+      runtime.phaseCompletion = null;
+      reject(err);
+    });
+  });
+}
+
+function completeNightPhase(state: GameState): void {
+  const runtime = ensureRuntime(state);
+  const resolve = runtime.phaseCompletion;
+  runtime.phaseCompletion = null;
+  resolve?.();
+}
+
+async function startNightPhase(
   client: Client,
   state: GameState,
 ): Promise<void> {
   const runtime = ensureRuntime(state);
   runtime.nightNumber += 1;
-  runtime.nightKillIds = []; // clear previous night's kills
+  runtime.nightKillIds = [];
   runtime.nightKillIntentId = null;
 
   for (const ps of runtime.playerStates) {
@@ -453,7 +473,6 @@ function runActionResolves(
     if (!actorPs?.alive) continue;
     const handlers = getHandlers(actorPs.effectiveRole.id);
     if (!handlers?.action) continue;
-    // Drunk experiences the prompt but resolve has no effect.
     if (actorPs.role.id === "drunk") continue;
 
     const lang = getLang(playerId, state.guildId);
@@ -486,8 +505,8 @@ function applyKillIntent(state: GameState): boolean {
   const targetPs = getPlayerState(runtime, targetId);
 
   if (!targetPs?.alive) return impKilledSelf;
-  if (targetPs.role.id === "soldier") return impKilledSelf; // immune
-  if (targetPs.tags.has("protected")) return impKilledSelf; // Monk
+  if (targetPs.role.id === "soldier") return impKilledSelf;
+  if (targetPs.tags.has("protected")) return impKilledSelf; // set by Monk's resolve
 
   if (targetPs.role.id === "mayor" && Math.random() < 0.5) {
     // Mayor redirect — kill goes to a random other alive player.
@@ -503,7 +522,7 @@ function applyKillIntent(state: GameState): boolean {
   return impKilledSelf;
 }
 
-/** Win check is deferred to `startDayPhase` so the night completes cleanly first. */
+/** Win check is deferred to the day phase so the night completes cleanly first. */
 async function applyNightKills(
   client: Client,
   state: GameState,
@@ -721,7 +740,6 @@ async function sendInfoMessages(
     await sendPlayerDM(client, player, state, content);
   }
 
-  // If any killed players need to respond with death narratives, pause here.
   if (session.deathNarrativePendingIds.length > 0) {
     session.status = "awaiting_death_narrative";
     updateGame(state);
@@ -731,11 +749,7 @@ async function sendInfoMessages(
   session.status = "completed";
   updateGame(state);
 
-  // Hand off to the day phase (dynamic import avoids circular dependency)
-  const { startDayPhase } = (await import("./dayFlow")) as {
-    startDayPhase: (client: Client, state: GameState) => Promise<void>;
-  };
-  await startDayPhase(client, state);
+  completeNightPhase(state);
 }
 
 export async function handleNightPlayerDM(
@@ -755,7 +769,6 @@ export async function handleNightPlayerDM(
   const player = state.players.find((p) => p.userId === message.author.id)!;
   logPlayerMessage(state.channelId, player.userId, message.content.trim());
 
-  // Death narrative phase — dead players describe their death.
   if (session.status === "awaiting_death_narrative") {
     if (session.deathNarrativePendingIds.includes(player.userId)) {
       return await handleDeathNarrativeDM(message, client, state, player);
@@ -964,10 +977,7 @@ async function sendDeathNarrativeConfirmations(
   session.status = "completed";
   updateGame(state);
 
-  const { startDayPhase } = (await import("./dayFlow")) as {
-    startDayPhase: (client: Client, state: GameState) => Promise<void>;
-  };
-  await startDayPhase(client, state);
+  completeNightPhase(state);
 }
 
 export function getNightPendingPlayerNames(state: GameState): string[] {
@@ -1044,7 +1054,6 @@ export function applyInfoDraftFieldForUI(
   return { message };
 }
 
-/** Send customized action messages to all alive players and transition to awaiting_players. */
 export async function sendActionMessagesForUI(
   client: Client,
   state: GameState,
@@ -1078,7 +1087,6 @@ export async function sendActionMessagesForUI(
   return { ok: true };
 }
 
-/** Override info messages with custom texts, then send them and transition to day phase. */
 export async function sendInfoMessagesForUI(
   client: Client,
   state: GameState,
@@ -1098,7 +1106,6 @@ export async function sendInfoMessagesForUI(
   return { ok: true };
 }
 
-/** Send all death narrative confirmations and transition to day phase. */
 export async function sendDeathNarrativeConfirmationsForUI(
   client: Client,
   state: GameState,
@@ -1116,7 +1123,6 @@ export async function sendDeathNarrativeConfirmationsForUI(
   return { ok: true };
 }
 
-/** Update an editable field in a death narrative draft and recompute the confirmation. */
 export function applyDeathNarrativeDraftFieldForUI(
   state: GameState,
   playerId: string,

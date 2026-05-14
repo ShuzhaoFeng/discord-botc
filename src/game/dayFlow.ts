@@ -1,7 +1,7 @@
 /**
- * Day-phase flow control: day start, end-of-day tally, hand-off to night.
- * Nomination/vote primitives live in nominations.ts; win-condition checks
- * in winConditions.ts.
+ * Day-phase flow control: day start and end-of-day tally. The game loop in
+ * gameLoop.ts drives the night/day handoff. Nomination/vote primitives live
+ * in nominations.ts; win-condition checks in winConditions.ts.
  */
 
 import { Client, TextChannel } from "discord.js";
@@ -33,10 +33,25 @@ function getDayExecutions(state: GameState): string[] {
     .map((ps) => playerDisplayName(state, ps.player.userId));
 }
 
-export async function startDayPhase(
-  client: Client,
-  state: GameState,
-): Promise<void> {
+export function runDayPhase(client: Client, state: GameState): Promise<void> {
+  const runtime = ensureRuntime(state);
+  return new Promise<void>((resolve, reject) => {
+    runtime.phaseCompletion = resolve;
+    startDayPhase(client, state).catch((err) => {
+      runtime.phaseCompletion = null;
+      reject(err);
+    });
+  });
+}
+
+function completeDayPhase(state: GameState): void {
+  const runtime = ensureRuntime(state);
+  const resolve = runtime.phaseCompletion;
+  runtime.phaseCompletion = null;
+  resolve?.();
+}
+
+async function startDayPhase(client: Client, state: GameState): Promise<void> {
   const runtime = ensureRuntime(state);
   const lang = channelLang(state);
 
@@ -79,7 +94,10 @@ export async function startDayPhase(
 
   // Night-resolution skips per-death win checks; this is the catch-up.
   const ended = await maybeEndGame(client, state, channel, "death");
-  if (ended) return;
+  if (ended) {
+    completeDayPhase(state);
+    return;
+  }
 
   const alive = getAlivePlayers(state);
   const sep = lang === "zh" ? "、" : ", ";
@@ -136,54 +154,30 @@ export async function processEndOfDay(
           players: dayExecutionNames.join(sep),
         }),
       );
-
-      await startNextNight(client, state, channel);
-      return;
+    } else {
+      await channel.send(t(lang, "dayNoExecution"));
+      await maybeEndGame(client, state, channel, "day_end_no_execution");
     }
+  } else {
+    const executeId = executedNomination.nomineeId;
+    const executeName = playerDisplayName(state, executeId);
 
-    await channel.send(t(lang, "dayNoExecution"));
-
-    const ended = await maybeEndGame(
-      client,
-      state,
-      channel,
-      "day_end_no_execution",
+    await channel.send(
+      t(lang, "dayExecuted", {
+        player: executeName,
+        votes: executedNomination.finalVoteCount,
+      }),
     );
-    if (ended) return;
 
-    await startNextNight(client, state, channel);
-    return;
+    await killPlayer(client, state, executeId, {
+      phase: "day",
+      byExecution: true,
+      channel,
+    });
   }
 
-  const executeId = executedNomination.nomineeId;
-  const executeName = playerDisplayName(state, executeId);
-
-  await channel.send(
-    t(lang, "dayExecuted", {
-      player: executeName,
-      votes: executedNomination.finalVoteCount,
-    }),
-  );
-
-  const gameEnded = await killPlayer(client, state, executeId, {
-    phase: "day",
-    byExecution: true,
-    channel,
-  });
-  if (gameEnded) return;
-
-  await startNextNight(client, state, channel);
-}
-
-export async function startNextNight(
-  client: Client,
-  state: GameState,
-  channel: TextChannel,
-): Promise<void> {
-  const lang = channelLang(state);
-  await channel.send(t(lang, "dayNightFalls"));
-  const { startNightPhase } = (await import("./night")) as {
-    startNightPhase: (client: Client, state: GameState) => Promise<void>;
-  };
-  await startNightPhase(client, state);
+  if (state.phase === "in_progress") {
+    await channel.send(t(lang, "dayNightFalls"));
+  }
+  completeDayPhase(state);
 }

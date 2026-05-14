@@ -219,6 +219,12 @@ export interface RuntimeState {
    * decisive. Deduplicated by `WinVerdict.kind`.
    */
   pendingGameEnds: GameEndProposal[];
+  /**
+   * Set by the game loop while a phase is in flight; the phase's terminal step
+   * calls it to advance to the next phase. Null between phases and after the
+   * loop exits.
+   */
+  phaseCompletion: (() => void) | null;
 }
 
 export interface GameState {

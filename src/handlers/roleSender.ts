@@ -9,7 +9,7 @@ import { useTranslation, getLang, getRoleName, t } from "../i18n";
 import { renderRoleDM } from "../game/draftRender";
 import { updateGame } from "../game/state";
 import { sendPlayerDM } from "../utils/sendPlayerDM";
-import { startNightPhase } from "../game/night";
+import { runGameLoop } from "../game/gameLoop";
 import { channelLang, ensureRuntime } from "../game/utils";
 
 export async function distributeRoles(
@@ -93,21 +93,20 @@ export async function distributeRoles(
     }
   }
 
-  // Update phase.
   state.phase = "in_progress";
   ensureRuntime(state);
   updateGame(state);
 
-  // Announce in game channel.
   try {
     const channel = (await client.channels.fetch(
       state.channelId,
     )) as TextChannel;
-    // Use the lang of the first player as a fallback for the channel announcement.
     await channel.send(t(channelLang(state), "rolesDistributed"));
   } catch {
-    // Ignore channel errors.
+    // Best-effort: DMs already went out, announce failure is non-fatal.
   }
 
-  await startNightPhase(client, state);
+  runGameLoop(client, state).catch((err) =>
+    console.error(`[Game ${state.gameId}] Loop crashed:`, err),
+  );
 }

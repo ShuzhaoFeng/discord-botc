@@ -54,6 +54,5 @@ export async function handleYouare(
 
   await interaction.reply(tr("youareAccepted"));
 
-  // Immediately distribute roles.
   await distributeRoles(client, state);
 }

@@ -58,6 +58,7 @@ export function ensureRuntime(state: GameState): RuntimeState {
       nightKillIds: [],
       nightKillIntentId: null,
       pendingGameEnds: [],
+      phaseCompletion: null,
     };
   }
   return state.runtime;
