@@ -17,28 +17,24 @@ export const definition: RoleDefinition = {
     async onDeath({ state, client, deadPlayerId }) {
       const runtime = state.runtime;
 
-      // Only triggered when the Imp dies
       const deadRole = getRole(runtime, deadPlayerId);
       if (deadRole.id !== "imp") return;
 
-      // Find an alive Scarlet Woman
       const swPs = runtime.playerStates.find(
         (ps) => ps.alive && ps.role.id === "scarlet_woman",
       );
       if (!swPs) return;
 
-      // Requires 5+ alive players (SW counts)
+      // Requires 5+ alive players (SW counts).
       const aliveCount = runtime.playerStates.filter((ps) => ps.alive).length;
       if (aliveCount < 5) return;
 
-      // SW becomes the Imp
       swPs.role = deadRole;
       swPs.effectiveRole = deadRole;
       if (state.draft)
         state.draft.assignments.set(swPs.player.userId, deadRole);
       updateGame(state);
 
-      // Notify SW via DM
       const trSw = useTranslation(swPs.player.userId, state.guildId);
       await sendPlayerDM(
         client,
@@ -47,7 +43,6 @@ export const definition: RoleDefinition = {
         trSw("dayScarletWomanBecomesImp"),
       );
 
-      // Notify storyteller if manual mode
       if (state.mode === "manual" && state.storytellerId) {
         try {
           const stUser = await client.users.fetch(state.storytellerId);
@@ -58,7 +53,7 @@ export const definition: RoleDefinition = {
             }),
           );
         } catch {
-          // Ignore DM failure
+          // Best-effort notification.
         }
       }
     },
