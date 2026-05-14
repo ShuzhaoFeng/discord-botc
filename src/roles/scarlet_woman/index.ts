@@ -1,7 +1,7 @@
 import type { RoleDefinition } from "../types";
 import { getRole } from "../../game/utils";
 import { useTranslation, getLang, t } from "../../i18n";
-import { sendPlayerDm } from "../../utils/sendPlayerDm";
+import { sendPlayerDM } from "../../utils/sendPlayerDM";
 import { updateGame } from "../../game/state";
 import { TextChannel } from "discord.js";
 import en from "./i18n/en.json";
@@ -38,7 +38,7 @@ export const definition: RoleDefinition = {
 
       // Notify SW via DM
       const trSw = useTranslation(swPs.player.userId, state.guildId);
-      await sendPlayerDm(
+      await sendPlayerDM(
         client,
         swPs.player,
         state,

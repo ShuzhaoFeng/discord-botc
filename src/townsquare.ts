@@ -1,8 +1,8 @@
 /**
- * Townsquare spectator — connects to a clocktower.live session as a read-only
- * spectator and syncs alive/dead status back to the bot's game state.
- *
- * See CONNECTION.md for protocol details.
+ * Read-only spectator connection to a clocktower.live session that mirrors
+ * alive/dead status into bot state. Alive→dead transitions go through
+ * `killPlayer` (full death pipeline + win check); the daySession's
+ * `townsquareDeathByExecution` toggle decides `byExecution`.
  */
 
 import crypto from "crypto";
@@ -10,7 +10,8 @@ import WebSocket from "ws";
 import { Client, TextChannel } from "discord.js";
 import { GameState } from "./game/types";
 import { getGame, updateGame } from "./game/state";
-import { processEndOfDay } from "./game/day";
+import { processEndOfDay } from "./game/dayFlow";
+import { killPlayer, revivePlayer } from "./game/death";
 
 // ─── Authentication helpers ─────────────────────────────────────────────────
 
@@ -22,8 +23,7 @@ function generatePlayerCredentials(): { playerId: string; secret: string } {
   const secretBytes = crypto.randomBytes(32);
   const toHash = Buffer.concat([SECRET_PREFIX, secretBytes]);
   const hash = crypto.createHash("sha256").update(toHash).digest();
-  const playerId =
-    "__s_" + hash.toString("base64url");
+  const playerId = "__s_" + hash.toString("base64url");
   const secret = secretBytes.toString("base64url");
   return { playerId, secret };
 }
@@ -69,46 +69,70 @@ interface TownsquareGamestate {
 // ─── Sync logic ─────────────────────────────────────────────────────────────
 
 /**
- * Applies alive/dead changes from townsquare to the bot's runtime state.
- * Matches players by displayName (case-insensitive). If no names match,
- * the update is silently ignored.
+ * Day phase: byExecution from the storyteller's toggle.
+ * Night phase: never an execution.
+ * Other phases: no sync (returns null).
  */
-function syncAliveStatus(
+function resolveKillContext(
+  state: GameState,
+): { phase: "day" | "night"; byExecution: boolean } | null {
+  if (state.phase !== "in_progress" || !state.runtime) return null;
+  const daySession = state.runtime.daySession;
+  if (daySession?.status === "open") {
+    return { phase: "day", byExecution: daySession.townsquareDeathByExecution };
+  }
+  return { phase: "night", byExecution: false };
+}
+
+/** Townsquare players unmatched by displayName are skipped. */
+async function syncAliveStatus(
   channelId: string,
   townsquarePlayers: TownsquarePlayer[],
-): void {
+  discordClient: Client,
+): Promise<void> {
   const state = getGame(channelId);
   if (!state?.runtime) return;
 
-  // Build a lookup from lowercased townsquare name → isDead
   const tsLookup = new Map<string, boolean>();
   for (const tp of townsquarePlayers) {
     tsLookup.set(tp.name.toLowerCase(), tp.isDead);
   }
 
-  let changed = false;
+  const newlyDeadIds: string[] = [];
+  const newlyAliveIds: string[] = [];
+
   for (const ps of state.runtime.playerStates) {
     const isDead = tsLookup.get(ps.player.displayName.toLowerCase());
-    if (isDead === undefined) continue; // no match — skip
-    const newAlive = !isDead;
-    if (ps.alive !== newAlive) {
-      ps.alive = newAlive;
-      changed = true;
+    if (isDead === undefined) continue;
+
+    if (ps.alive && isDead) {
+      newlyDeadIds.push(ps.player.userId);
+    } else if (!ps.alive && !isDead) {
+      newlyAliveIds.push(ps.player.userId);
     }
   }
 
-  if (changed) {
-    updateGame(state);
+  for (const id of newlyAliveIds) {
+    revivePlayer(state, id);
+  }
+
+  if (newlyDeadIds.length === 0) return;
+
+  const ctx = resolveKillContext(state);
+  if (!ctx) return;
+
+  for (const id of newlyDeadIds) {
+    await killPlayer(discordClient, state, id, {
+      phase: ctx.phase,
+      byExecution: ctx.byExecution,
+      announce: ctx.phase === "day",
+    });
   }
 }
 
 // ─── Day→Night transition ───────────────────────────────────────────────────
 
-/**
- * Called when the townsquare `isNight` value changes. If the transition is
- * day→night and the bot currently has an open day session, ends the day and
- * starts the next night phase.
- */
+/** Only acts on day→night transitions; other flips are no-ops. */
 async function handleIsNightChange(
   channelId: string,
   isNight: boolean,
@@ -117,7 +141,6 @@ async function handleIsNightChange(
   const prev = cachedIsNight.get(channelId);
   cachedIsNight.set(channelId, isNight);
 
-  // Only act on day→night transitions (prev was false, now true)
   if (prev !== false || isNight !== true) return;
 
   const state = getGame(channelId);
@@ -127,22 +150,19 @@ async function handleIsNightChange(
   if (!daySession || daySession.status !== "open") return;
 
   console.log(
-    `[Townsquare] Day→Night transition detected for game ${state.gameId}, ending day`,
+    `[Townsquare] Day→Night transition for game ${state.gameId}, ending day`,
   );
 
   try {
     const channel = (await discordClient.channels.fetch(
       state.channelId,
     )) as TextChannel;
-    // Mark day as ending so no new nominations are accepted
     daySession.dayEndsAfterNomination = true;
     updateGame(state);
 
     if (!daySession.activeNomination) {
       await processEndOfDay(discordClient, state, channel);
     }
-    // If there's an active nomination, processEndOfDay will be called
-    // when the nomination window closes (existing logic in day.ts).
   } catch (err) {
     console.error("[Townsquare] Error ending day:", err);
   }
@@ -159,12 +179,10 @@ async function handleIsNightChange(
  */
 function parseSessionName(raw: string): string {
   const trimmed = raw.trim();
-  // Full URL with hash fragment
   const hashIdx = trimmed.indexOf("#");
   if (hashIdx !== -1) {
     return trimmed.slice(hashIdx + 1);
   }
-  // Plain session name
   return trimmed;
 }
 
@@ -182,16 +200,11 @@ export function connectTownsquareSpectator(
   const parsedSession = parseSessionName(sessionName);
   if (!parsedSession) return;
 
-  // Clean up any existing connection for this game
   disconnectTownsquare(channelId);
 
   const { playerId, secret } = generatePlayerCredentials();
 
-  // Derive WebSocket URL from townsquareUrl
-  // townsquareUrl might be "clocktower.live" or "https://clocktower.live" etc.
-  const host = townsquareUrl
-    .replace(/^https?:\/\//, "")
-    .replace(/\/+$/, "");
+  const host = townsquareUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "");
   const wsUrl = `wss://${host}:8001/${encodeURIComponent(parsedSession)}/${playerId}?secret=${secret}`;
 
   console.log(
@@ -209,10 +222,8 @@ export function connectTownsquareSpectator(
   ws.on("open", () => {
     console.log(`[Townsquare] Connected to session "${parsedSession}"`);
 
-    // Request full game state from the host
     ws.send(JSON.stringify(["direct", { host: ["getGamestate", playerId] }]));
 
-    // Keepalive every 30s
     keepaliveInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(["ping", [playerId, "latency"]]));
@@ -229,11 +240,13 @@ export function connectTownsquareSpectator(
 
       switch (command) {
         case "gs": {
-          // Full or lightweight gamestate
           const gs = params as TownsquareGamestate;
           if (gs.gamestate) {
             cachedPlayers.set(channelId, gs.gamestate);
-            syncAliveStatus(channelId, gs.gamestate);
+            syncAliveStatus(channelId, gs.gamestate, discordClient).catch(
+              (err) =>
+                console.error("[Townsquare] syncAliveStatus error:", err),
+            );
           }
           if (gs.isNight !== undefined) {
             handleIsNightChange(channelId, gs.isNight, discordClient);
@@ -241,7 +254,6 @@ export function connectTownsquareSpectator(
           break;
         }
         case "player": {
-          // Incremental player property change: { index, property, value }
           const { index, property, value } = params as {
             index: number;
             property: string;
@@ -251,13 +263,14 @@ export function connectTownsquareSpectator(
           if (cached && index >= 0 && index < cached.length) {
             (cached[index] as Record<string, unknown>)[property] = value;
             if (property === "isDead") {
-              syncAliveStatus(channelId, cached);
+              syncAliveStatus(channelId, cached, discordClient).catch((err) =>
+                console.error("[Townsquare] syncAliveStatus error:", err),
+              );
             }
           }
           break;
         }
         case "swap": {
-          // Swap two player positions: [idx1, idx2]
           const [idx1, idx2] = params as [number, number];
           const cached2 = cachedPlayers.get(channelId);
           if (cached2 && idx1 < cached2.length && idx2 < cached2.length) {
@@ -266,12 +279,10 @@ export function connectTownsquareSpectator(
           break;
         }
         case "isNight": {
-          // Incremental day/night toggle
           handleIsNightChange(channelId, params as boolean, discordClient);
           break;
         }
         case "remove": {
-          // Remove a player at index
           const cached3 = cachedPlayers.get(channelId);
           if (cached3) {
             const idx = params as number;
@@ -298,6 +309,9 @@ export function connectTownsquareSpectator(
   });
 
   ws.on("error", (err) => {
-    console.error(`[Townsquare] WebSocket error for session "${parsedSession}":`, err.message);
+    console.error(
+      `[Townsquare] WebSocket error for session "${parsedSession}":`,
+      err.message,
+    );
   });
 }

@@ -1,3 +1,5 @@
+import type { GameEndProposal } from "./winConditions";
+
 export type Lang = "en" | "zh";
 
 /** Prefix for all fake test-player userIds. The UUID segment lets us reliably
@@ -5,11 +7,6 @@ export type Lang = "en" | "zh";
 export const FAKE_PLAYER_ID_PREFIX = "fake_7d3f9c2a_";
 export type RoleCategory = "Townsfolk" | "Outsider" | "Minion" | "Demon";
 export type GameMode = "automated" | "manual" | "pending";
-export type DayWinMessageKey =
-  | "dayGoodWins"
-  | "dayEvilWinsAlive"
-  | "dayEvilWinsSaint";
-export type DayExtraAnnouncementKey = "daySaintExecuted";
 export type GamePhase =
   | "pending_storyteller"
   | "role_assignment"
@@ -56,16 +53,34 @@ export interface Draft {
 export type PlayerTag =
   | "poisoned" // set by Poisoner; cleared at start of next night
   | "protected" // set by Monk; cleared at start of next night
-  | "ghost_vote_used" // set when dead player uses ghost vote; permanent
   | "red_herring" // set at runtime initialization; permanent
   | "slayer_used" // set when Slayer ability is consumed; permanent
   | "butler_master"; // set by Butler's resolve; transferred each night
+
+/**
+ * Created by `killPlayer`, cleared by `revivePlayer`; `ghostVoteUsed` is the
+ * only field mutated post-creation (via `useGhostVote`). All death-derived
+ * consequences (Undertaker, Saint loss, ghost vote) read this rather than
+ * standalone flags, so a revive unwinds them in one step.
+ */
+export interface DeathRecord {
+  byExecution: boolean;
+  phase: "day" | "night";
+  /** 0 if before Day 1. */
+  dayNumber: number;
+  nightNumber: number;
+  /** Informational; not load-bearing. */
+  timestamp: number;
+  ghostVoteUsed: boolean;
+}
 
 export interface PlayerRuntimeState {
   player: Player;
   role: Role; // true assigned role
   effectiveRole: Role; // Drunk → fake Townsfolk role; everyone else → same as role
+  /** Invariant: alive === (death === null). Maintained by killPlayer / revivePlayer. */
   alive: boolean;
+  death: DeathRecord | null;
   tags: Set<PlayerTag>;
 }
 
@@ -104,6 +119,8 @@ export interface DaySession {
   nightKillIds: string[]; // players who died last night (announced at day start)
   pendingSlayRecluse: PendingSlayRecluse | null; // manual mode pending Recluse slay (Scenario 4)
   pendingSlayFixed: PendingSlayFixed | null; // manual mode pending confirmation for Scenarios 1-3
+  /** Whether the next townsquare-synced death should be flagged as an execution. */
+  townsquareDeathByExecution: boolean;
 }
 
 export interface NightPrompt {
@@ -170,18 +187,14 @@ export interface RuntimeState {
   playerStates: PlayerRuntimeState[]; // in seating order, same order as state.players
   nightSession: NightSession | null;
   daySession: DaySession | null;
-  lastExecutedPlayerId: string | null;
   nightKillIds: string[]; // kills from last night, consumed at day start
   nightKillIntentId: string | null; // set by Imp's resolve; consumed by core kill resolution; reset each night
   /**
-   * Set by a death handler to request a specific game-end outcome that cannot
-   * be inferred from state alone (e.g. Saint executed → evil wins).
-   * Consumed and cleared by day.ts immediately after triggerDeathHandlers.
+   * Manual-mode approval queue. Flow does NOT pause while entries sit here —
+   * players must not be able to tell from bot latency whether a death was
+   * decisive. Deduplicated by `WinConditionKind`.
    */
-  pendingEndGame: {
-    winMessageKey: DayWinMessageKey;
-    extraAnnouncementKey?: DayExtraAnnouncementKey;
-  } | null;
+  pendingGameEnds: GameEndProposal[];
 }
 
 export interface GameState {

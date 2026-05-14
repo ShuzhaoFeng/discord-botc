@@ -7,6 +7,7 @@ import NightChatArea from "@/components/night/NightChatArea";
 import NightControlPanel from "@/components/night/NightControlPanel";
 import NightPlayerSidebar from "@/components/night/NightPlayerSidebar";
 import NightTopBar from "@/components/night/NightTopBar";
+import GameEndApprovalBanner from "@/components/night/GameEndApprovalBanner";
 import {
   Panel,
   PanelGroup,
@@ -96,6 +97,12 @@ export default function NightPage() {
   return (
     <div className="h-full flex flex-col">
       <NightTopBar detail={detail} onBack={() => router.push("/games")} />
+      {detail.pendingGameEnds.length > 0 && (
+        <GameEndApprovalBanner
+          channelId={channelId}
+          queue={detail.pendingGameEnds}
+        />
+      )}
       <PanelGroup direction="horizontal" className="flex-1">
         <Panel defaultSize="22%" minSize="14%" maxSize="40%" id="players">
           <NightPlayerSidebar

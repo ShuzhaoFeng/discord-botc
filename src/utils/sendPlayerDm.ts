@@ -1,6 +1,6 @@
-import { Client } from 'discord.js';
-import { Player, GameState } from '../game/types';
-import { logBotMessage } from './chatLog';
+import { Client } from "discord.js";
+import { Player, GameState } from "../game/types";
+import { logBotMessage } from "./chatLog";
 
 /**
  * Sends a DM to a player.
@@ -11,7 +11,7 @@ import { logBotMessage } from './chatLog';
  *
  * Throws on failure — callers should catch and report in the game channel.
  */
-export async function sendPlayerDm(
+export async function sendPlayerDM(
   client: Client,
   player: Player,
   state: GameState,

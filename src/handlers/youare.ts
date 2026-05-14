@@ -7,7 +7,7 @@ import { ChatInputCommandInteraction, Client } from "discord.js";
 import { getGame, updateGame } from "../game/state";
 import { useTranslation } from "../i18n";
 import { generateDraft } from "../game/assignment";
-import { distributeRoles } from "./role_sender";
+import { distributeRoles } from "./roleSender";
 
 export async function handleYouare(
   interaction: ChatInputCommandInteraction,

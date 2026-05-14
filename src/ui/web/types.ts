@@ -105,12 +105,33 @@ export interface NightDeathConfirmEntry {
   };
 }
 
+export type WinConditionKind =
+  | "good_imp_dead"
+  | "good_mayor_three_alive"
+  | "evil_two_alive"
+  | "evil_saint_executed";
+
+export interface PendingGameEnd {
+  id: string;
+  conditionKind: WinConditionKind;
+  team: "good" | "evil";
+  preamble: string | null;
+  winAnnouncement: string;
+  rolesReveal: string;
+  enqueuedAt: number;
+}
+
 export interface NightDetail {
   channelId: string;
   gameId: string;
   phase: Extract<GamePhase, "in_progress" | "ended">;
   nightNumber: number;
   nightStatus: string | null;
+  dayStatus: "open" | "ended" | null;
+  /** Storyteller toggle: whether the next townsquare-driven death counts as an execution. */
+  townsquareDeathByExecution: boolean;
+  /** FIFO queue of unresolved game-end proposals. Flow is NOT paused for these. */
+  pendingGameEnds: PendingGameEnd[];
   players: NightPlayerInfo[];
   conversations: Record<string, ChatMessage[]>;
   // Control panel data

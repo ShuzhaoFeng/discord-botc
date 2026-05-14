@@ -9,15 +9,13 @@ import {
   Player,
   PlayerRuntimeState,
   Role,
-  RuntimeState,
 } from "./types";
 import { getLang, getRoleName, t } from "../i18n";
 import { findRole, getScript } from "./roles";
-import { sendPlayerDm } from "../utils/sendPlayerDm";
+import { sendPlayerDM } from "../utils/sendPlayerDM";
 import { updateGame } from "./state";
 import { ALL_ROLE_DEFINITIONS } from "../roles/index";
 import type { NightGameCtx } from "../roles/types";
-import { triggerDeathHandlers } from "./death";
 import { ActiveGameState } from "./types";
 import {
   channelLang,
@@ -33,6 +31,7 @@ import {
 } from "./utils";
 import { logBotMessage, logPlayerMessage } from "../utils/chatLog";
 import { getGuildSettings } from "../guildSettings";
+import { killPlayer } from "./death";
 
 function getHandlers(roleId: string) {
   return ALL_ROLE_DEFINITIONS.find((r) => r.id === roleId)?.nightHandlers;
@@ -88,7 +87,7 @@ async function getDadJoke(): Promise<string> {
     const payload = (await response.json()) as { joke?: string };
     return payload.joke ?? "The stars are quiet tonight.";
   } catch {
-    return "I tried to catch fog, but I mist. What do you think? Reply with one word.";
+    return "I tried to catch fog, but I mist. What do you think? Reply with anything.";
   }
 }
 
@@ -185,9 +184,7 @@ export async function startNightPhase(
 
   // In online mode, only action players are pending (info/joke players don't respond).
   const pendingPlayers = onlineMode
-    ? alivePlayers.filter(
-        (p) => prompts.get(p.userId)?.kind === "action",
-      )
+    ? alivePlayers.filter((p) => prompts.get(p.userId)?.kind === "action")
     : alivePlayers;
 
   const session: NightSession = {
@@ -216,7 +213,7 @@ export async function startNightPhase(
     for (const p of alivePlayers) {
       const message = actionMessages.get(p.userId);
       if (!message) continue;
-      await sendPlayerDm(client, p, state, message);
+      await sendPlayerDM(client, p, state, message);
     }
 
     const channel = (await client.channels.fetch(
@@ -495,11 +492,19 @@ function applyKillIntent(state: GameState): boolean {
   return impKilledSelf;
 }
 
-/** Applied before info compute so the dying receive no information. */
-function markKilledPlayersDead(runtime: RuntimeState): void {
+/** Win check is deferred to `startDayPhase` so the night completes cleanly first. */
+async function applyNightKills(
+  client: Client,
+  state: GameState,
+): Promise<void> {
+  const runtime = ensureRuntime(state);
   for (const killedId of runtime.nightKillIds) {
-    const killedPs = getPlayerState(runtime, killedId);
-    if (killedPs) killedPs.alive = false;
+    await killPlayer(client, state, killedId, {
+      phase: "night",
+      byExecution: false,
+      announce: false,
+      skipWinCheck: true,
+    });
   }
 }
 
@@ -548,22 +553,6 @@ function runInfoCompute(
             : draft.reasonKey,
       });
     }
-  }
-}
-
-async function triggerNightDeathHandlers(
-  client: Client,
-  state: GameState,
-): Promise<void> {
-  const runtime = ensureRuntime(state);
-  for (const killedId of runtime.nightKillIds) {
-    await triggerDeathHandlers(
-      client,
-      state as ActiveGameState,
-      killedId,
-      "night",
-      false,
-    );
   }
 }
 
@@ -689,17 +678,15 @@ async function resolveNightOutcomes(
   const session = runtime.nightSession;
   if (!session) return;
 
-  // Order is load-bearing: action resolves run on pre-kill state so a dying
-  // Imp's intent is still captured; kills then apply before info compute so
-  // the dead skip it; death handlers fire after info compute so e.g.
-  // Ravenkeeper can flag its narrative kind; Imp self-kill promotion runs
-  // after death handlers so Scarlet Woman gets first refusal.
+  // Order is load-bearing: action resolves first so a dying Imp's intent is
+  // still captured; applyNightKills then runs death handlers so Scarlet
+  // Woman (if she promotes) is the live Imp before runInfoCompute reads
+  // state; promoteImpOnSelfKill is the fallback when SW didn't qualify.
   initInfoDefaults(state, session);
   runActionResolves(client, state, session);
   const impKilledSelf = applyKillIntent(state);
-  markKilledPlayersDead(runtime);
+  await applyNightKills(client, state);
   runInfoCompute(client, state, session);
-  await triggerNightDeathHandlers(client, state);
   setupDeathNarratives(state, session);
   const newImpPlayerId = impKilledSelf ? promoteImpOnSelfKill(state) : null;
   setActionAckMessages(state, session);
@@ -720,7 +707,7 @@ async function sendInfoMessages(
   for (const player of state.players) {
     const content = session.infoMessages.get(player.userId);
     if (!content) continue;
-    await sendPlayerDm(client, player, state, content);
+    await sendPlayerDM(client, player, state, content);
   }
 
   // If any killed players need to respond with death narratives, pause here.
@@ -734,13 +721,13 @@ async function sendInfoMessages(
   updateGame(state);
 
   // Hand off to the day phase (dynamic import avoids circular dependency)
-  const { startDayPhase } = (await import("./day")) as {
+  const { startDayPhase } = (await import("./dayFlow")) as {
     startDayPhase: (client: Client, state: GameState) => Promise<void>;
   };
   await startDayPhase(client, state);
 }
 
-export async function handleNightPlayerDm(
+export async function handleNightPlayerDM(
   message: Message,
   client: Client,
   state: GameState,
@@ -760,7 +747,7 @@ export async function handleNightPlayerDm(
   // Death narrative phase — dead players describe their death.
   if (session.status === "awaiting_death_narrative") {
     if (session.deathNarrativePendingIds.includes(player.userId)) {
-      return await handleDeathNarrativeDm(message, client, state, player);
+      return await handleDeathNarrativeDM(message, client, state, player);
     }
     return false;
   }
@@ -840,7 +827,7 @@ function renderDeathNarrativeConfirmation(
  * description. For Ravenkeeper deaths: parses `name, description` format, computes
  * the RK pick result, and stores the confirmation message.
  */
-async function handleDeathNarrativeDm(
+async function handleDeathNarrativeDM(
   message: Message,
   client: Client,
   state: GameState,
@@ -960,13 +947,13 @@ async function sendDeathNarrativeConfirmations(
   ] of session.deathNarrativeConfirmations.entries()) {
     const player = state.players.find((p) => p.userId === playerId);
     if (!player) continue;
-    await sendPlayerDm(client, player, state, confirmation);
+    await sendPlayerDM(client, player, state, confirmation);
   }
 
   session.status = "completed";
   updateGame(state);
 
-  const { startDayPhase } = (await import("./day")) as {
+  const { startDayPhase } = (await import("./dayFlow")) as {
     startDayPhase: (client: Client, state: GameState) => Promise<void>;
   };
   await startDayPhase(client, state);
@@ -1066,7 +1053,7 @@ export async function sendActionMessagesForUI(
       customMessages[p.userId] ?? session.actionMessages.get(p.userId) ?? "";
     if (!msg) continue;
     session.actionMessages.set(p.userId, msg);
-    await sendPlayerDm(client, p, state, msg);
+    await sendPlayerDM(client, p, state, msg);
   }
 
   updateGame(state);

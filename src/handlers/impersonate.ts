@@ -18,7 +18,7 @@ import {
 import { getGame } from "../game/state";
 import { useTranslation } from "../i18n";
 import { resolvePlayer } from "../game/utils";
-import { handleNominate, handleYe, handleEndDay } from "../game/day";
+import { handleNominate, handleYe, handleEndDay } from "../game/nominations";
 import { handleRoleCommand } from "../game/roleCommands";
 import { handleIam } from "./iam";
 import { handleYouare } from "./youare";

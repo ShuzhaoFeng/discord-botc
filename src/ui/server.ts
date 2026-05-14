@@ -20,6 +20,11 @@ import {
   sendDeathNarrativeConfirmationsForUI,
   applyDeathNarrativeDraftFieldForUI,
 } from "../game/night";
+import {
+  approvePendingGameEnd,
+  dismissPendingGameEnd,
+} from "../game/winConditions";
+import { TextChannel } from "discord.js";
 import { ensureRuntime } from "../game/utils";
 import { getScript } from "../game/roles";
 import { ALL_ROLE_DEFINITIONS } from "../roles";
@@ -30,7 +35,7 @@ import {
   reconcileDraftDependencies,
   ValidationError,
 } from "../game/assignment";
-import { distributeRoles } from "../handlers/role_sender";
+import { distributeRoles } from "../handlers/roleSender";
 import { GameState, Role } from "../game/types";
 import {
   getGuildSettings,
@@ -375,10 +380,7 @@ export async function startUiServer(
       draft: serializeDraft(state),
       allRoles: getAllRoles(),
       validationError: state.draft
-        ? validateDraft(
-            state.draft,
-            state.players,
-          )
+        ? validateDraft(state.draft, state.players)
         : null,
       townsquareUrl: getGuildSettings(state.guildId).townsquareUrl,
       townsquareSessionUrl: state.townsquareSessionUrl ?? null,
@@ -484,10 +486,7 @@ export async function startUiServer(
       return void res
         .status(400)
         .json({ error: "Only manual mode games can be confirmed here" });
-    const validErr = validateDraft(
-      state.draft,
-      state.players,
-    );
+    const validErr = validateDraft(state.draft, state.players);
     if (validErr)
       return void res
         .status(400)
@@ -508,10 +507,7 @@ export async function startUiServer(
         return void res
           .status(400)
           .json({ error: "Only manual mode games can be confirmed here" });
-      const validErr = validateDraft(
-        state.draft,
-        state.players,
-      );
+      const validErr = validateDraft(state.draft, state.players);
       if (validErr)
         return void res
           .status(400)
@@ -519,12 +515,10 @@ export async function startUiServer(
       // Block if townsquare integration is enabled but no session has been linked via /link
       const townsquareUrl = getGuildSettings(state.guildId).townsquareUrl;
       if (townsquareUrl && !state.townsquareSessionUrl) {
-        return void res
-          .status(400)
-          .json({
-            error:
-              "Townsquare is enabled but no session has been linked. Use /link in the game channel first.",
-          });
+        return void res.status(400).json({
+          error:
+            "Townsquare is enabled but no session has been linked. Use /link in the game channel first.",
+        });
       }
 
       try {
@@ -685,12 +679,26 @@ export async function startUiServer(
       return { id: r.id, name: def?.name.en ?? r.id };
     });
 
+    const pendingGameEnds = runtime.pendingGameEnds.map((p) => ({
+      id: p.id,
+      conditionKind: p.condition.kind,
+      team: p.condition.team,
+      preamble: p.preamble,
+      winAnnouncement: p.winAnnouncement,
+      rolesReveal: p.rolesReveal,
+      enqueuedAt: p.enqueuedAt,
+    }));
+
     res.json({
       channelId: state.channelId,
       gameId: state.gameId,
       phase: state.phase,
       nightNumber: runtime.nightNumber,
       nightStatus: session?.status ?? null,
+      dayStatus: runtime.daySession?.status ?? null,
+      townsquareDeathByExecution:
+        runtime.daySession?.townsquareDeathByExecution ?? false,
+      pendingGameEnds,
       players,
       conversations: getConversations(state.channelId),
       actionMessages,
@@ -700,6 +708,78 @@ export async function startUiServer(
       scriptRoles,
     });
   });
+
+  // ── Game-end approval (manual mode) ──────────────────────────────────────
+
+  app.post(
+    "/api/night/:channelId/approve-game-end",
+    async (req: Request, res: Response) => {
+      const state = getGame(req.params.channelId as string);
+      if (!state || state.mode !== "manual") {
+        return void res.status(404).json({ error: "Game not found" });
+      }
+      const { preamble, winAnnouncement, rolesReveal } = req.body as {
+        preamble?: string | null;
+        winAnnouncement?: string;
+        rolesReveal?: string;
+      };
+      const channel = (await client.channels.fetch(
+        state.channelId,
+      )) as TextChannel;
+      const result = await approvePendingGameEnd(client, state, channel, {
+        preamble,
+        winAnnouncement,
+        rolesReveal,
+      });
+      if (!result.ok) {
+        return void res.status(400).json({ error: result.error });
+      }
+      res.json({ ok: true });
+    },
+  );
+
+  app.post(
+    "/api/night/:channelId/dismiss-game-end",
+    (req: Request, res: Response) => {
+      const state = getGame(req.params.channelId as string);
+      if (!state || state.mode !== "manual") {
+        return void res.status(404).json({ error: "Game not found" });
+      }
+      const result = dismissPendingGameEnd(state);
+      if (!result.ok) {
+        return void res.status(400).json({ error: result.error });
+      }
+      res.json({ ok: true });
+    },
+  );
+
+  // ── Townsquare-driven execution toggle (per-day) ─────────────────────────
+
+  app.post(
+    "/api/night/:channelId/set-townsquare-execution",
+    (req: Request, res: Response) => {
+      const state = getGame(req.params.channelId as string);
+      if (!state || state.mode !== "manual") {
+        return void res.status(404).json({ error: "Game not found" });
+      }
+      const runtime = ensureRuntime(state);
+      const daySession = runtime.daySession;
+      if (!daySession || daySession.status !== "open") {
+        return void res
+          .status(400)
+          .json({ error: "Toggle is only available during an open day" });
+      }
+      const { value } = req.body as { value?: boolean };
+      if (typeof value !== "boolean") {
+        return void res
+          .status(400)
+          .json({ error: "value must be boolean" });
+      }
+      daySession.townsquareDeathByExecution = value;
+      updateGame(state);
+      res.json({ ok: true, value });
+    },
+  );
 
   // ── Night: set draft field ────────────────────────────────────────────────
 

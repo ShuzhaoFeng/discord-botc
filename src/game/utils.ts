@@ -41,17 +41,23 @@ export function ensureRuntime(state: GameState): RuntimeState {
         role.id === "drunk" && draft.drunkFakeRole ? draft.drunkFakeRole : role;
       const tags = new Set<PlayerTag>();
       if (draft.redHerring === p.userId) tags.add("red_herring");
-      return { player: p, role, effectiveRole, alive: true, tags };
+      return {
+        player: p,
+        role,
+        effectiveRole,
+        alive: true,
+        death: null,
+        tags,
+      };
     });
     state.runtime = {
       nightNumber: 0,
       playerStates,
       nightSession: null,
       daySession: null,
-      lastExecutedPlayerId: null,
       nightKillIds: [],
       nightKillIntentId: null,
-      pendingEndGame: null,
+      pendingGameEnds: [],
     };
   }
   return state.runtime;

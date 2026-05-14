@@ -17,10 +17,10 @@ import {
 } from "./handlers/impersonate";
 import { handleIam } from "./handlers/iam";
 import { handleYouare } from "./handlers/youare";
-import { handleNightDm } from "./handlers/night_dm";
+import { handleNightDM } from "./handlers/nightDM";
 import { handleLang } from "./handlers/lang";
 import { handleRulebook } from "./handlers/rulebook";
-import { handleNominate, handleYe, handleEndDay } from "./game/day";
+import { handleNominate, handleYe, handleEndDay } from "./game/nominations";
 import { handleRoleCommand } from "./game/roleCommands";
 import { handleInfo } from "./handlers/info";
 import { handleLink } from "./handlers/link";
@@ -104,7 +104,7 @@ client.on(Events.MessageCreate, async (message) => {
 
   if (!message.guild) {
     try {
-      await handleNightDm(message, client);
+      await handleNightDM(message, client);
     } catch (err) {
       console.error("Error handling DM:", err);
     }

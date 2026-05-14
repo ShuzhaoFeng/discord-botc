@@ -14,7 +14,8 @@ import {
   notifyStoryteller,
   playerDisplayName,
 } from "./utils";
-import { cancelActiveNomination, killPlayerDuringDay } from "./day";
+import { cancelActiveNomination } from "./nominations";
+import { killPlayer } from "./death";
 
 export function getRoleCommandBuilders(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
   return ALL_ROLE_DEFINITIONS.flatMap((d) => d.commands ?? []).map((cmd) =>
@@ -31,10 +32,10 @@ export async function handleRoleCommand(
   );
   if (!cmd) return false;
 
-  const isDm = i.channel?.isDMBased() ?? i.guildId === null;
+  const isDM = i.channel?.isDMBased() ?? i.guildId === null;
   const isGuild = i.guildId !== null;
 
-  if (cmd.allowedChannel === "public" && isDm) {
+  if (cmd.allowedChannel === "public" && isDM) {
     await i.reply({
       content: "This command can only be used in a server channel.",
       ephemeral: true,
@@ -100,8 +101,12 @@ export async function handleRoleCommand(
     playerDisplayName: (userId) => playerDisplayName(state, userId),
     notifyStoryteller: (content) => notifyStoryteller(client, state, content),
     day: {
-      killPlayerDuringDay: (channel, playerId, byExecution) =>
-        killPlayerDuringDay(client, state, channel, playerId, byExecution),
+      killPlayer: (channel, playerId, byExecution = false) =>
+        killPlayer(client, state, playerId, {
+          phase: "day",
+          byExecution,
+          channel,
+        }),
       cancelActiveNomination: (channel, killedPlayerId) =>
         cancelActiveNomination(client, state, channel, killedPlayerId),
     },
@@ -111,7 +116,7 @@ export async function handleRoleCommand(
   return true;
 }
 
-export async function handleRoleStorytellerDm(
+export async function handleRoleStorytellerDM(
   message: Message,
   client: Client,
   state: GameState,
@@ -127,16 +132,20 @@ export async function handleRoleStorytellerDm(
     playerDisplayName: (userId) => playerDisplayName(state, userId),
     notifyStoryteller: (content) => notifyStoryteller(client, state, content),
     day: {
-      killPlayerDuringDay: (channel, playerId, byExecution) =>
-        killPlayerDuringDay(client, state, channel, playerId, byExecution),
+      killPlayer: (channel, playerId, byExecution = false) =>
+        killPlayer(client, state, playerId, {
+          phase: "day",
+          byExecution,
+          channel,
+        }),
       cancelActiveNomination: (channel, killedPlayerId) =>
         cancelActiveNomination(client, state, channel, killedPlayerId),
     },
   };
   for (const def of ALL_ROLE_DEFINITIONS) {
     if (!assignedRoleIds.has(def.id)) continue;
-    if (def.handleStorytellerDm) {
-      if (await def.handleStorytellerDm(message, ctx)) return true;
+    if (def.handleStorytellerDM) {
+      if (await def.handleStorytellerDM(message, ctx)) return true;
     }
   }
   return false;

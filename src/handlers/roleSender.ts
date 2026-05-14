@@ -6,9 +6,9 @@
 import { Client, TextChannel } from "discord.js";
 import { GameState } from "../game/types";
 import { useTranslation, getLang, getRoleName, t } from "../i18n";
-import { renderRoleDm } from "../game/draft_render";
+import { renderRoleDM } from "../game/draftRender";
 import { updateGame } from "../game/state";
-import { sendPlayerDm } from "../utils/sendPlayerDm";
+import { sendPlayerDM } from "../utils/sendPlayerDM";
 import { startNightPhase } from "../game/night";
 import { channelLang, ensureRuntime } from "../game/utils";
 
@@ -69,7 +69,7 @@ export async function distributeRoles(
           })
       : undefined;
 
-    const dmContent = renderRoleDm(
+    const dmContent = renderRoleDM(
       state.gameId,
       displayRole,
       lang,
@@ -80,7 +80,7 @@ export async function distributeRoles(
     );
 
     try {
-      await sendPlayerDm(client, player, state, dmContent);
+      await sendPlayerDM(client, player, state, dmContent);
     } catch {
       // If DM fails, post a notice in the game channel.
       const channel = (await client.channels.fetch(
@@ -89,7 +89,7 @@ export async function distributeRoles(
       const ref = player.isTestPlayer
         ? `**${player.displayName}** (test player)`
         : `<@${player.userId}>`;
-      await channel.send(tr("roleSenderDmFailed", { ref }));
+      await channel.send(tr("roleSenderDMFailed", { ref }));
     }
   }
 

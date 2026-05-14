@@ -1,12 +1,12 @@
+/**
+ * Owns the nomination & vote primitives (`/nominate`, `/ye`, `/endday`,
+ * timer, threshold tracking). End-of-day tallying and the win check live
+ * in dayFlow.ts and winConditions.ts.
+ */
+
 import { Client, ChatInputCommandInteraction, TextChannel } from "discord.js";
-import {
-  ActiveGameState,
-  DayExtraAnnouncementKey,
-  DayWinMessageKey,
-  GameState,
-  NominationRecord,
-} from "./types";
-import { useTranslation, getLang, getRoleName, t } from "../i18n";
+import { GameState, NominationRecord } from "./types";
+import { useTranslation, getLang, t } from "../i18n";
 import { getGame, updateGame } from "./state";
 import {
   areChannelCommandsDisabled,
@@ -19,15 +19,14 @@ import {
   channelLang,
   registersAsTownsfolkForDetection,
 } from "./utils";
-import { triggerDeathHandlers } from "./death";
+import { killPlayer, useGhostVote } from "./death";
+import { processEndOfDay } from "./dayFlow";
 
-// ── Local helpers ─────────────────────────────────────────────────────────────
-
-// ── Nomination timer storage ──────────────────────────────────────────────────
+// ── Nomination timer ─────────────────────────────────────────────────────────
 
 const nominationTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-function cancelNominationTimer(channelId: string): void {
+export function cancelNominationTimer(channelId: string): void {
   const timer = nominationTimers.get(channelId);
   if (timer !== undefined) {
     clearTimeout(timer);
@@ -35,113 +34,7 @@ function cancelNominationTimer(channelId: string): void {
   }
 }
 
-// ── Win condition check ───────────────────────────────────────────────────────
-
-/** Check win conditions and end game if triggered. Returns true if game ended. */
-async function checkWinConditions(
-  client: Client,
-  state: GameState,
-  channel: TextChannel,
-): Promise<boolean> {
-  const runtime = ensureRuntime(state);
-
-  // Check if any Imp is alive (role may have shifted to Scarlet Woman or a promoted Minion)
-  const impAlive = runtime.playerStates.some(
-    (ps) => ps.role.id === "imp" && ps.alive,
-  );
-
-  const aliveCount = getAlivePlayers(state).length;
-
-  // Evil wins: 2 or fewer players alive
-  if (aliveCount <= 2) {
-    await endGame(client, state, channel, "dayEvilWinsAlive");
-    return true;
-  }
-
-  // Good wins: Imp is dead (Scarlet Woman already handled in killPlayer)
-  if (!impAlive) {
-    await endGame(client, state, channel, "dayGoodWins");
-    return true;
-  }
-
-  return false;
-}
-
-export async function endGame(
-  client: Client,
-  state: GameState,
-  channel: TextChannel,
-  winMessageKey: DayWinMessageKey,
-): Promise<void> {
-  const runtime = ensureRuntime(state);
-  const lang = channelLang(state);
-
-  state.phase = "ended";
-  if (runtime.daySession) runtime.daySession.status = "ended";
-  cancelNominationTimer(state.channelId);
-  updateGame(state);
-
-  await channel.send(t(lang, winMessageKey));
-
-  // Role reveal
-  const lines = runtime.playerStates.map((ps) => {
-    const aliveLabel = ps.alive ? t(lang, "dayAlive") : t(lang, "dayDead");
-    const roleName = getRoleName(lang, ps.role.id);
-    return `${ps.player.displayName} — ${roleName} (${aliveLabel})`;
-  });
-  await channel.send(t(lang, "dayFinalRoles", { roles: lines.join("\n") }));
-}
-
-/**
- * Kill a player during the day phase. Triggers all registered death handlers
- * (Scarlet Woman, Saint, etc.) then checks win conditions.
- * Returns true if the game ended.
- */
-export async function killPlayerDuringDay(
-  client: Client,
-  state: GameState,
-  channel: TextChannel,
-  playerId: string,
-  byExecution = false,
-): Promise<boolean> {
-  const runtime = ensureRuntime(state);
-  const playerState = getPlayerState(runtime, playerId);
-  if (!playerState || !playerState.alive) return false;
-
-  playerState.alive = false;
-  updateGame(state);
-
-  const lang = channelLang(state);
-  const name = playerDisplayName(state, playerId);
-  await channel.send(t(lang, "dayPlayerDied", { name }));
-
-  await triggerDeathHandlers(
-    client,
-    state as ActiveGameState,
-    playerId,
-    "day",
-    byExecution,
-  );
-
-  const pending = runtime.pendingEndGame;
-  if (pending) {
-    runtime.pendingEndGame = null;
-    if (pending.extraAnnouncementKey) {
-      await sendEndGameExtraAnnouncement(
-        channel,
-        lang,
-        pending.extraAnnouncementKey,
-        name,
-      );
-    }
-    await endGame(client, state, channel, pending.winMessageKey);
-    return true;
-  }
-
-  return await checkWinConditions(client, state, channel);
-}
-
-// ── Nomination window close ───────────────────────────────────────────────────
+// ── Window close & finalize ──────────────────────────────────────────────────
 
 async function closeNominationWindow(
   client: Client,
@@ -154,7 +47,7 @@ async function closeNominationWindow(
 
   const runtime = ensureRuntime(state);
   const daySession = runtime.daySession;
-  if (!daySession || !daySession.activeNomination) return;
+  if (!daySession?.activeNomination) return;
 
   const nomination = daySession.activeNomination;
   if (nomination.status !== "active") return;
@@ -173,7 +66,6 @@ async function finalizeNomination(
   const daySession = runtime.daySession!;
   const lang = channelLang(state);
 
-  // Count votes, applying Butler rule
   const alivePlayers = getAlivePlayers(state);
   const aliveThenCount = alivePlayers.length;
 
@@ -181,7 +73,7 @@ async function finalizeNomination(
   for (const voterId of nomination.votes) {
     const voterPs = getPlayerState(runtime, voterId);
     if (voterPs?.role.id === "butler") {
-      // Butler vote only counts if master also voted by window close
+      // Butler vote only counts if their master also voted by window close.
       const masterId = runtime.playerStates.find((ps) =>
         ps.tags.has("butler_master"),
       )?.player.userId;
@@ -211,188 +103,25 @@ async function finalizeNomination(
 
   updateGame(state);
 
-  // Check if all alive players have now been nominated (day ends automatically)
   const allNominated = checkAllNominated(state);
   if (allNominated && !daySession.dayEndsAfterNomination) {
     daySession.dayEndsAfterNomination = true;
     await channel.send(t(lang, "dayAllNominated"));
   }
 
-  // If any end condition is met and no active nomination, process end of day
   if (daySession.dayEndsAfterNomination && !daySession.activeNomination) {
     await processEndOfDay(client, state, channel);
   }
 }
 
-function checkAllNominated(state: GameState): boolean {
+export function checkAllNominated(state: GameState): boolean {
   const runtime = ensureRuntime(state);
   const daySession = runtime.daySession!;
   const alivePlayers = getAlivePlayers(state);
   return alivePlayers.every((p) => daySession.nomineeIds.has(p.userId));
 }
 
-// ── End-of-day processing ─────────────────────────────────────────────────────
-
-export async function processEndOfDay(
-  client: Client,
-  state: GameState,
-  channel: TextChannel,
-): Promise<void> {
-  const runtime = ensureRuntime(state);
-  const daySession = runtime.daySession!;
-  const lang = channelLang(state);
-
-  daySession.status = "ended";
-  updateGame(state);
-
-  // Tally all completed nominations to find who gets executed
-  const completed = daySession.nominations.filter(
-    (n) => n.status === "completed",
-  );
-
-  let executedNomination: NominationRecord | null = null;
-  let maxVotes = 0;
-  let tie = false;
-
-  for (const nom of completed) {
-    const required = Math.floor(nom.aliveThenCount / 2) + 1;
-    if (nom.finalVoteCount < required) continue; // Doesn't meet majority threshold
-
-    if (nom.finalVoteCount > maxVotes) {
-      maxVotes = nom.finalVoteCount;
-      executedNomination = nom;
-      tie = false;
-    } else if (nom.finalVoteCount === maxVotes) {
-      tie = true;
-      executedNomination = null;
-    }
-  }
-
-  if (tie || !executedNomination) {
-    await channel.send(t(lang, "dayNoExecution"));
-
-    // Mayor win condition: exactly 3 alive, no execution, Mayor is alive
-    const alive = getAlivePlayers(state);
-    if (alive.length === 3) {
-      const mayorPlayer = alive.find(
-        (p) => getRole(runtime, p.userId).id === "mayor",
-      );
-      if (mayorPlayer) {
-        await channel.send(
-          t(lang, "dayMayorWin", { player: mayorPlayer.displayName }),
-        );
-        await endGame(client, state, channel, "dayGoodWins");
-        return;
-      }
-    }
-
-    runtime.lastExecutedPlayerId = null;
-    updateGame(state);
-    await startNextNight(client, state, channel);
-    return;
-  }
-
-  // Execute the winner
-  const executeId = executedNomination.nomineeId;
-  const executeName = playerDisplayName(state, executeId);
-
-  await channel.send(
-    t(lang, "dayExecuted", {
-      player: executeName,
-      votes: executedNomination.finalVoteCount,
-    }),
-  );
-
-  runtime.lastExecutedPlayerId = executeId;
-  updateGame(state);
-
-  const gameEnded = await killPlayerDuringDay(
-    client,
-    state,
-    channel,
-    executeId,
-    true, // byExecution — triggers Saint death handler if applicable
-  );
-  if (gameEnded) return;
-
-  await startNextNight(client, state, channel);
-}
-
-async function startNextNight(
-  client: Client,
-  state: GameState,
-  channel: TextChannel,
-): Promise<void> {
-  const lang = channelLang(state);
-  await channel.send(t(lang, "dayNightFalls"));
-  // Dynamic import to avoid circular dependency with night.ts
-  const { startNightPhase } = (await import("./night")) as {
-    startNightPhase: (client: Client, state: GameState) => Promise<void>;
-  };
-  await startNightPhase(client, state);
-}
-
-// ── startDayPhase (called from night.ts after step 3 messages are sent) ───────
-
-export async function startDayPhase(
-  client: Client,
-  state: GameState,
-): Promise<void> {
-  const runtime = ensureRuntime(state);
-  const lang = channelLang(state);
-
-  // Consume night kill list
-  const nightKillIds = [...(runtime.nightKillIds ?? [])];
-  runtime.nightKillIds = [];
-
-  const dayNumber = runtime.nightNumber; // day N follows night N
-
-  // Initialize day session
-  runtime.daySession = {
-    dayNumber,
-    nominatorIds: new Set(),
-    nomineeIds: new Set(),
-    nominations: [],
-    activeNomination: null,
-    endDayVotes: new Set(),
-    endDayThresholdMet: false,
-    dayEndsAfterNomination: false,
-    status: "open",
-    nightKillIds: [],
-    pendingSlayRecluse: null,
-    pendingSlayFixed: null,
-  };
-
-  updateGame(state);
-
-  const channel = (await client.channels.fetch(state.channelId)) as TextChannel;
-
-  // Announce night deaths
-  if (nightKillIds.length === 0) {
-    await channel.send(t(lang, "dayDawnPeaceful", { day: dayNumber }));
-  } else {
-    const deathNames = nightKillIds
-      .map((id) => playerDisplayName(state, id))
-      .join(", ");
-    await channel.send(
-      t(lang, "dayDawnDeaths", { day: dayNumber, players: deathNames }),
-    );
-  }
-
-  // Check win conditions right after night deaths
-  const gameEnded = await checkWinConditions(client, state, channel);
-  if (gameEnded) return;
-
-  // Announce alive players and open discussion
-  const alive = getAlivePlayers(state);
-  const sep = lang === "zh" ? "、" : ", ";
-  const aliveNames = alive.map((p) => p.displayName).join(sep);
-  await channel.send(
-    t(lang, "dayDiscussionOpen", { count: alive.length, players: aliveNames }),
-  );
-}
-
-// ── /nominate command handler ─────────────────────────────────────────────────
+// ── /nominate ────────────────────────────────────────────────────────────────
 
 export async function handleNominate(
   i: ChatInputCommandInteraction,
@@ -409,7 +138,6 @@ export async function handleNominate(
 
   if (areChannelCommandsDisabled(state)) return;
 
-  // Storyteller cannot nominate
   if (state.storytellerId === i.user.id) {
     await i.reply({
       content: tr("dayStorytellerCannotNominate"),
@@ -422,43 +150,32 @@ export async function handleNominate(
   const daySession = runtime.daySession;
 
   if (!daySession || daySession.status !== "open") {
-    await i.reply({
-      content: tr("dayNominationsNotOpen"),
-      ephemeral: true,
-    });
+    await i.reply({ content: tr("dayNominationsNotOpen"), ephemeral: true });
     return;
   }
 
-  // Must be a registered player
   const nominator = state.players.find((p) => p.userId === i.user.id);
   if (!nominator) {
     await i.reply({ content: tr("dayNotAPlayer"), ephemeral: true });
     return;
   }
 
-  // Must be alive
   const nominatorRtState = getPlayerState(runtime, i.user.id);
   if (!nominatorRtState?.alive) {
-    await i.reply({
-      content: tr("dayDeadCannotNominate"),
-      ephemeral: true,
-    });
+    await i.reply({ content: tr("dayDeadCannotNominate"), ephemeral: true });
     return;
   }
 
-  // Each player may nominate at most once per day
   if (daySession.nominatorIds.has(i.user.id)) {
     await i.reply({ content: tr("dayAlreadyNominated"), ephemeral: true });
     return;
   }
 
-  // No new nominations after end condition triggered
   if (daySession.endDayThresholdMet || daySession.dayEndsAfterNomination) {
     await i.reply({ content: tr("dayNoNewNominations"), ephemeral: true });
     return;
   }
 
-  // Cannot start if another nomination is active
   if (daySession.activeNomination) {
     await i.reply({
       content: tr("dayNominationInProgress"),
@@ -467,7 +184,6 @@ export async function handleNominate(
     return;
   }
 
-  // Resolve nominee
   const nomineeInput = i.options.getString("player", true);
   const nominee = resolvePlayer(nomineeInput, state.players);
   if (!nominee) {
@@ -478,7 +194,6 @@ export async function handleNominate(
     return;
   }
 
-  // Nominee must be alive
   const nomineeRtState = getPlayerState(runtime, nominee.userId);
   if (!nomineeRtState?.alive) {
     await i.reply({
@@ -488,7 +203,6 @@ export async function handleNominate(
     return;
   }
 
-  // Each player may be nominated at most once per day
   if (daySession.nomineeIds.has(nominee.userId)) {
     await i.reply({
       content: tr("dayAlreadyNominee", { player: nominee.displayName }),
@@ -505,15 +219,12 @@ export async function handleNominate(
       ? registersAsTownsfolkForDetection(nominatorRealRole)
       : nominatorRealRole.category === "Townsfolk";
 
-  // Virgin triggers if: nominee is Virgin, not poisoned, never nominated before,
-  // and nominator's true role is Townsfolk (not Drunk, not Evil)
   const virginTriggered =
     nomineeRole.id === "virgin" &&
     !(getPlayerState(runtime, nominee.userId)?.tags.has("poisoned") ?? false) &&
     nominatorRealRole.id !== "drunk" &&
     nominatorRegistersAsTownsfolk;
 
-  // Mark as nominated/nominator (before any early returns)
   daySession.nominatorIds.add(i.user.id);
   daySession.nomineeIds.add(nominee.userId);
 
@@ -525,7 +236,6 @@ export async function handleNominate(
       }),
     );
 
-    // Cancel nomination with 0 votes
     const nomination: NominationRecord = {
       nominatorId: i.user.id,
       nomineeId: nominee.userId,
@@ -536,7 +246,6 @@ export async function handleNominate(
       status: "cancelled",
     };
     daySession.nominations.push(nomination);
-    runtime.lastExecutedPlayerId = i.user.id;
     updateGame(state);
 
     const channel = (await client.channels.fetch(
@@ -546,13 +255,11 @@ export async function handleNominate(
       t(lang, "dayVirginTriggered", { nominator: nominator.displayName }),
     );
 
-    const gameEnded = await killPlayerDuringDay(
-      client,
-      state,
+    const gameEnded = await killPlayer(client, state, i.user.id, {
+      phase: "day",
+      byExecution: true,
       channel,
-      i.user.id,
-      true, // byExecution — triggers Saint death handler if applicable
-    );
+    });
     if (!gameEnded) {
       if (checkAllNominated(state) || daySession.endDayThresholdMet) {
         daySession.dayEndsAfterNomination = true;
@@ -566,7 +273,7 @@ export async function handleNominate(
   const nomination: NominationRecord = {
     nominatorId: i.user.id,
     nomineeId: nominee.userId,
-    votes: new Set([i.user.id]), // nominator's vote is automatic
+    votes: new Set([i.user.id]),
     finalVoteCount: 0,
     aliveThenCount: 0,
     windowClosedAt: 0,
@@ -583,21 +290,19 @@ export async function handleNominate(
     }),
   );
 
-  // 1-minute vote window
   const timer = setTimeout(() => {
     closeNominationWindow(client, state.channelId).catch(console.error);
   }, 60_000);
   nominationTimers.set(state.channelId, timer);
 }
 
-// ── /ye command handler ───────────────────────────────────────────────────────
+// ── /ye ──────────────────────────────────────────────────────────────────────
 
 export async function handleYe(
   i: ChatInputCommandInteraction,
-  client: Client,
+  _client: Client,
 ): Promise<void> {
   const state = getGame(i.channelId);
-  const lang = getLang(i.user.id, state?.guildId ?? i.guildId);
   const tr = useTranslation(i.user.id, state?.guildId ?? i.guildId);
 
   if (!state || state.phase !== "in_progress") {
@@ -607,7 +312,6 @@ export async function handleYe(
 
   if (areChannelCommandsDisabled(state)) return;
 
-  // Storyteller cannot vote
   if (state.storytellerId === i.user.id) {
     await i.reply({
       content: tr("dayStorytellerCannotVote"),
@@ -632,10 +336,7 @@ export async function handleYe(
 
   const nomination = daySession.activeNomination;
   if (!nomination || nomination.status !== "active") {
-    await i.reply({
-      content: tr("dayNoActiveNomination"),
-      ephemeral: true,
-    });
+    await i.reply({ content: tr("dayNoActiveNomination"), ephemeral: true });
     return;
   }
 
@@ -643,13 +344,11 @@ export async function handleYe(
   const isAlive = playerState?.alive ?? false;
 
   if (!isAlive) {
-    // Dead player uses ghost vote
-    if (playerState?.tags.has("ghost_vote_used")) {
+    const gv = useGhostVote(state, i.user.id);
+    if (!gv.ok) {
       await i.reply({ content: tr("dayGhostVoteUsed"), ephemeral: true });
       return;
     }
-    // Mark ghost vote as used
-    if (playerState) playerState.tags.add("ghost_vote_used");
   }
 
   if (nomination.votes.has(i.user.id)) {
@@ -668,8 +367,9 @@ export async function handleYe(
   });
 }
 
+/** Idempotent. */
 export async function cancelActiveNomination(
-  client: Client,
+  _client: Client,
   state: GameState,
   channel: TextChannel,
   killedPlayerId: string,
@@ -689,13 +389,12 @@ export async function cancelActiveNomination(
   await channel.send(t(lang, "dayCancelNomination", { player: killedName }));
   updateGame(state);
 
-  // Check if day should still end
   if (daySession.dayEndsAfterNomination) {
-    await processEndOfDay(client, state, channel);
+    await processEndOfDay(_client, state, channel);
   }
 }
 
-// ── /endday command handler ───────────────────────────────────────────────────
+// ── /endday ──────────────────────────────────────────────────────────────────
 
 export async function handleEndDay(
   i: ChatInputCommandInteraction,
@@ -722,7 +421,6 @@ export async function handleEndDay(
 
   const channel = (await client.channels.fetch(state.channelId)) as TextChannel;
 
-  // Storyteller /endday ends the day immediately
   if (state.storytellerId === i.user.id) {
     await i.reply({
       content: tr("dayEndedByStoryteller"),
@@ -739,21 +437,18 @@ export async function handleEndDay(
     return;
   }
 
-  // Players vote to end the day
   const player = state.players.find((p) => p.userId === i.user.id);
   if (!player) {
     await i.reply({ content: tr("dayNotInGame"), ephemeral: true });
     return;
   }
 
-  // Dead players' /endday is silently ignored
   const playerState = getPlayerState(runtime, i.user.id);
   if (!playerState?.alive) {
     await i.reply({ content: tr("dayNoted"), ephemeral: true });
     return;
   }
 
-  // Already voted
   if (daySession.endDayVotes.has(i.user.id)) {
     await i.reply({
       content: tr("dayAlreadyVotedEndDay"),
@@ -765,7 +460,6 @@ export async function handleEndDay(
   daySession.endDayVotes.add(i.user.id);
   updateGame(state);
 
-  // Check threshold: strictly more than half of alive players
   const aliveCount = getAlivePlayers(state).length;
   const threshold = Math.floor(aliveCount / 2) + 1;
   const voteCount = daySession.endDayVotes.size;
@@ -792,47 +486,4 @@ export async function handleEndDay(
       await processEndOfDay(client, state, channel);
     }
   }
-}
-
-/** Handle the case where a /ye voter is killed during the vote window. */
-export function removeVoteIfKilledDuringNomination(
-  state: GameState,
-  playerId: string,
-): void {
-  const runtime = ensureRuntime(state);
-  const daySession = runtime.daySession;
-  if (!daySession?.activeNomination) return;
-  if (daySession.activeNomination.votes.has(playerId)) {
-    daySession.activeNomination.votes.delete(playerId);
-  }
-}
-
-export interface ActiveNominationInfo {
-  nomineeName: string;
-  nominatorName: string;
-  voterNames: string[];
-  voteCount: number;
-}
-
-export function getActiveNominationInfo(
-  state: GameState,
-): ActiveNominationInfo | null {
-  const runtime = ensureRuntime(state);
-  const nomination = runtime.daySession?.activeNomination;
-  if (!nomination || nomination.status !== "active") return null;
-  return {
-    nomineeName: playerDisplayName(state, nomination.nomineeId),
-    nominatorName: playerDisplayName(state, nomination.nominatorId),
-    voterNames: [...nomination.votes].map((id) => playerDisplayName(state, id)),
-    voteCount: nomination.votes.size,
-  };
-}
-
-async function sendEndGameExtraAnnouncement(
-  channel: TextChannel,
-  lang: "en" | "zh",
-  key: DayExtraAnnouncementKey,
-  player: string,
-): Promise<void> {
-  await channel.send(t(lang, key, { player }));
 }

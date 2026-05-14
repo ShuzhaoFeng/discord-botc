@@ -1,6 +1,5 @@
 import type { RoleDefinition } from "../types";
 import { Night } from "../types";
-import { getRole } from "../../game/utils";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
 
@@ -13,11 +12,19 @@ export const definition: RoleDefinition = {
       active: Night.afterFirst,
       compute: (ctx) => {
         const { runtime } = ctx.state;
-        if (!runtime.lastExecutedPlayerId) return null;
-        const executedRole = getRole(runtime, runtime.lastExecutedPlayerId);
+        // daySession is the just-ended day (status="ended") at this point.
+        // Revived players have their death record cleared, so they drop out.
+        const dayNumber = runtime.daySession?.dayNumber;
+        if (dayNumber === undefined) return null;
+        const executedPs = runtime.playerStates.find(
+          (ps) =>
+            ps.death?.byExecution === true &&
+            ps.death.dayNumber === dayNumber,
+        );
+        if (!executedPs) return null;
         return {
           templateId: "undertaker_role",
-          fields: { role: executedRole.id },
+          fields: { role: executedPs.role.id },
           fieldTypes: {},
           allowArbitraryOverride: false,
           reasonKey: "nightReasonExecutionRecord",

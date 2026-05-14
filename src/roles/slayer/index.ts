@@ -78,7 +78,10 @@ const FIXED_SCENARIOS: Record<FixedScenarioId, FixedScenario> = {
 // ─── Resolvers ───────────────────────────────────────────────────────────────
 
 /** ST translator with a fallback to the slayer's translator in automated mode. */
-function storytellerTranslator(ctx: DayGameCtx, fallback: Translator): Translator {
+function storytellerTranslator(
+  ctx: DayGameCtx,
+  fallback: Translator,
+): Translator {
   return ctx.state.storytellerId
     ? useTranslation(ctx.state.storytellerId, ctx.state.guildId)
     : fallback;
@@ -94,7 +97,7 @@ async function applySlayKill(
   targetId: string,
 ): Promise<boolean> {
   const daySession = ctx.state.runtime.daySession!;
-  const gameEnded = await ctx.day.killPlayerDuringDay(channel, targetId);
+  const gameEnded = await ctx.day.killPlayer(channel, targetId);
   if (!gameEnded && daySession.activeNomination?.nomineeId === targetId) {
     await ctx.day.cancelActiveNomination(channel, targetId);
   }
@@ -329,7 +332,7 @@ const slayCommand: RoleCommandDefinition = {
 
 // ─── Storyteller DM (SLAY CONFIRM / SLAY KILL / SLAY NOTHING) ────────────────
 
-async function handleStorytellerDm(
+async function handleStorytellerDM(
   message: Message,
   ctx: DayGameCtx,
 ): Promise<boolean> {
@@ -354,9 +357,7 @@ async function handleStorytellerDm(
 
     const kill = pending.outcome === "kill";
     await message.reply(
-      kill
-        ? trSt("daySlayConfirmedKill")
-        : trSt("daySlayConfirmedNothing"),
+      kill ? trSt("daySlayConfirmedKill") : trSt("daySlayConfirmedNothing"),
     );
     await broadcastSlayConfirmation(
       ctx,
@@ -403,5 +404,5 @@ export const definition: RoleDefinition = {
   name: { en: en.name, zh: zh.name },
   guide: { en: en.guide, zh: zh.guide },
   commands: [slayCommand],
-  handleStorytellerDm,
+  handleStorytellerDM,
 };

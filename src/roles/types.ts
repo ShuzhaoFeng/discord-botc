@@ -30,7 +30,8 @@ export interface NightPhaseCtx {
 
 /** Fields specific to a day-phase handler invocation. */
 export interface DayPhaseCtx {
-  killPlayerDuringDay: (
+  /** Returns true iff the game synchronously ended (automated mode + win condition). */
+  killPlayer: (
     channel: TextChannel,
     playerId: string,
     byExecution?: boolean,
@@ -145,7 +146,7 @@ export interface RoleDefinition {
    * (e.g. SLAY CONFIRM / SLAY KILL / SLAY NOTHING).
    * Return true if the message was consumed.
    */
-  handleStorytellerDm?: (message: Message, ctx: DayGameCtx) => Promise<boolean>;
+  handleStorytellerDM?: (message: Message, ctx: DayGameCtx) => Promise<boolean>;
 }
 
 export const Night = {

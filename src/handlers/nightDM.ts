@@ -5,8 +5,8 @@ import {
   getGamesByTestOwner,
   updateGame,
 } from "../game/state";
-import { handleNightPlayerDm } from "../game/night";
-import { handleRoleStorytellerDm } from "../game/roleCommands";
+import { handleNightPlayerDM } from "../game/night";
+import { handleRoleStorytellerDM } from "../game/roleCommands";
 import { resolvePlayer } from "../game/utils";
 
 function parseAsPrefix(
@@ -18,7 +18,7 @@ function parseAsPrefix(
   return { playerName: match[1], payload: match[2].trim() };
 }
 
-async function handleNightDmAsFakePlayer(
+async function handleNightDMAsFakePlayer(
   message: Message,
   client: Client,
 ): Promise<boolean> {
@@ -43,7 +43,7 @@ async function handleNightDmAsFakePlayer(
       },
     });
 
-    const handled = await handleNightPlayerDm(clonedMessage, client, state);
+    const handled = await handleNightPlayerDM(clonedMessage, client, state);
     if (handled) {
       updateGame(state);
       return true;
@@ -53,7 +53,7 @@ async function handleNightDmAsFakePlayer(
   return false;
 }
 
-export async function handleNightDm(
+export async function handleNightDM(
   message: Message,
   client: Client,
 ): Promise<boolean> {
@@ -61,18 +61,17 @@ export async function handleNightDm(
   const stState = getGameByStoryteller(message.author.id);
   if (stState && stState.mode === "manual" && stState.phase === "in_progress") {
     // Day-phase storyteller commands (e.g. SLAY KILL / SLAY NOTHING)
-    const roleHandled = await handleRoleStorytellerDm(message, client, stState);
+    const roleHandled = await handleRoleStorytellerDM(message, client, stState);
     if (roleHandled) {
       updateGame(stState);
       return true;
     }
-
   }
 
   // Real player night responses.
   const playerState = getGameByPlayer(message.author.id);
   if (playerState && playerState.phase === "in_progress") {
-    const handled = await handleNightPlayerDm(message, client, playerState);
+    const handled = await handleNightPlayerDM(message, client, playerState);
     if (handled) {
       updateGame(playerState);
       return true;
@@ -80,7 +79,7 @@ export async function handleNightDm(
   }
 
   // Test-owner proxy DM replies for fake players.
-  if (await handleNightDmAsFakePlayer(message, client)) {
+  if (await handleNightDMAsFakePlayer(message, client)) {
     return true;
   }
 
