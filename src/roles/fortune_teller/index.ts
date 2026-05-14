@@ -3,13 +3,16 @@ import { Night } from "../types";
 import { getPlayerState, getRole, hasFalsifiedInfo } from "../../utils/runtime";
 import { registersAs } from "../../utils/roleDetection";
 import type { NightOutcomeFieldType } from "../../game/types";
+import { localize } from "../../utils/roleI18n";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
 
+const i18n = { en, zh };
+
 export const definition: RoleDefinition = {
   id: "fortune_teller",
-  name: { en: en.name, zh: zh.name },
-  guide: { en: en.guide, zh: zh.guide },
+  name: localize(i18n, "name"),
+  guide: localize(i18n, "guide"),
   nightHandlers: {
     action: {
       active: Night.always,

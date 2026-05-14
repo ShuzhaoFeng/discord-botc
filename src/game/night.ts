@@ -25,10 +25,10 @@ import {
   getRole,
   hasFalsifiedInfo,
   pick,
-  playerDisplayName,
   notifyStoryteller,
   resolvePlayer,
 } from "./utils";
+import { playerDisplayName } from "../utils/players";
 import { logBotMessage, logPlayerMessage } from "../utils/chatLog";
 import { getGuildSettings } from "../guildSettings";
 import { killPlayer } from "./death";
@@ -208,6 +208,17 @@ export async function startNightPhase(
   };
 
   runtime.nightSession = session;
+
+  // Manual mode can legitimately have no phase-1 messages (e.g. online mode
+  // plus no first-night action roles). In that case, skip the storyteller
+  // action stage and proceed with night resolution immediately.
+  if (state.mode === "manual" && session.actionMessages.size === 0) {
+    session.status = "awaiting_players";
+    updateGame(state);
+    await resolveNightOutcomes(client, state);
+    await proceedAfterResolution(client, state, session);
+    return;
+  }
 
   if (state.mode === "automated") {
     for (const p of alivePlayers) {

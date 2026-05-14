@@ -9,11 +9,8 @@ import { ALL_ROLE_DEFINITIONS } from "../roles/index";
 import { getGame } from "./state";
 import type { ActiveGameState, GameState } from "./types";
 import type { DayGameCtx } from "../roles/types";
-import {
-  areChannelCommandsDisabled,
-  notifyStoryteller,
-  playerDisplayName,
-} from "./utils";
+import { areChannelCommandsDisabled, notifyStoryteller } from "./utils";
+import { playerDisplayName } from "../utils/players";
 import { cancelActiveNomination } from "./nominations";
 import { killPlayer } from "./death";
 

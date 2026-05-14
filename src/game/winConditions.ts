@@ -1,142 +1,94 @@
 /**
  * Win-condition evaluation and game-end finalization.
  *
- * In automated mode a triggered condition finalizes the game in-place.
+ * Generic conditions (demon dead, two-or-fewer alive) live here. Role-specific
+ * conditions are `winConditionHandler`s on individual `RoleDefinition`s.
  *
- * In manual mode the proposal is appended to `runtime.pendingGameEnds`
- * and flow keeps running — players must not be able to tell from the bot's
- * response latency whether a death was decisive.
+ * In automated mode a triggered condition finalizes the game in-place. In
+ * manual mode the proposal is queued in `runtime.pendingGameEnds` and flow
+ * keeps running — players must not be able to tell from bot latency whether
+ * a death was decisive.
  */
 
 import { Client, TextChannel } from "discord.js";
-import { GameState } from "./types";
+import {
+  ActiveGameState,
+  GameEndProposal,
+  GameState,
+  Lang,
+  WinCheckTrigger,
+  WinVerdict,
+} from "./types";
 import { getRoleName, t } from "../i18n";
 import { updateGame } from "./state";
 import {
   channelLang,
   ensureRuntime,
   notifyStoryteller,
-  playerDisplayName,
 } from "./utils";
+import { ALL_ROLE_DEFINITIONS } from "../roles/index";
 
-export type WinTeam = "good" | "evil";
+export type { WinCheckTrigger, WinVerdict, GameEndProposal } from "./types";
 
-export type WinConditionKind =
-  | "good_imp_dead"
-  | "good_mayor_three_alive"
-  | "evil_two_alive"
-  | "evil_saint_executed";
-
-export interface WinCondition {
-  kind: WinConditionKind;
-  team: WinTeam;
-  context?: { saintPlayerId?: string; mayorPlayerId?: string };
-}
-
-export interface GameEndProposal {
-  id: string;
-  condition: WinCondition;
-  /** Announced before the win message (Saint / Mayor flavor); null when not applicable. */
-  preamble: string | null;
-  winAnnouncement: string;
-  rolesReveal: string;
-  enqueuedAt: number;
-}
-
-export type WinCheckTrigger = "death" | "day_end_no_execution";
-
-/**
- * Priority order is load-bearing:
- *   1. Saint executed — wins even if other conditions also hold.
- *   2. Imp dead — Scarlet promotion already ran, so this checks post-handler state.
- *   3. Two or fewer alive.
- *   4. Mayor three-alive — only checked on day_end_no_execution trigger.
- */
-export function evaluateWinCondition(
-  state: GameState,
-  opts: { trigger: WinCheckTrigger },
-): WinCondition | null {
+function evaluateGeneric(
+  state: ActiveGameState,
+  lang: Lang,
+): WinVerdict | null {
   const runtime = state.runtime;
-  if (!runtime) return null;
-
-  const saintExecuted = runtime.playerStates.find(
-    (ps) =>
-      ps.role.id === "saint" &&
-      !ps.alive &&
-      ps.death?.byExecution === true,
-  );
-  if (saintExecuted) {
-    return {
-      kind: "evil_saint_executed",
-      team: "evil",
-      context: { saintPlayerId: saintExecuted.player.userId },
-    };
-  }
 
   const impAlive = runtime.playerStates.some(
     (ps) => ps.role.id === "imp" && ps.alive,
   );
   if (!impAlive) {
-    return { kind: "good_imp_dead", team: "good" };
+    return {
+      kind: "good_imp_dead",
+      team: "good",
+      preamble: null,
+      winAnnouncement: t(lang, "dayGoodWins"),
+    };
   }
 
   const aliveCount = runtime.playerStates.filter((ps) => ps.alive).length;
   if (aliveCount <= 2) {
-    return { kind: "evil_two_alive", team: "evil" };
-  }
-
-  if (opts.trigger === "day_end_no_execution" && aliveCount === 3) {
-    const mayor = runtime.playerStates.find(
-      (ps) => ps.alive && ps.role.id === "mayor",
-    );
-    if (mayor) {
-      return {
-        kind: "good_mayor_three_alive",
-        team: "good",
-        context: { mayorPlayerId: mayor.player.userId },
-      };
-    }
+    return {
+      kind: "evil_two_alive",
+      team: "evil",
+      preamble: null,
+      winAnnouncement: t(lang, "dayEvilWinsAlive"),
+    };
   }
 
   return null;
 }
 
+export function evaluateWinCondition(
+  state: GameState,
+  opts: { trigger: WinCheckTrigger },
+): WinVerdict | null {
+  if (!state.runtime) return null;
+  const activeState = state as ActiveGameState;
+  const lang = channelLang(state);
+
+  for (const def of ALL_ROLE_DEFINITIONS) {
+    const handler = def.winConditionHandler;
+    if (!handler) continue;
+    const verdict = handler.evaluate({
+      state: activeState,
+      trigger: opts.trigger,
+      lang,
+    });
+    if (verdict) return verdict;
+  }
+
+  return evaluateGeneric(activeState, lang);
+}
+
 export function buildGameEndProposal(
   state: GameState,
-  condition: WinCondition,
+  verdict: WinVerdict,
 ): GameEndProposal {
   const runtime = ensureRuntime(state);
   const lang = channelLang(state);
-
-  let preamble: string | null = null;
-  let winAnnouncement: string;
-
-  switch (condition.kind) {
-    case "evil_saint_executed": {
-      const name = playerDisplayName(
-        state,
-        condition.context!.saintPlayerId!,
-      );
-      preamble = t(lang, "daySaintExecuted", { player: name });
-      winAnnouncement = t(lang, "dayEvilWinsSaint");
-      break;
-    }
-    case "good_imp_dead":
-      winAnnouncement = t(lang, "dayGoodWins");
-      break;
-    case "evil_two_alive":
-      winAnnouncement = t(lang, "dayEvilWinsAlive");
-      break;
-    case "good_mayor_three_alive": {
-      const name = playerDisplayName(
-        state,
-        condition.context!.mayorPlayerId!,
-      );
-      preamble = t(lang, "dayMayorWin", { player: name });
-      winAnnouncement = t(lang, "dayGoodWins");
-      break;
-    }
-  }
 
   const lines = runtime.playerStates.map((ps) => {
     const aliveLabel = ps.alive ? t(lang, "dayAlive") : t(lang, "dayDead");
@@ -147,9 +99,10 @@ export function buildGameEndProposal(
 
   return {
     id: nextProposalId(),
-    condition,
-    preamble,
-    winAnnouncement,
+    kind: verdict.kind,
+    team: verdict.team,
+    preamble: verdict.preamble,
+    winAnnouncement: verdict.winAnnouncement,
     rolesReveal,
     enqueuedAt: Date.now(),
   };
@@ -189,7 +142,7 @@ export async function finalizeGameEnd(
 /**
  * Returns true iff the game synchronously ended (automated mode + win condition).
  * In manual mode always returns false — the proposal is queued and flow
- * continues. Deduplicated by `WinConditionKind` so persistent state (e.g. a
+ * continues. Deduplicated by `WinVerdict.kind` so persistent state (e.g. a
  * dead Saint) doesn't re-enqueue on every subsequent event.
  */
 export async function maybeEndGame(
@@ -200,16 +153,16 @@ export async function maybeEndGame(
 ): Promise<boolean> {
   const runtime = ensureRuntime(state);
 
-  const condition = evaluateWinCondition(state, { trigger });
-  if (!condition) return false;
+  const verdict = evaluateWinCondition(state, { trigger });
+  if (!verdict) return false;
 
   if (state.mode === "manual" && state.storytellerId) {
     const alreadyPending = runtime.pendingGameEnds.some(
-      (p) => p.condition.kind === condition.kind,
+      (p) => p.kind === verdict.kind,
     );
     if (alreadyPending) return false;
 
-    const proposal = buildGameEndProposal(state, condition);
+    const proposal = buildGameEndProposal(state, verdict);
     runtime.pendingGameEnds.push(proposal);
     updateGame(state);
 
@@ -223,7 +176,7 @@ export async function maybeEndGame(
     return false;
   }
 
-  const proposal = buildGameEndProposal(state, condition);
+  const proposal = buildGameEndProposal(state, verdict);
   await finalizeGameEnd(client, state, channel, {
     preamble: proposal.preamble,
     winAnnouncement: proposal.winAnnouncement,

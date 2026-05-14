@@ -3,8 +3,11 @@ import { Night } from "../types";
 import { getPlayerState, hasFalsifiedInfo, isEvil } from "../../utils/runtime";
 import { registersAs } from "../../utils/roleDetection";
 import type { NightOutcomeFieldType, RuntimeState } from "../../game/types";
+import { localize } from "../../utils/roleI18n";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
+
+const i18n = { en, zh };
 
 function computeChefCount(
   runtime: RuntimeState,
@@ -28,8 +31,8 @@ function computeChefCount(
 
 export const definition: RoleDefinition = {
   id: "chef",
-  name: { en: en.name, zh: zh.name },
-  guide: { en: en.guide, zh: zh.guide },
+  name: localize(i18n, "name"),
+  guide: localize(i18n, "guide"),
   nightHandlers: {
     info: {
       active: Night.firstOnly,

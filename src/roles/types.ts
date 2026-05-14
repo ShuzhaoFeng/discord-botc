@@ -1,8 +1,3 @@
-export interface LocalizedString {
-  en: string;
-  zh: string;
-}
-
 import type {
   ActiveGameState,
   InputSpec,
@@ -10,7 +5,11 @@ import type {
   NightOutcomeDraft,
   Player,
   Role,
+  WinCheckTrigger,
+  WinVerdict,
 } from "../game/types";
+
+export type LocalizedString = Partial<Record<Lang, string>>;
 import {
   Client,
   Message,
@@ -133,6 +132,22 @@ export interface RoleDeathHandler {
   onDeath: (ctx: DeathCtx) => Promise<void>;
 }
 
+export interface WinConditionCtx {
+  state: ActiveGameState;
+  trigger: WinCheckTrigger;
+  lang: Lang;
+}
+
+/**
+ * Optional per-role win-condition check. Role handlers run before the
+ * generic checks; the first non-null verdict wins. Order between role
+ * handlers is unspecified — if two role conditions could ever fire on the
+ * same trigger, introduce explicit tie-breaking before adding the second.
+ */
+export interface RoleWinConditionHandler {
+  evaluate: (ctx: WinConditionCtx) => WinVerdict | null;
+}
+
 export interface RoleDefinition {
   id: string;
   name: LocalizedString;
@@ -141,6 +156,8 @@ export interface RoleDefinition {
   commands?: RoleCommandDefinition[];
   /** Called whenever any player dies; handler decides internally if it cares. */
   deathHandler?: RoleDeathHandler;
+  /** Optional role-specific win condition; iterated by `evaluateWinCondition`. */
+  winConditionHandler?: RoleWinConditionHandler;
   /**
    * Storyteller DM handler for role-specific pending → confirm patterns
    * (e.g. SLAY CONFIRM / SLAY KILL / SLAY NOTHING).

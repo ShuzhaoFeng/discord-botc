@@ -68,10 +68,6 @@ export function getAlivePlayers(state: GameState): Player[] {
   return runtime.playerStates.filter((ps) => ps.alive).map((ps) => ps.player);
 }
 
-export function playerDisplayName(state: GameState, userId: string): string {
-  return state.players.find((p) => p.userId === userId)?.displayName ?? userId;
-}
-
 /** Send a DM notification to the storyteller (non-blocking, best-effort). */
 export function notifyStoryteller(
   client: Client,

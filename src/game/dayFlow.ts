@@ -9,13 +9,29 @@ import { GameState, NominationRecord } from "./types";
 import { t } from "../i18n";
 import { updateGame } from "./state";
 import {
+  areChannelCommandsDisabled,
   channelLang,
   ensureRuntime,
   getAlivePlayers,
-  playerDisplayName,
 } from "./utils";
+import { playerDisplayName } from "../utils/players";
 import { killPlayer } from "./death";
 import { maybeEndGame } from "./winConditions";
+
+function getDayExecutions(state: GameState): string[] {
+  const runtime = ensureRuntime(state);
+  const dayNumber = runtime.daySession?.dayNumber;
+  if (dayNumber === undefined) return [];
+
+  return runtime.playerStates
+    .filter(
+      (ps) =>
+        ps.death?.phase === "day" &&
+        ps.death.byExecution === true &&
+        ps.death.dayNumber === dayNumber,
+    )
+    .map((ps) => playerDisplayName(state, ps.player.userId));
+}
 
 export async function startDayPhase(
   client: Client,
@@ -69,8 +85,12 @@ export async function startDayPhase(
   const sep = lang === "zh" ? "、" : ", ";
   const aliveNames = alive.map((p) => p.displayName).join(sep);
   await channel.send(
-    t(lang, "dayDiscussionOpen", { count: alive.length, players: aliveNames }),
+    t(lang, "dayAlivePlayers", { count: alive.length, players: aliveNames }),
   );
+
+  if (!areChannelCommandsDisabled(state)) {
+    await channel.send(t(lang, "dayDiscussionOpen"));
+  }
 }
 
 export async function processEndOfDay(
@@ -92,6 +112,7 @@ export async function processEndOfDay(
   let executedNomination: NominationRecord | null = null;
   let maxVotes = 0;
   let tie = false;
+  const dayExecutionNames = getDayExecutions(state);
 
   for (const nom of completed) {
     const required = Math.floor(nom.aliveThenCount / 2) + 1;
@@ -108,6 +129,18 @@ export async function processEndOfDay(
   }
 
   if (tie || !executedNomination) {
+    if (dayExecutionNames.length > 0) {
+      const sep = lang === "zh" ? "、" : ", ";
+      await channel.send(
+        t(lang, "dayExecutedTownsquare", {
+          players: dayExecutionNames.join(sep),
+        }),
+      );
+
+      await startNextNight(client, state, channel);
+      return;
+    }
+
     await channel.send(t(lang, "dayNoExecution"));
 
     const ended = await maybeEndGame(

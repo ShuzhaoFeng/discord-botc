@@ -13,12 +13,8 @@ import { ALL_ROLE_DEFINITIONS } from "../roles/index";
 import type { DeathCtx } from "../roles/types";
 import { t } from "../i18n";
 import { updateGame } from "./state";
-import {
-  channelLang,
-  ensureRuntime,
-  getPlayerState,
-  playerDisplayName,
-} from "./utils";
+import { channelLang, ensureRuntime, getPlayerState } from "./utils";
+import { playerDisplayName } from "../utils/players";
 import { maybeEndGame } from "./winConditions";
 
 export interface KillOptions {

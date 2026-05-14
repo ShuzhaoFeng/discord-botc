@@ -1,5 +1,3 @@
-import type { GameEndProposal } from "./winConditions";
-
 export type Lang = "en" | "zh";
 
 /** Prefix for all fake test-player userIds. The UUID segment lets us reliably
@@ -182,6 +180,32 @@ export interface NightSession {
   }>;
 }
 
+export type WinTeam = "good" | "evil";
+export type WinCheckTrigger = "death" | "day_end_no_execution";
+
+/**
+ * Result of a triggered win condition. `kind` is a stable identifier used to
+ * dedupe `pendingGameEnds`; each handler picks its own (e.g. `good_imp_dead`,
+ * `evil_saint_executed`).
+ */
+export interface WinVerdict {
+  kind: string;
+  team: WinTeam;
+  /** Optional flavor preamble (e.g. "X was the Saint!"); null when none. */
+  preamble: string | null;
+  winAnnouncement: string;
+}
+
+export interface GameEndProposal {
+  id: string;
+  kind: string;
+  team: WinTeam;
+  preamble: string | null;
+  winAnnouncement: string;
+  rolesReveal: string;
+  enqueuedAt: number;
+}
+
 export interface RuntimeState {
   nightNumber: number;
   playerStates: PlayerRuntimeState[]; // in seating order, same order as state.players
@@ -192,7 +216,7 @@ export interface RuntimeState {
   /**
    * Manual-mode approval queue. Flow does NOT pause while entries sit here —
    * players must not be able to tell from bot latency whether a death was
-   * decisive. Deduplicated by `WinConditionKind`.
+   * decisive. Deduplicated by `WinVerdict.kind`.
    */
   pendingGameEnds: GameEndProposal[];
 }

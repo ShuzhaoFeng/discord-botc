@@ -89,9 +89,9 @@ export default function NightControlPanel({
     ? detail.actionMessages
     : isDeathConfirmPhase
       ? undefined
-      : detail.infoMessages;
+      : (detail.infoMessages ?? []);
 
-  if (!isDeathConfirmPhase && (!entries || entries.length === 0)) {
+  if (isActionPhase && (!entries || entries.length === 0)) {
     return <StatusPanel text="Loading messages..." />;
   }
 

@@ -105,11 +105,12 @@ export interface NightDeathConfirmEntry {
   };
 }
 
-export type WinConditionKind =
-  | "good_imp_dead"
-  | "good_mayor_three_alive"
-  | "evil_two_alive"
-  | "evil_saint_executed";
+/**
+ * Server-side this is just a string — each role's win-condition handler picks
+ * its own kind. Known values today: `good_imp_dead`, `evil_two_alive`,
+ * `evil_saint_executed`, `good_mayor_three_alive`.
+ */
+export type WinConditionKind = string;
 
 export interface PendingGameEnd {
   id: string;

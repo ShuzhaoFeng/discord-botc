@@ -681,8 +681,8 @@ export async function startUiServer(
 
     const pendingGameEnds = runtime.pendingGameEnds.map((p) => ({
       id: p.id,
-      conditionKind: p.condition.kind,
-      team: p.condition.team,
+      conditionKind: p.kind,
+      team: p.team,
       preamble: p.preamble,
       winAnnouncement: p.winAnnouncement,
       rolesReveal: p.rolesReveal,

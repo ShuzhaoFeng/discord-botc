@@ -10,21 +10,16 @@ const strings: Record<Lang, Record<string, string>> = {
 
 type TranslationParams = Record<string, string | number>;
 
-let cachedRoleDefsById: Map<
-  string,
-  { id: string; name: Record<Lang, string>; guide: Record<Lang, string> }
-> | null = null;
-let cachedRoleDefs: Array<{
+type CachedRoleDef = {
   id: string;
-  name: Record<Lang, string>;
-  guide: Record<Lang, string>;
-}> | null = null;
+  name: Partial<Record<Lang, string>>;
+  guide: Partial<Record<Lang, string>>;
+};
 
-function ensureRoleDefinitions(): Array<{
-  id: string;
-  name: Record<Lang, string>;
-  guide: Record<Lang, string>;
-}> {
+let cachedRoleDefsById: Map<string, CachedRoleDef> | null = null;
+let cachedRoleDefs: CachedRoleDef[] | null = null;
+
+function ensureRoleDefinitions(): CachedRoleDef[] {
   if (cachedRoleDefs) return cachedRoleDefs;
   // Lazy load to avoid i18n <-> roles circular import at module initialization.
   const { ALL_ROLE_DEFINITIONS } =
@@ -33,10 +28,7 @@ function ensureRoleDefinitions(): Array<{
   return cachedRoleDefs;
 }
 
-function ensureRoleDefById(): Map<
-  string,
-  { id: string; name: Record<Lang, string>; guide: Record<Lang, string> }
-> {
+function ensureRoleDefById(): Map<string, CachedRoleDef> {
   if (cachedRoleDefsById) return cachedRoleDefsById;
   cachedRoleDefsById = new Map(ensureRoleDefinitions().map((r) => [r.id, r]));
   return cachedRoleDefsById;

@@ -13,12 +13,12 @@ import {
   ensureRuntime,
   getAlivePlayers,
   getPlayerState,
-  playerDisplayName,
   getRole,
   resolvePlayer,
   channelLang,
   registersAsTownsfolkForDetection,
 } from "./utils";
+import { playerDisplayName } from "../utils/players";
 import { killPlayer, useGhostVote } from "./death";
 import { processEndOfDay } from "./dayFlow";
 

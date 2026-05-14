@@ -192,6 +192,13 @@ export function TemplatePanel({
 
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-3">
+          {!isDeathConfirmPhase &&
+            !isActionPhase &&
+            (detail.infoMessages ?? []).length === 0 && (
+              <div className="wax-seal px-3 py-2 rounded text-xs text-parchment-2/70">
+                No info messages this night. Confirm to proceed.
+              </div>
+            )}
           {isDeathConfirmPhase
             ? (detail.deathConfirmEntries ?? []).map((entry) => (
                 <DeathConfirmCard

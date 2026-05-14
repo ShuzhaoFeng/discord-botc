@@ -3,14 +3,16 @@ import { getRole } from "../../game/utils";
 import { useTranslation, getLang, t } from "../../i18n";
 import { sendPlayerDM } from "../../utils/sendPlayerDM";
 import { updateGame } from "../../game/state";
-import { TextChannel } from "discord.js";
+import { localize } from "../../utils/roleI18n";
 import en from "./i18n/en.json";
 import zh from "./i18n/zh.json";
 
+const i18n = { en, zh };
+
 export const definition: RoleDefinition = {
   id: "scarlet_woman",
-  name: { en: en.name, zh: zh.name },
-  guide: { en: en.guide, zh: zh.guide },
+  name: localize(i18n, "name"),
+  guide: localize(i18n, "guide"),
   deathHandler: {
     async onDeath({ state, client, deadPlayerId }) {
       const runtime = state.runtime;
@@ -59,16 +61,6 @@ export const definition: RoleDefinition = {
           // Ignore DM failure
         }
       }
-
-      // Announce in the game channel
-      const channel = (await client.channels.fetch(
-        state.channelId,
-      )) as TextChannel;
-      const channelLang = getLang(
-        state.players[0]?.userId ?? "",
-        state.guildId,
-      );
-      await channel.send(t(channelLang, "dayScarletWomanChannelNotify"));
     },
   },
 };
